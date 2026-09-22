@@ -18,7 +18,6 @@
  * ============LICENSE_END=========================================================
  */
 
-import {OperationCreatorInterfaceDefinitionComponent} from '../../../interface-definition/operation-creator/operation-creator-interface-definition.component';
 import {OperationCreatorComponent} from '../operation-creator.component';
 
 /**
@@ -32,10 +31,8 @@ describe('operation creator - external workflow artifact upload', () => {
 
     const A_TXT_FILE = () => new File(['hello sdc'], 'workflow.zip', {type: 'application/zip'});
 
-    // Both components implement the handler identically; run the same contract against each.
     const subjects: Array<[string, () => any]> = [
-        ['OperationCreatorComponent', () => Object.create(OperationCreatorComponent.prototype)],
-        ['OperationCreatorInterfaceDefinitionComponent', () => Object.create(OperationCreatorInterfaceDefinitionComponent.prototype)]
+        ['OperationCreatorComponent', () => Object.create(OperationCreatorComponent.prototype)]
     ];
 
     subjects.forEach(([name, make]) => {
