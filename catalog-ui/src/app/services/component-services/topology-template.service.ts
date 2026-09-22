@@ -241,16 +241,6 @@ export class TopologyTemplateService {
             });
     }
 
-    createServiceAttribute(componentId: string, attributeModel: AttributeBEModel): Observable<AttributeBEModel> {
-        const serverObject = {};
-        serverObject[attributeModel.name] = attributeModel;
-        return this.http.post<AttributeBEModel>(this.baseUrl + 'services/' + componentId + '/attributes', serverObject)
-            .map((res) => {
-                const attribute: AttributeBEModel = new AttributeBEModel(res);
-                return attribute;
-            });
-    }
-
     getServiceProperties(componentId: string): Observable<PropertyBEModel[]> {
         return this.http.get<any>(this.baseUrl + 'services/' + componentId + '/properties')
             .map((res) => {
