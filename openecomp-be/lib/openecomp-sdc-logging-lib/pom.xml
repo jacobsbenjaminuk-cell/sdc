@@ -17,7 +17,6 @@
     <modules>
         <module>openecomp-sdc-logging-api</module>
         <module>openecomp-sdc-logging-core</module>
-        <module>openecomp-sdc-logging-spring</module>
     </modules>
 
 </project>
