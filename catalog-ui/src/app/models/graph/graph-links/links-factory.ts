@@ -24,12 +24,7 @@
 import * as _ from "lodash";
 import {CompositionCiLinkBase} from 'app/models/graph/graph-links/composition-graph-links/composition-ci-link-base';
 import {CompositionCiSimpleLink} from 'app/models/graph/graph-links/composition-graph-links/composition-ci-simple-link';
-import {LinkUcpeHost} from 'app/models/graph/graph-links/composition-graph-links/composition-ci-ucpe-host-link';
-import {CompositionCiUcpeLink} from 'app/models/graph/graph-links/composition-graph-links/composition-ci-ucpe-link';
 import {CompositionCiVLink} from 'app/models/graph/graph-links/composition-graph-links/composition-ci-vl-link';
-import {CompositionCiVlUcpeLink} from 'app/models/graph/graph-links/composition-graph-links/composition-ci-vl-ucpe-link';
-import {ModuleCiLinkBase} from 'app/models/graph/graph-links/module-graph-links/module-ci-link-base';
-import {ModuleCiVlLink} from 'app/models/graph/graph-links/module-graph-links/module-ci-vl-link';
 import {CompositionCiNodeBase} from 'app/models/graph/nodes/composition-graph-nodes/composition-ci-node-base';
 import {Relationship, RelationshipModel} from 'app/models/graph/relationship';
 import {Injectable} from "@angular/core";
@@ -47,27 +42,6 @@ export class LinksFactory {
             newRelation = new CompositionCiVLink(relation, singleRelation);
         } else {
             newRelation = new CompositionCiSimpleLink(relation, singleRelation);
-        }
-
-        return newRelation;
-    };
-
-    public createUcpeHostLink = (relation:RelationshipModel):LinkUcpeHost => {
-        return new LinkUcpeHost(relation);
-    };
-
-    public createVLLink = (relation:RelationshipModel):CompositionCiVLink => {
-        return new CompositionCiVLink(relation);
-    }
-
-    public createModuleGraphLinks = (relation:RelationshipModel, singleRelation:Relationship):ModuleCiLinkBase => {
-
-        let newRelation:ModuleCiLinkBase;
-
-        if (_.includes(singleRelation.relation.relationship.type.toLowerCase(), 'link')) {
-            newRelation = new ModuleCiVlLink(relation, singleRelation);
-        } else {
-            newRelation = new ModuleCiLinkBase(relation, singleRelation);
         }
 
         return newRelation;

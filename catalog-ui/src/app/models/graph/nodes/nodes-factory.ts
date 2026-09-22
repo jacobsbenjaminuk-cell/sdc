@@ -28,7 +28,6 @@ import {CompositionCiNodeService} from './composition-graph-nodes/composition-ci
 import {CompositionCiNodeServiceProxy} from './composition-graph-nodes/composition-ci-node-service-proxy';
 import {CompositionCiNodeServiceSubstitution} from './composition-graph-nodes/composition-ci-node-service-substitution';
 import {NodeUcpe} from './composition-graph-nodes/composition-ci-node-ucpe';
-import {CompositionCiNodeUcpeCp} from './composition-graph-nodes/composition-ci-node-ucpe-cp';
 import {CompositionCiNodeVf} from './composition-graph-nodes/composition-ci-node-vf';
 import {CompositionCiNodeVfc} from './composition-graph-nodes/composition-ci-node-vfc';
 import {CompositionCiNodeVl} from './composition-graph-nodes/composition-ci-node-vl';
@@ -76,10 +75,5 @@ export class NodesFactory {
     public createModuleNode = (module: Module): ModuleNodeBase => {
         return new ModuleNodeBase(module);
     };
-
-    public createUcpeCpNode = (instance: ComponentInstance): CompositionCiNodeCp => {
-
-        return new CompositionCiNodeUcpeCp(instance, this.imageCreator);
-    }
 }
 
