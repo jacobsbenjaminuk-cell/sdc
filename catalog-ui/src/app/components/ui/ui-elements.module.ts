@@ -19,7 +19,6 @@
  */
 
 import {NgModule} from '@angular/core';
-import {NavbarModule} from "./navbar/navbar.module";
 import {DynamicElementModule} from "./dynamic-element/dynamic-element.module";
 import {FormElementsModule} from "./form-components/form-elements.module";
 import {LoaderComponent} from "./loader/loader.component";
@@ -69,7 +68,6 @@ import { ModalImportTypeComponent } from './modal-import-type/modal-import-type.
         FormsModule,
         CommonModule,
         DynamicElementModule,
-        NavbarModule,
         FormElementsModule,
         ModalModule,
         PopoverModule,
@@ -86,7 +84,6 @@ import { ModalImportTypeComponent } from './modal-import-type/modal-import-type.
         SearchBarComponent,
         SearchWithAutoCompleteComponent,
         DynamicElementModule,
-        NavbarModule,
         FormElementsModule,
         ModalModule,
         PopoverModule,
