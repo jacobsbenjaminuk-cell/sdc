@@ -80,13 +80,6 @@ export class AttributesUtils {
         return instanceFeAttributesMap;
     }
 
-    public convertAddAttributeBEToAttributeFE = (property: AttributeBEModel): AttributeFEModel => {
-        const newFEProp: AttributeFEModel = new AttributeFEModel(property); //Convert property to FE
-        this.initValueObjectRef(newFEProp);
-        newFEProp.updateExpandedChildAttributeId(newFEProp.name); //display only the first level of children
-        return newFEProp;
-    }
-
     public createListOrMapChildren = (property:AttributeFEModel | DerivedFEAttribute, key: string, valueObj: any): Array<DerivedFEAttribute> => {
         let newProps: Array<DerivedFEAttribute> = [];
         let parentProp = new DerivedFEAttribute(property, property.attributesName, true, key, valueObj);

@@ -58,7 +58,6 @@ import {OutputsUtils} from "app/pages/attributes-outputs/services/outputs.utils"
 import {AttributesService} from "app/services/attributes.service";
 import {DerivedFEAttribute} from "../../models/attributes-outputs/derived-fe-attribute";
 import {AttributeBEModel} from "../../models/attributes-outputs/attribute-be-model";
-import {AttributeCreatorComponent} from "app/pages/attributes-outputs/attribute-creator/attribute-creator.component";
 import {AttributeRowSelectedEvent} from "app/components/logic/attributes-table/attributes-table.component";
 import { DeclareInputComponent } from '../properties-assignment/declare-input/declare-input.component';
 import {UnsavedChangesAware} from "../../guards/unsaved-changes.guard";
@@ -778,41 +777,6 @@ export class AttributesOutputsComponent implements UnsavedChangesAware {
     }, () => {
       this.loadingAttributes = false;
     });
-  }
-
-  addAttribute = () => {
-    let modalTitle = 'Add Attribute';
-    let modal = this.ModalService.createCustomModal(new ModalModel(
-        'sm',
-        modalTitle,
-        null,
-        [
-          new ButtonModel('Save', 'blue', () => {
-            modal.instance.dynamicContent.instance.isLoading = true;
-            const newAttribute: AttributeBEModel = modal.instance.dynamicContent.instance.attributeModel;
-            this.topologyTemplateService.createServiceAttribute(this.component.uniqueId, newAttribute)
-            .subscribe((response) => {
-              modal.instance.dynamicContent.instance.isLoading = false;
-              const newAttrib: AttributeFEModel = this.attributesUtils.convertAddAttributeBEToAttributeFE(response);
-              this.instanceFeAttributesMap[this.component.uniqueId].push(newAttrib);
-              modal.instance.close();
-            }, (error) => {
-              modal.instance.dynamicContent.instance.isLoading = false;
-              this.notificationsService.push(new NotificationSettings(
-                  'error',
-                  'Failed to add Attribute:' + error,
-                  'Failure',
-                  5000));
-            });
-          }, () => !modal.instance.dynamicContent.instance.checkFormValidForSubmit()),
-          new ButtonModel('Cancel', 'outline grey', () => {
-            modal.instance.close();
-          }),
-        ],
-        null
-    ));
-    this.ModalService.addDynamicContentToModal(modal, AttributeCreatorComponent, {});
-    modal.instance.open();
   }
 
   private isOutput = (instanceType: string): boolean => {
