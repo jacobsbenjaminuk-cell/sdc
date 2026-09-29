@@ -24,6 +24,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -197,6 +198,7 @@ class ResourceUploadServletTest extends JerseyTest {
         user.setUserId(USER_ID);
         user.setRole(Role.ADMIN.name());
         when(userBusinessLogic.getUser(USER_ID)).thenReturn(user);
+        USER.setRole(Role.ADMIN.name());
     }
 
     @Test
@@ -320,6 +322,21 @@ class ResourceUploadServletTest extends JerseyTest {
         final Response response = doValidCallToBulkImport(userId);
 
         assertThat(response.getStatus()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR_500);
+    }
+
+    @Test
+    void bulkImportFailTest_nonAdminUser() throws IOException, ParseException {
+        final var designerId = "designer";
+        final var designer = new User(designerId);
+        designer.setRole(Role.DESIGNER.name());
+        when(userBusinessLogic.getUser(designerId, false)).thenReturn(designer);
+        when(responseFormat.getStatus()).thenReturn(HttpStatus.FORBIDDEN_403);
+        when(componentsUtils.getResponseFormat(ActionStatus.RESTRICTED_OPERATION)).thenReturn(responseFormat);
+
+        final Response response = doValidCallToBulkImport(designerId);
+
+        verify(resourceImportManager, never()).importAllNormativeResource(anyString(), any(), any(), anyBoolean(), anyBoolean());
+        assertThat(response.getStatus()).isEqualTo(HttpStatus.FORBIDDEN_403);
     }
 
     private Response doValidCallToBulkImport(final String userId) throws IOException, ParseException {

@@ -181,6 +181,11 @@ public class ResourceUploadServlet extends AbstractValidationsServlet {
         }
 
         final User user = userEither.left().value();
+        final Wrapper<Response> responseWrapper = new Wrapper<>();
+        validateUserRole(responseWrapper, user, ResourceAuthorityTypeEnum.NORMATIVE_TYPE_BE);
+        if (!responseWrapper.isEmpty()) {
+            return responseWrapper.getInnerElement();
+        }
 
         final String nodeTypesYamlString;
         try {
