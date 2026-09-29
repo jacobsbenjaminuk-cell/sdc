@@ -3908,9 +3908,13 @@ public class ComponentInstanceBusinessLogic extends BaseBusinessLogic {
                                                                   List<String> componentInstanceIdList, String userId) {
         List<String> deleteErrorIds = new ArrayList<>();
         Map<String, List<String>> deleteErrorMap = new HashMap<>();
+        if (StringUtils.isBlank(userId)) {
+            throw new ByActionStatusComponentException(ActionStatus.MISSING_USER_ID);
+        }
         validateUserExists(userId);
         org.openecomp.sdc.be.model.Component containerComponent = validateComponentExists(componentId,
             ComponentTypeEnum.findByParamName(containerComponentType), null);
+        validateCanWorkOnComponent(containerComponent, userId);
         boolean failed = false;
         try {
             lockComponent(containerComponent, "batchDeleteComponentInstance");
