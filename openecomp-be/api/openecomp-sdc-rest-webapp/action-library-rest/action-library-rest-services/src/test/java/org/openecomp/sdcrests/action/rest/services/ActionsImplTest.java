@@ -28,9 +28,13 @@ import static org.openecomp.sdc.action.ActionConstants.X_OPEN_ECOMP_REQUEST_ID_H
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 import javax.activation.DataHandler;
 import javax.activation.DataSource;
 import javax.servlet.http.HttpServletRequest;
@@ -301,6 +305,24 @@ public class ActionsImplTest {
         when(actionManager.downloadArtifact(anyString(), anyString())).thenReturn(actionArtifact);
         Response response = action.downloadArtifact("actionUUID", "artifactUUID", request);
         Assert.assertEquals(200, response.getStatus());
+    }
+
+    @Test
+    public void testDownloadArtifactShouldReturnBytesWithoutWritingFileToWorkingDirectory() {
+        byte[] content = "artifact-content".getBytes(StandardCharsets.UTF_8);
+        String artifactName = "download-test-" + UUID.randomUUID() + ".txt";
+        ActionArtifact actionArtifact = new ActionArtifact();
+        actionArtifact.setArtifactUuId("artifactUUID");
+        actionArtifact.setArtifact(content);
+        actionArtifact.setArtifactName(artifactName);
+
+        when(actionManager.downloadArtifact(anyString(), anyString())).thenReturn(actionArtifact);
+        Response response = action.downloadArtifact("actionUUID", "artifactUUID", request);
+
+        Assert.assertEquals(200, response.getStatus());
+        Assert.assertArrayEquals(content, (byte[]) response.getEntity());
+        Assert.assertEquals(String.valueOf(content.length), response.getHeaderString("Content-Length"));
+        Assert.assertFalse(Files.exists(Paths.get(artifactName)));
     }
 
     @Test(expected = ActionException.class)
