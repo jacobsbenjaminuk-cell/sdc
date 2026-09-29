@@ -37,6 +37,7 @@ import javax.inject.Inject;
 import javax.servlet.ServletContext;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Consumes;
+import javax.ws.rs.HeaderParam;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
@@ -50,6 +51,7 @@ import org.openecomp.sdc.be.components.impl.ArtifactsBusinessLogic;
 import org.openecomp.sdc.be.components.impl.GenericArtifactBrowserBusinessLogic;
 import org.openecomp.sdc.be.impl.ComponentsUtils;
 import org.openecomp.sdc.be.info.GenericArtifactQueryInfo;
+import org.openecomp.sdc.common.api.Constants;
 import org.openecomp.sdc.common.log.wrappers.Logger;
 import org.owasp.esapi.ESAPI;
 import org.springframework.stereotype.Controller;
@@ -82,11 +84,13 @@ public class GenericArtifactBrowserServlet extends BeGenericServlet {
         @ApiResponse(responseCode = "200", description = "Returned yaml entries"),
         @ApiResponse(responseCode = "400", description = "Invalid content / Missing content")})
     public Response searchFor(@Parameter(description = "Generic Artifact search model", required = true) GenericArtifactQueryInfo query,
-                              @Context final HttpServletRequest request) {
+                              @Context final HttpServletRequest request,
+                              @HeaderParam(value = Constants.USER_ID_HEADER) String userId) {
         try {
             ServletContext context = request.getSession().getServletContext();
             ImmutablePair<String, byte[]> immutablePairResponseFormatEither = getArtifactBL(context)
-                .downloadArtifact(ESAPI.encoder().canonicalize(query.getParentId()), ESAPI.encoder().canonicalize(query.getArtifactUniqueId()));
+                .downloadComponentArtifact(ESAPI.encoder().canonicalize(query.getParentId()),
+                    ESAPI.encoder().canonicalize(query.getArtifactUniqueId()), userId);
             GABQuery gabQuery = prepareGabQuery(query, immutablePairResponseFormatEither);
             return buildOkResponse(getGenericArtifactBrowserBL(context).searchFor(gabQuery));
         } catch (IOException e) {

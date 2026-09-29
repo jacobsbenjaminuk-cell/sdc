@@ -2583,19 +2583,22 @@ public class ArtifactsBusinessLogic extends BaseBusinessLogic {
         return downloadArtifactEither.getRight();
     }
 
-    public ImmutablePair<String, byte[]> downloadArtifact(String parentId, String artifactUniqueId) {
+    public ImmutablePair<String, byte[]> downloadComponentArtifact(String componentId, String artifactUniqueId, String userId) {
         log.trace("Starting download of artifact, uniqueId {}", artifactUniqueId);
-        Either<ArtifactDefinition, StorageOperationStatus> artifactById = artifactToscaOperation.getArtifactById(parentId, artifactUniqueId);
-        if (artifactById.isRight()) {
-            ActionStatus actionStatus = componentsUtils.convertFromStorageResponse(artifactById.right().value());
-            log.debug("Error when getting artifact info by id{}, error: {}", artifactUniqueId, actionStatus);
-            throw new ByResponseFormatComponentException(componentsUtils.getResponseFormatByArtifactId(actionStatus, ""));
+        if (StringUtils.isEmpty(userId)) {
+            log.debug("downloadComponentArtifact - no USER_ID header, component id {}", componentId);
+            throw new ByActionStatusComponentException(ActionStatus.MISSING_USER_ID);
         }
-        ArtifactDefinition artifactDefinition = artifactById.left().value();
-        if (artifactDefinition == null) {
-            log.debug("Empty artifact definition returned from DB by artifact id {}", artifactUniqueId);
-            throw new ByResponseFormatComponentException(componentsUtils.getResponseFormat(ActionStatus.ARTIFACT_NOT_FOUND, ""));
+        validateUserExists(userId);
+        Either<Component, StorageOperationStatus> componentResult = toscaOperationFacade.getToscaFullElement(componentId);
+        if (componentResult.isRight()) {
+            ActionStatus actionStatus = componentsUtils.convertFromStorageResponse(componentResult.right().value());
+            log.debug("Error when getting component by id {}, error: {}", componentId, actionStatus);
+            throw new ByActionStatusComponentException(actionStatus, componentId);
         }
+        Component component = componentResult.left().value();
+        ArtifactDefinition artifactDefinition = getArtifactIfBelongsToComponent(componentId, component.getComponentType(), artifactUniqueId,
+            component);
         return downloadArtifact(artifactDefinition);
     }
 
