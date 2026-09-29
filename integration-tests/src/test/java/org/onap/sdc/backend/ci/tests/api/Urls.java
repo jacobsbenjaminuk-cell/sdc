@@ -45,9 +45,6 @@ public interface Urls {
 
 	final String GET_HEALTH_CHECK_VIA_PROXY = SDC_HTTP_METHOD + "://%s:%s/sdc1/rest/healthCheck";
 
-	// Get back-end config http://172.20.43.132:8080/sdc2/rest/configmgr/get
-	final String GET_CONFIG_MANAGER = SDC_HTTP_METHOD + "://%s:%s/sdc2/rest/configmgr/get";
-
 	// Get latest version of all non-abstract resources
 	final String GET_RESOURCE_lATEST_VERSION = SDC_HTTP_METHOD + "://%s:%s/sdc2/rest/v1/catalog/resources/latestversion/notabstract";
 
