@@ -29,12 +29,14 @@ import io.swagger.v3.oas.annotations.servers.Server;
 import io.swagger.v3.oas.annotations.servers.Servers;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.tags.Tags;
+import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
+import javax.ws.rs.HeaderParam;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
@@ -45,9 +47,14 @@ import javax.ws.rs.core.Response;
 import org.openecomp.sdc.be.components.impl.ComponentInstanceBusinessLogic;
 import org.openecomp.sdc.be.components.impl.ResourceImportManager;
 import org.openecomp.sdc.be.components.impl.TogglingBusinessLogic;
+import org.openecomp.sdc.be.components.impl.exceptions.ComponentException;
+import org.openecomp.sdc.be.components.validation.UserValidations;
 import org.openecomp.sdc.be.dao.api.ActionStatus;
 import org.openecomp.sdc.be.impl.ComponentsUtils;
 import org.openecomp.sdc.be.impl.ServletUtils;
+import org.openecomp.sdc.be.model.User;
+import org.openecomp.sdc.be.user.Role;
+import org.openecomp.sdc.common.api.Constants;
 import org.openecomp.sdc.common.log.wrappers.Logger;
 
 @Loggable(prepend = true, value = Loggable.DEBUG, trim = false)
@@ -62,12 +69,15 @@ public class TogglingServlet extends AbstractValidationsServlet {
     private static final String START_HANDLE_REQUEST_OF = "Start handle request of {}";
     private static final String FEATURE_STATE_WAS_UPDATED_SUCCESSFULLY = "Feature state was updated successfully";
     private final TogglingBusinessLogic togglingBusinessLogic;
+    private final UserValidations userValidations;
 
     @Inject
     public TogglingServlet(ComponentInstanceBusinessLogic componentInstanceBL, ComponentsUtils componentsUtils,
-                           ServletUtils servletUtils, ResourceImportManager resourceImportManager, TogglingBusinessLogic togglingBusinessLogic) {
+                           ServletUtils servletUtils, ResourceImportManager resourceImportManager, TogglingBusinessLogic togglingBusinessLogic,
+                           UserValidations userValidations) {
         super(componentInstanceBL, componentsUtils, servletUtils, resourceImportManager);
         this.togglingBusinessLogic = togglingBusinessLogic;
+        this.userValidations = userValidations;
     }
 
     @GET
@@ -119,12 +129,16 @@ public class TogglingServlet extends AbstractValidationsServlet {
         @ApiResponse(responseCode = "200", description = "Success"), @ApiResponse(responseCode = "403", description = "Restricted operation"),
         @ApiResponse(responseCode = "400", description = "Invalid content / Missing content"),
         @ApiResponse(responseCode = "404", description = "Toggleable features not found")})
-    public Response setAllFeatures(@PathParam("state") boolean state, @Context final HttpServletRequest request) {
+    public Response setAllFeatures(@PathParam("state") boolean state, @Context final HttpServletRequest request,
+                                   @HeaderParam(value = Constants.USER_ID_HEADER) final String userId) {
         String url = request.getMethod() + " " + request.getRequestURI();
         log.debug(START_HANDLE_REQUEST_OF, url);
         try {
+            validateAdminUser(userId);
             togglingBusinessLogic.setAllFeatures(state);
             return buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.OK), ALL_FEATURES_STATES_WERE_SET_SUCCESSFULLY);
+        } catch (ComponentException e) {
+            return buildErrorResponse(getComponentsUtils().getResponseFormat(e));
         } catch (Exception e) {
             return buildErrorResponse(getComponentsUtils().getResponseFormat(ActionStatus.GENERAL_ERROR));
         }
@@ -140,14 +154,23 @@ public class TogglingServlet extends AbstractValidationsServlet {
         @ApiResponse(responseCode = "400", description = "Invalid content / Missing content"),
         @ApiResponse(responseCode = "404", description = "Toggleable features not found")})
     public Response updateFeatureState(@PathParam("featureName") String featureName, @PathParam("state") boolean state,
-                                       @Context final HttpServletRequest request) {
+                                       @Context final HttpServletRequest request,
+                                       @HeaderParam(value = Constants.USER_ID_HEADER) final String userId) {
         String url = request.getMethod() + " " + request.getRequestURI();
         log.debug("(get) Start handle request of {}", url);
         try {
+            validateAdminUser(userId);
             togglingBusinessLogic.updateFeatureState(featureName, state);
             return buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.OK), FEATURE_STATE_WAS_UPDATED_SUCCESSFULLY);
+        } catch (ComponentException e) {
+            return buildErrorResponse(getComponentsUtils().getResponseFormat(e));
         } catch (Exception e) {
             return buildErrorResponse(getComponentsUtils().getResponseFormat(ActionStatus.GENERAL_ERROR));
         }
+    }
+
+    private void validateAdminUser(final String userId) {
+        userValidations.validateUserNotEmpty(new User(userId), "Update feature toggle state");
+        userValidations.validateUserRole(userValidations.validateUserExists(userId), List.of(Role.ADMIN));
     }
 }
