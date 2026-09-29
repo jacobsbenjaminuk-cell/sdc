@@ -302,6 +302,9 @@ public class ExternalTestingManagerImplTest {
     Assert.assertFalse(ExternalTestingManagerImpl.isValidEndpointUrl("file:///etc/passwd"));
     Assert.assertFalse(ExternalTestingManagerImpl.isValidEndpointUrl("gopher://vtp.example.com"));
     Assert.assertFalse(ExternalTestingManagerImpl.isValidEndpointUrl("not a url"));
+    Assert.assertFalse(ExternalTestingManagerImpl.isValidEndpointUrl("http://vtp.example.com:abc/path"));
+    Assert.assertFalse(ExternalTestingManagerImpl.isValidEndpointUrl("http://vtp.example.com:99999/path"));
+    Assert.assertFalse(ExternalTestingManagerImpl.isValidEndpointUrl("http://vtp.example.com:0/path"));
   }
 
   @Test

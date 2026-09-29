@@ -98,6 +98,7 @@ public class ExternalTestingManagerImpl implements ExternalTestingManager {
     private static final String TESTING_HTTP_ERROR_CODE = "SDC-TEST-004";
     private static final String SDC_RESOLVER_ERR = "SDC-TEST-005";
     private static final String UNEXPECTED_ENDPOINT_RESPONSE = "Unexpected response from testing endpoint";
+    private static final int MAX_PORT = 65535;
     private static final String VSP_CSAR = "vsp";
     private static final String VSP_HEAT = "vsp-zip";
     private Logger logger = LoggerFactory.getLogger(ExternalTestingManagerImpl.class);
@@ -169,8 +170,10 @@ public class ExternalTestingManagerImpl implements ExternalTestingManager {
         try {
             URI uri = new URI(url);
             String scheme = uri.getScheme();
+            int port = uri.getPort();
             return ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) && StringUtils.isNotBlank(uri.getHost())
-                && uri.getRawUserInfo() == null && uri.getRawQuery() == null && uri.getRawFragment() == null;
+                && (port == -1 || (port > 0 && port <= MAX_PORT)) && uri.getRawUserInfo() == null && uri.getRawQuery() == null
+                && uri.getRawFragment() == null;
         } catch (URISyntaxException e) {
             return false;
         }
