@@ -167,6 +167,25 @@ public class DataTypeBusinessLogicTest {
     }
 
     @Test
+    public void test_deletePrivateDataType_alreadyDeletedBeforeLock() throws Exception {
+        Service serviceAfterConcurrentDelete = new Service();
+        serviceAfterConcurrentDelete.setUniqueId(COMPONENT_INSTANCE_ID);
+        serviceAfterConcurrentDelete.setDataTypes(Collections.emptyList());
+        when(toscaOperationFacadeMock.getToscaElement(eq(COMPONENT_ID), Mockito.any(ComponentParametersView.class)))
+            .thenReturn(Either.left(service))
+            .thenReturn(Either.left(serviceAfterConcurrentDelete));
+        when(graphLockOperationMock.lockComponent(COMPONENT_ID, NodeTypeEnum.Service)).thenReturn(StorageOperationStatus.OK);
+
+        Either<DataTypeDefinition, StorageOperationStatus> result =
+            testInstance.deletePrivateDataType(COMPONENT_ID, DATATYPE_NAME);
+        assertTrue(result.isRight());
+        assertEquals(StorageOperationStatus.NOT_FOUND, result.right().value());
+        verify(toscaOperationFacadeMock, Mockito.never()).deleteDataTypeOfComponent(any(), any());
+        verify(janusGraphDaoMock).rollback();
+        verify(graphLockOperationMock).unlockComponent(serviceAfterConcurrentDelete.getUniqueId(), NodeTypeEnum.Service);
+    }
+
+    @Test
     public void test_deletePrivateDataType2() throws Exception {
         when(toscaOperationFacadeMock.deleteDataTypeOfComponent(service, DATATYPE_NAME))
             .thenReturn(StorageOperationStatus.OK);

@@ -123,7 +123,11 @@ public class DataTypeBusinessLogic extends BaseBusinessLogic {
         lockComponent(componentId, component, "deletePrivateDataType");
         boolean failed = true;
         try {
-            Either<DataTypeDefinition, StorageOperationStatus> deleteResult = deletePrivateDataType(component, dataTypeName);
+            Either<? extends Component, StorageOperationStatus> lockedComponentResult = toscaOperationFacade.getToscaElement(componentId, filter);
+            if (lockedComponentResult.isRight()) {
+                return Either.right(lockedComponentResult.right().value());
+            }
+            Either<DataTypeDefinition, StorageOperationStatus> deleteResult = deletePrivateDataType(lockedComponentResult.left().value(), dataTypeName);
             failed = deleteResult.isRight();
             return deleteResult;
         } finally {
