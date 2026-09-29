@@ -18,18 +18,19 @@ SDC_CERT_DIR="onap/cert"
 RELEASE=latest
 
 LOCAL=false
-BE_DEBUG_PORT="--publish 4000:4000"
-FE_DEBUG_PORT="--publish 6000:6000"
-ONBOARD_DEBUG_PORT="--publish 4001:4001"
+DEBUG=false
+BE_DEBUG_PORT=""
+FE_DEBUG_PORT=""
+ONBOARD_DEBUG_PORT=""
 CS_PORT=${CS_PORT:-9042}
 
 OS_USER="onap"
 
 
 # Java Options:
-BE_JAVA_OPTIONS="-Xdebug -agentlib:jdwp=transport=dt_socket,address=*:4000,server=y,suspend=n -Xmx1536m -Xms1536m"
-FE_JAVA_OPTIONS="-Xdebug -agentlib:jdwp=transport=dt_socket,address=*:6000,server=y,suspend=n -Xmx256m -Xms256m"
-ONBOARD_BE_JAVA_OPTIONS="-Xdebug -agentlib:jdwp=transport=dt_socket,address=*:4001,server=y,suspend=n -Xmx1g -Xms1g"
+BE_JAVA_OPTIONS="-Xmx1536m -Xms1536m"
+FE_JAVA_OPTIONS="-Xmx256m -Xms256m"
+ONBOARD_BE_JAVA_OPTIONS="-Xmx1g -Xms1g"
 SIM_JAVA_OPTIONS=" -Xmx128m -Xms128m -Xss1m -Dlog4j.configuration=file:///${JETTY_BASE}/config/sdc-simulator/log4j2.properties"
 API_TESTS_JAVA_OPTIONS="-Xmx512m -Xms512m"
 UI_TESTS_JAVA_OPTIONS="-Xmx1024m -Xms1024m"
@@ -47,9 +48,10 @@ fi
 
 
 function usage {
-    echo "usage: docker_run.sh [ -r|--release <RELEASE-NAME> ] [ -e|--environment <ENV-NAME> ] [ -p|--port <Docker-hub-port>] [ -l|--local <Run-without-pull>] [ -sim|--simulator <Run-with-simulator>] [ -ta <run api tests with the supplied test suit>] [ -tu <run ui tests with the supplied test suit>] [ -ta <run api tests with the supplied test suit>] [ -tu <run ui tests with the supplied test suit>] [ -tad <run api tests with the default test suit>] [ -tu <run ui tests with the default test suit>] [ -h|--help ]"
+    echo "usage: docker_run.sh [ -r|--release <RELEASE-NAME> ] [ -e|--environment <ENV-NAME> ] [ -p|--port <Docker-hub-port>] [ -l|--local <Run-without-pull>] [ --debug <Enable-JDWP-on-host-loopback>] [ -sim|--simulator <Run-with-simulator>] [ -ta <run api tests with the supplied test suit>] [ -tu <run ui tests with the supplied test suit>] [ -ta <run api tests with the supplied test suit>] [ -tu <run ui tests with the supplied test suit>] [ -tad <run api tests with the default test suit>] [ -tu <run ui tests with the default test suit>] [ -h|--help ]"
     echo "start dockers built locally example: docker_run.sh -l"
     echo "start dockers built locally and simulator example: docker_run.sh -l -sim"
+    echo "start dockers built locally with JDWP debug ports on 127.0.0.1 (BE 4000, onboard 4001, FE 6000) example: docker_run.sh -l --debug"
     echo "start dockers, pull from onap nexus according to release and simulator example: docker_run.sh -r 1.5-STAGING-latest -sim"
     echo "start dockers built locally and run api tests docker example: docker_run.sh -l -tad"
     echo "start dockers built locally and run only the catalog be example: docker_run.sh -l -d sdc-BE "
@@ -318,8 +320,6 @@ function sdc-BE {
     echo "Running container '$DOCKER_NAME' based on image '$IMAGE_FULL_NAME'..."
     if [ ${LOCAL} = false ]; then
       docker pull "$IMAGE_FULL_NAME"
-    else
-      ADDITIONAL_ARGUMENTS=${BE_DEBUG_PORT}
     fi
 
     docker run --detach --name ${DOCKER_NAME} --env HOST_IP=${IP} \
@@ -330,7 +330,7 @@ function sdc-BE {
     --volume ${WORKSPACE}/data/environments:${JETTY_BASE}/chef-solo/environments \
     --volume "${WORKSPACE}/data/sdc-backend/plugins":${JETTY_BASE}/plugins \
     --publish 8443:8443 --publish 8080:8080 \
-    ${ADDITIONAL_ARGUMENTS} \
+    ${BE_DEBUG_PORT} \
     "$IMAGE_FULL_NAME"
 
     command_exit_status $? ${DOCKER_NAME}
@@ -363,10 +363,8 @@ function sdc-onboard-BE {
 #    dir_perms
     if [ ${LOCAL} = false ]; then
         docker pull ${PREFIX}/sdc-onboard-backend:${RELEASE}
-    else
-        ADDITIONAL_ARGUMENTS=${ONBOARD_DEBUG_PORT}
     fi
-    docker run --detach --name ${DOCKER_NAME} --env HOST_IP=${IP} --env ENVNAME="${DEP_ENV}" --env cassandra_ssl_enabled="false" --env SDC_CLUSTER_NAME="SDC-CS-${DEP_ENV}" --env SDC_USER="${SDC_USER}" --env SDC_PASSWORD="${SDC_PASSWORD}" --env SDC_CERT_DIR="${SDC_CERT_DIR}" --env JAVA_OPTIONS="${ONBOARD_BE_JAVA_OPTIONS}" --log-driver=json-file --log-opt max-size=100m --log-opt max-file=10 --ulimit memlock=-1:-1 --ulimit nofile=4096:100000 ${LOCAL_TIME_MOUNT_CMD} --volume ${WORKSPACE}/data/${SDC_CERT_DIR}:${JETTY_BASE}/onap/cert --volume ${WORKSPACE}/data/logs/ONBOARD:${JETTY_BASE}/logs --volume ${WORKSPACE}/data/environments:/${JETTY_BASE}/chef-solo/environments --publish 8445:8445 --publish 8081:8081 ${ADDITIONAL_ARGUMENTS} ${PREFIX}/sdc-onboard-backend:${RELEASE}
+    docker run --detach --name ${DOCKER_NAME} --env HOST_IP=${IP} --env ENVNAME="${DEP_ENV}" --env cassandra_ssl_enabled="false" --env SDC_CLUSTER_NAME="SDC-CS-${DEP_ENV}" --env SDC_USER="${SDC_USER}" --env SDC_PASSWORD="${SDC_PASSWORD}" --env SDC_CERT_DIR="${SDC_CERT_DIR}" --env JAVA_OPTIONS="${ONBOARD_BE_JAVA_OPTIONS}" --log-driver=json-file --log-opt max-size=100m --log-opt max-file=10 --ulimit memlock=-1:-1 --ulimit nofile=4096:100000 ${LOCAL_TIME_MOUNT_CMD} --volume ${WORKSPACE}/data/${SDC_CERT_DIR}:${JETTY_BASE}/onap/cert --volume ${WORKSPACE}/data/logs/ONBOARD:${JETTY_BASE}/logs --volume ${WORKSPACE}/data/environments:/${JETTY_BASE}/chef-solo/environments --publish 8445:8445 --publish 8081:8081 ${ONBOARD_DEBUG_PORT} ${PREFIX}/sdc-onboard-backend:${RELEASE}
     command_exit_status $? ${DOCKER_NAME}
     echo "please wait while sdc-onboard-BE is starting..."
     monitor_docker ${DOCKER_NAME}
@@ -381,8 +379,6 @@ function sdc-FE {
     echo "Running container '${DOCKER_NAME}' based on '${IMAGE_NAME}' image..."
     if [ ${LOCAL} = false ]; then
         docker pull ${PREFIX}/sdc-frontend:${RELEASE}
-    else
-        ADDITIONAL_ARGUMENTS=${FE_DEBUG_PORT}
     fi
 
     PLUGIN_CONFIG_FILE="${WORKSPACE}/data/environments/plugins-configuration.yaml"
@@ -409,7 +405,7 @@ function sdc-FE {
     ${PLUGINS_CONF_VOLUME_MOUNT} \
     --publish 9443:9443 \
     --publish 8181:8181 \
-    ${ADDITIONAL_ARGUMENTS} \
+    ${FE_DEBUG_PORT} \
     ${IMAGE_NAME}
 
     command_exit_status $? ${DOCKER_NAME}
@@ -525,6 +521,11 @@ while [ $# -gt 0 ]; do
           LOCAL=true;
           shift 1;;
 
+	# --debug - Enable JDWP in the BE, onboard BE and FE JVMs, published on the host loopback interface only
+    --debug )
+          DEBUG=true;
+          shift 1;;
+
 	# -ta - Use this for running the APIs sanity docker after all other dockers have been deployed
     -ta  )
           shift 1 ;
@@ -577,6 +578,16 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+
+if [ ${DEBUG} = true ]; then
+    JDWP_OPTIONS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n"
+    BE_JAVA_OPTIONS="${JDWP_OPTIONS},address=*:4000 ${BE_JAVA_OPTIONS}"
+    ONBOARD_BE_JAVA_OPTIONS="${JDWP_OPTIONS},address=*:4001 ${ONBOARD_BE_JAVA_OPTIONS}"
+    FE_JAVA_OPTIONS="${JDWP_OPTIONS},address=*:6000 ${FE_JAVA_OPTIONS}"
+    BE_DEBUG_PORT="--publish 127.0.0.1:4000:4000"
+    ONBOARD_DEBUG_PORT="--publish 127.0.0.1:4001:4001"
+    FE_DEBUG_PORT="--publish 127.0.0.1:6000:6000"
+fi
 
 #Prefix those with WORKSPACE so it can be set to something other than /opt
 [ -f ${WORKSPACE}/opt/config/env_name.txt ] && DEP_ENV=$(cat ${WORKSPACE}/opt/config/env_name.txt) || echo ${DEP_ENV}
