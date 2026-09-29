@@ -95,8 +95,6 @@ import static org.openecomp.sdc.action.util.ActionUtil.actionErrorLogProcessor;
 import static org.openecomp.sdc.action.util.ActionUtil.actionLogPostProcessor;
 import static org.openecomp.sdc.action.util.ActionUtil.getUtcDateStringFromTimestamp;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -1029,18 +1027,10 @@ public class ActionsImpl implements Actions {
     private Response createArtifactDownloadResponse(ActionArtifact actionartifact) {
         if (actionartifact != null && actionartifact.getArtifact() != null) {
             byte[] artifactsBytes = actionartifact.getArtifact();
-            File artifactFile = new File(actionartifact.getArtifactName());
-            try (FileOutputStream fos = new FileOutputStream(artifactFile)) {
-                fos.write(artifactsBytes);
-            } catch (IOException exception) {
-                LOGGER.error(ACTION_ENTITY_INTERNAL_SERVER_ERROR_MSG, exception);
-                throw new ActionException(ActionErrorConstants.ACTION_INTERNAL_SERVER_ERR_CODE,
-                    ActionErrorConstants.ACTION_ENTITY_INTERNAL_SERVER_ERROR_MSG);
-            }
-            Response.ResponseBuilder responseBuilder = Response.ok(artifactFile);
+            Response.ResponseBuilder responseBuilder = Response.ok(artifactsBytes);
             responseBuilder.header("Content-Disposition", "attachment; filename=" + actionartifact.getArtifactName());
             responseBuilder.header("Content-MD5", CalcMD5CheckSum(artifactsBytes));
-            responseBuilder.header("Content-Length", artifactFile.length());
+            responseBuilder.header("Content-Length", artifactsBytes.length);
             return responseBuilder.build();
         } else {
             throw new ActionException(ActionErrorConstants.ACTION_ARTIFACT_ENTITY_NOT_EXIST_CODE,
