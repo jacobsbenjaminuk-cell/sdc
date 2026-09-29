@@ -45,6 +45,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -110,6 +111,7 @@ import org.openecomp.sdc.be.datatypes.elements.ToscaFunctionType;
 import org.openecomp.sdc.be.datatypes.elements.ToscaGetFunctionDataDefinition;
 import org.openecomp.sdc.be.datatypes.enums.ComponentFieldsEnum;
 import org.openecomp.sdc.be.datatypes.enums.ComponentTypeEnum;
+import org.openecomp.sdc.be.datatypes.enums.GraphPropertyEnum;
 import org.openecomp.sdc.be.datatypes.enums.JsonPresentationFields;
 import org.openecomp.sdc.be.datatypes.enums.ModelTypeEnum;
 import org.openecomp.sdc.be.datatypes.enums.NodeTypeEnum;
@@ -1510,13 +1512,18 @@ public class ServiceBusinessLogic extends ComponentBusinessLogic {
     }
 
     public void deleteServiceAllVersions(String serviceId, User user) {
-        validateUserExists(user);
+        user = validateUserExists(user);
+        validateUserRole(user, Arrays.asList(Role.ADMIN, Role.DESIGNER));
         Either<Service, StorageOperationStatus> serviceStatus = toscaOperationFacade.getToscaElement(serviceId);
         if (serviceStatus.isRight()) {
             log.debug("Failed to get service {}", serviceId);
             componentException(serviceStatus.right().value());
         }
         Service service = serviceStatus.left().value();
+        if (!isAdmin(user) && !user.getUserId().equals(getHighestVersion(service).getLastUpdaterUserId())) {
+            log.info("Restricted operation for user: {}, on service: {}", user.getUserId(), serviceId);
+            throw new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION);
+        }
         if (Boolean.FALSE.equals(service.isArchived())) {
             log.debug("The service, {}, requested for delete has not been archived.", serviceId);
             throw new ComponentException(ActionStatus.COMPONENT_NOT_ARCHIVED, serviceId);
@@ -1564,13 +1571,18 @@ public class ServiceBusinessLogic extends ComponentBusinessLogic {
 
     public ResponseFormat markServiceForDeletion(String serviceId, User user) {
         ResponseFormat responseFormat;
-        validateUserExists(user);
+        user = validateUserExists(user);
+        validateUserRole(user, Arrays.asList(Role.ADMIN, Role.DESIGNER));
         Either<Service, StorageOperationStatus> serviceStatus = toscaOperationFacade.getToscaElement(serviceId);
         if (serviceStatus.isRight()) {
             log.debug("failed to get service {}", serviceId);
             return componentsUtils.getResponseFormat(componentsUtils.convertFromStorageResponse(serviceStatus.right().value()), "");
         }
         Service service = serviceStatus.left().value();
+        if (!isAdmin(user) && !ComponentValidationUtils.canWorkOnComponent(service, user.getUserId())) {
+            log.info("Restricted operation for user: {}, on service: {}", user.getUserId(), serviceId);
+            return componentsUtils.getResponseFormat(ActionStatus.RESTRICTED_OPERATION);
+        }
         StorageOperationStatus result = StorageOperationStatus.OK;
         try {
             lockComponent(service, "Mark service to delete");
@@ -1597,16 +1609,40 @@ public class ServiceBusinessLogic extends ComponentBusinessLogic {
         }
     }
 
+    private boolean isAdmin(User user) {
+        return Role.ADMIN.name().equals(user.getRole());
+    }
+
+    private Component getHighestVersion(Service service) {
+        if (Boolean.TRUE.equals(service.isHighestVersion())) {
+            return service;
+        }
+        Map<GraphPropertyEnum, Object> highestVersionFilter = new EnumMap<>(GraphPropertyEnum.class);
+        highestVersionFilter.put(GraphPropertyEnum.IS_HIGHEST_VERSION, true);
+        Either<List<Component>, StorageOperationStatus> highestVersions = toscaOperationFacade
+            .getComponentListByInvariantUuid(service.getInvariantUUID(), highestVersionFilter);
+        if (highestVersions.isRight()) {
+            log.debug("Failed to get highest version of service {}", service.getUniqueId());
+            componentException(highestVersions.right().value());
+        }
+        return highestVersions.left().value().get(0);
+    }
+
     public ResponseFormat deleteServiceByNameAndVersion(String serviceName, String version, User user) {
         ResponseFormat responseFormat;
         String ecompErrorContext = "delete service";
         validateUserNotEmpty(user, ecompErrorContext);
         user = validateUserExists(user);
+        validateUserRole(user, Arrays.asList(Role.ADMIN, Role.DESIGNER));
         Either<Service, ResponseFormat> getResult = getServiceByNameAndVersion(serviceName, version, user.getUserId());
         if (getResult.isRight()) {
             return getResult.right().value();
         }
         Service service = getResult.left().value();
+        if (!isAdmin(user) && !ComponentValidationUtils.canWorkOnComponent(service, user.getUserId())) {
+            log.info("Restricted operation for user: {}, on service: {}", user.getUserId(), service.getUniqueId());
+            return componentsUtils.getResponseFormat(ActionStatus.RESTRICTED_OPERATION);
+        }
         StorageOperationStatus result = StorageOperationStatus.OK;
         try {
             lockComponent(service, "Mark service to delete");
