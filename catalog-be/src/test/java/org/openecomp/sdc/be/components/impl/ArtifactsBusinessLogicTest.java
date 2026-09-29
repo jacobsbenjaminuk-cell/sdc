@@ -2442,6 +2442,68 @@ public class ArtifactsBusinessLogicTest extends BaseBusinessLogicMock {
         Assert.assertEquals(esArtifactData.getDataAsArray(), result);
     }
 
+    @Test
+    public void testDownloadComponentArtifact_missingUserId_throwsMissingUserId() {
+        assertThatThrownBy(() -> artifactBL.downloadComponentArtifact("componentId", "artifactId", null))
+            .isInstanceOf(ByActionStatusComponentException.class)
+            .extracting(e -> ((ByActionStatusComponentException) e).getActionStatus())
+            .isEqualTo(ActionStatus.MISSING_USER_ID);
+        verify(toscaOperationFacade, Mockito.never()).getToscaFullElement(any());
+        verify(artifactCassandraDao, Mockito.never()).getArtifact(any());
+    }
+
+    @Test
+    public void testDownloadComponentArtifact_unknownUser_throws() {
+        when(userValidations.validateUserExists("unknown"))
+            .thenThrow(new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION));
+        assertThatThrownBy(() -> artifactBL.downloadComponentArtifact("componentId", "artifactId", "unknown"))
+            .isInstanceOf(ByActionStatusComponentException.class);
+        verify(toscaOperationFacade, Mockito.never()).getToscaFullElement(any());
+        verify(artifactCassandraDao, Mockito.never()).getArtifact(any());
+    }
+
+    @Test
+    public void testDownloadComponentArtifact_artifactNotOnComponent_throws() {
+        Resource resource = new Resource();
+        resource.setUniqueId("componentId");
+        resource.setDeploymentArtifacts(new HashMap<>());
+        ArtifactDefinition otherArtifact = new ArtifactDefinition();
+        otherArtifact.setUniqueId("artifactId");
+        otherArtifact.setEsId("esId");
+        when(userValidations.validateUserExists("userId")).thenReturn(user);
+        when(toscaOperationFacade.getToscaFullElement("componentId")).thenReturn(Either.left(resource));
+        when(artifactToscaOperation.getArtifactById("componentId", "artifactId", ComponentTypeEnum.RESOURCE, "componentId"))
+            .thenReturn(Either.left(otherArtifact));
+        assertThatThrownBy(() -> artifactBL.downloadComponentArtifact("componentId", "artifactId", "userId"))
+            .isInstanceOf(ByActionStatusComponentException.class)
+            .extracting(e -> ((ByActionStatusComponentException) e).getActionStatus())
+            .isEqualTo(ActionStatus.COMPONENT_ARTIFACT_NOT_FOUND);
+        verify(artifactCassandraDao, Mockito.never()).getArtifact(any());
+    }
+
+    @Test
+    public void testDownloadComponentArtifact_authorizedUser_returnsPayload() {
+        ArtifactDefinition artifact = new ArtifactDefinition();
+        artifact.setUniqueId("artifactId");
+        artifact.setEsId("esId");
+        artifact.setArtifactName("artifact.yaml");
+        Resource resource = new Resource();
+        resource.setUniqueId("componentId");
+        Map<String, ArtifactDefinition> deploymentArtifacts = new HashMap<>();
+        deploymentArtifacts.put("label", artifact);
+        resource.setDeploymentArtifacts(deploymentArtifacts);
+        DAOArtifactData esArtifactData = new DAOArtifactData();
+        esArtifactData.setDataAsArray(PAYLOAD);
+        when(userValidations.validateUserExists("userId")).thenReturn(user);
+        when(toscaOperationFacade.getToscaFullElement("componentId")).thenReturn(Either.left(resource));
+        when(artifactToscaOperation.getArtifactById("componentId", "artifactId", ComponentTypeEnum.RESOURCE, "componentId"))
+            .thenReturn(Either.left(artifact));
+        when(artifactCassandraDao.getArtifact("esId")).thenReturn(Either.left(esArtifactData));
+        ImmutablePair<String, byte[]> result = artifactBL.downloadComponentArtifact("componentId", "artifactId", "userId");
+        assertEquals("artifact.yaml", result.getLeft());
+        assertArrayEquals(PAYLOAD, result.getRight());
+    }
+
     private ArtifactsBusinessLogic getTestSubject() {
         final ArtifactsBusinessLogic artifactsBusinessLogic = new ArtifactsBusinessLogic(artifactCassandraDao,
             toscaExportHandler, csarUtils, lifecycleBusinessLogic,
