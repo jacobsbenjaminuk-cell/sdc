@@ -19,6 +19,7 @@ package org.openecomp.sdc.be.components.impl;
 import static org.assertj.core.api.Java6Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
@@ -28,15 +29,18 @@ import static org.mockito.Mockito.anyMap;
 import static org.mockito.Mockito.contains;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.isNull;
 import static org.mockito.Mockito.matches;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.openecomp.sdc.be.components.impl.ServiceImportBusinessLogic.CREATE_RESOURCE;
 
 import fj.data.Either;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -67,10 +71,12 @@ import org.mockito.MockitoAnnotations;
 import org.openecomp.sdc.be.components.csar.CsarInfo;
 import org.openecomp.sdc.be.components.csar.ServiceCsarInfo;
 import org.openecomp.sdc.be.components.impl.artifact.ArtifactOperationInfo;
+import org.openecomp.sdc.be.components.impl.exceptions.ByActionStatusComponentException;
 import org.openecomp.sdc.be.components.impl.exceptions.ComponentException;
 import org.openecomp.sdc.be.components.impl.utils.CreateServiceFromYamlParameter;
 import org.openecomp.sdc.be.dao.api.ActionStatus;
 import org.openecomp.sdc.be.dao.janusgraph.JanusGraphOperationStatus;
+import org.openecomp.sdc.be.dao.jsongraph.GraphVertex;
 import org.openecomp.sdc.be.datatypes.components.ResourceMetadataDataDefinition;
 import org.openecomp.sdc.be.datatypes.elements.GetInputValueDataDefinition;
 import org.openecomp.sdc.be.datatypes.enums.ComponentTypeEnum;
@@ -123,6 +129,7 @@ import org.openecomp.sdc.be.resources.data.auditing.AuditingActionEnum;
 import org.openecomp.sdc.be.servlets.AbstractValidationsServlet;
 import org.openecomp.sdc.be.tosca.CsarUtils;
 import org.openecomp.sdc.be.tosca.ToscaExportHandler;
+import org.openecomp.sdc.be.user.Role;
 import org.openecomp.sdc.common.api.ArtifactGroupTypeEnum;
 import org.openecomp.sdc.common.api.ArtifactTypeEnum;
 import org.openecomp.sdc.common.api.Constants;
@@ -167,6 +174,79 @@ class ServiceImportBusinessLogicTest extends ServiceImportBussinessLogicBaseTest
         when(artifactDefinition.getMandatory()).thenReturn(true);
         when(artifactDefinition.getArtifactName()).thenReturn("creatorFullName");
         when(artifactDefinition.getArtifactType()).thenReturn("TOSCA_CSAR");
+    }
+
+    private Service mockServiceForToscaUpdate() {
+        final Service service = createServiceObject(true);
+        service.setInvariantUUID("invariantUUID");
+        when(serviceBusinessLogic.getService(service.getUniqueId(), user)).thenReturn(Either.left(service));
+        when(serviceBusinessLogic.validateUserExists(user)).thenReturn(user);
+        when(toscaOperationFacade.findVertexListByInvariantUuid("invariantUUID")).thenReturn(List.of(new GraphVertex()));
+        return service;
+    }
+
+    @Test
+    void updateServiceFromToscaTemplate_whenUserCannotWorkOnService_refusesWithoutDeleting() {
+        final Service service = mockServiceForToscaUpdate();
+        doThrow(new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION))
+            .when(serviceBusinessLogic).validateCanWorkOnComponent(service, user.getUserId());
+
+        final ByActionStatusComponentException exception = assertThrows(ByActionStatusComponentException.class,
+            () -> sIBL.updateServiceFromToscaTemplate(service.getUniqueId(), user, "metadata: {}"));
+
+        assertEquals(ActionStatus.RESTRICTED_OPERATION, exception.getActionStatus());
+        verify(toscaOperationFacade, never()).deleteService(anyString(), anyBoolean());
+    }
+
+    @Test
+    void updateServiceFromToscaModel_whenUserCannotWorkOnService_refusesWithoutDeleting() {
+        final Service service = mockServiceForToscaUpdate();
+        doThrow(new ByActionStatusComponentException(ActionStatus.COMPONENT_IS_ARCHIVED, service.getName()))
+            .when(serviceBusinessLogic).validateCanWorkOnComponent(service, user.getUserId());
+
+        final ByActionStatusComponentException exception = assertThrows(ByActionStatusComponentException.class,
+            () -> sIBL.updateServiceFromToscaModel(service.getUniqueId(), user, new ByteArrayInputStream(new byte[0])));
+
+        assertEquals(ActionStatus.COMPONENT_IS_ARCHIVED, exception.getActionStatus());
+        verify(toscaOperationFacade, never()).deleteService(anyString(), anyBoolean());
+    }
+
+    @Test
+    void updateServiceFromToscaTemplate_whenUserRoleNotAllowed_refuses() {
+        final Service service = mockServiceForToscaUpdate();
+        doThrow(new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION))
+            .when(serviceBusinessLogic).validateUserRole(user, List.of(Role.DESIGNER, Role.ADMIN));
+
+        final ByActionStatusComponentException exception = assertThrows(ByActionStatusComponentException.class,
+            () -> sIBL.updateServiceFromToscaTemplate(service.getUniqueId(), user, "metadata: {}"));
+
+        assertEquals(ActionStatus.RESTRICTED_OPERATION, exception.getActionStatus());
+        verify(serviceBusinessLogic, never()).validateCanWorkOnComponent(any(Component.class), anyString());
+    }
+
+    @Test
+    void updateServiceFromToscaTemplate_whenServiceHasOtherVersions_refusesWithoutDeleting() {
+        final Service service = mockServiceForToscaUpdate();
+        when(toscaOperationFacade.findVertexListByInvariantUuid("invariantUUID")).thenReturn(List.of(new GraphVertex(), new GraphVertex()));
+
+        final ByActionStatusComponentException exception = assertThrows(ByActionStatusComponentException.class,
+            () -> sIBL.updateServiceFromToscaTemplate(service.getUniqueId(), user, "metadata: {}"));
+
+        assertEquals(ActionStatus.RESTRICTED_OPERATION, exception.getActionStatus());
+        verify(serviceBusinessLogic).validateCanWorkOnComponent(service, user.getUserId());
+        verify(toscaOperationFacade, never()).deleteService(anyString(), anyBoolean());
+    }
+
+    @Test
+    void updateServiceFromToscaTemplate_whenUserCanWorkOnSingleVersionService_passesAuthorizationChecks() {
+        final Service service = mockServiceForToscaUpdate();
+
+        final ByActionStatusComponentException exception = assertThrows(ByActionStatusComponentException.class,
+            () -> sIBL.updateServiceFromToscaTemplate(service.getUniqueId(), user, "metadata: {}"));
+
+        assertEquals(ActionStatus.MISSING_SERVICE_METADATA, exception.getActionStatus());
+        verify(serviceBusinessLogic).validateUserRole(user, List.of(Role.DESIGNER, Role.ADMIN));
+        verify(serviceBusinessLogic).validateCanWorkOnComponent(service, user.getUserId());
     }
 
     @Test
