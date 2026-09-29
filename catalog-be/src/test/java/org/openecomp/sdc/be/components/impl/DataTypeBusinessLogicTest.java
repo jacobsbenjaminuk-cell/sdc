@@ -40,6 +40,8 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.openecomp.sdc.be.components.validation.UserValidations;
+import org.openecomp.sdc.be.dao.janusgraph.JanusGraphDao;
+import org.openecomp.sdc.be.datatypes.enums.NodeTypeEnum;
 import org.openecomp.sdc.be.impl.ComponentsUtils;
 import org.openecomp.sdc.be.model.ComponentInstance;
 import org.openecomp.sdc.be.model.ComponentInstanceInput;
@@ -48,6 +50,7 @@ import org.openecomp.sdc.be.model.DataTypeDefinition;
 import org.openecomp.sdc.be.model.Service;
 import org.openecomp.sdc.be.model.User;
 import org.openecomp.sdc.be.model.jsonjanusgraph.operations.ToscaOperationFacade;
+import org.openecomp.sdc.be.model.operations.api.IGraphLockOperation;
 import org.openecomp.sdc.be.model.operations.api.StorageOperationStatus;
 import org.openecomp.sdc.be.model.tosca.ToscaPropertyType;
 import org.openecomp.sdc.be.user.UserBusinessLogic;
@@ -80,6 +83,12 @@ public class DataTypeBusinessLogicTest {
     @Mock
     private DataTypeImportManager dataTypeImportManager;
 
+    @Mock
+    private IGraphLockOperation graphLockOperationMock;
+
+    @Mock
+    private JanusGraphDao janusGraphDaoMock;
+
     @InjectMocks
     private DataTypeBusinessLogic testInstance;
 
@@ -90,6 +99,8 @@ public class DataTypeBusinessLogicTest {
         MockitoAnnotations.openMocks(this);
 
         testInstance.setToscaOperationFacade(toscaOperationFacadeMock);
+        testInstance.setGraphLockOperation(graphLockOperationMock);
+        testInstance.setJanusGraphDao(janusGraphDaoMock);
 
         service = new Service();
         service.setUniqueId(COMPONENT_INSTANCE_ID);
@@ -142,6 +153,7 @@ public class DataTypeBusinessLogicTest {
     @Test
     public void test_deletePrivateDataType1() throws Exception {
         setMockitoWhenGetToscaElementCalled();
+        when(graphLockOperationMock.lockComponent(COMPONENT_ID, NodeTypeEnum.Service)).thenReturn(StorageOperationStatus.OK);
         when(toscaOperationFacadeMock.deleteDataTypeOfComponent(service, DATATYPE_NAME))
             .thenReturn(StorageOperationStatus.OK);
 
@@ -150,6 +162,27 @@ public class DataTypeBusinessLogicTest {
         assertTrue(result.isLeft());
         DataTypeDefinition dataType = result.left().value();
         assertEquals(service.getDataTypes().get(0), dataType);
+        verify(janusGraphDaoMock).commit();
+        verify(graphLockOperationMock).unlockComponent(service.getUniqueId(), NodeTypeEnum.Service);
+    }
+
+    @Test
+    public void test_deletePrivateDataType_alreadyDeletedBeforeLock() throws Exception {
+        Service serviceAfterConcurrentDelete = new Service();
+        serviceAfterConcurrentDelete.setUniqueId(COMPONENT_INSTANCE_ID);
+        serviceAfterConcurrentDelete.setDataTypes(Collections.emptyList());
+        when(toscaOperationFacadeMock.getToscaElement(eq(COMPONENT_ID), Mockito.any(ComponentParametersView.class)))
+            .thenReturn(Either.left(service))
+            .thenReturn(Either.left(serviceAfterConcurrentDelete));
+        when(graphLockOperationMock.lockComponent(COMPONENT_ID, NodeTypeEnum.Service)).thenReturn(StorageOperationStatus.OK);
+
+        Either<DataTypeDefinition, StorageOperationStatus> result =
+            testInstance.deletePrivateDataType(COMPONENT_ID, DATATYPE_NAME);
+        assertTrue(result.isRight());
+        assertEquals(StorageOperationStatus.NOT_FOUND, result.right().value());
+        verify(toscaOperationFacadeMock, Mockito.never()).deleteDataTypeOfComponent(any(), any());
+        verify(janusGraphDaoMock).rollback();
+        verify(graphLockOperationMock).unlockComponent(serviceAfterConcurrentDelete.getUniqueId(), NodeTypeEnum.Service);
     }
 
     @Test

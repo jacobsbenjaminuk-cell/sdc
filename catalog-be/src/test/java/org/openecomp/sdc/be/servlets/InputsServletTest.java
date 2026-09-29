@@ -63,6 +63,7 @@ import org.openecomp.sdc.be.components.impl.ResourceImportManager;
 import org.openecomp.sdc.be.components.impl.exceptions.ByActionStatusComponentException;
 import org.openecomp.sdc.be.components.impl.exceptions.ComponentException;
 import org.openecomp.sdc.be.components.utils.PropertyDataDefinitionBuilder;
+import org.openecomp.sdc.be.components.validation.AccessValidations;
 import org.openecomp.sdc.be.config.ConfigurationManager;
 import org.openecomp.sdc.be.config.SpringConfig;
 import org.openecomp.sdc.be.dao.api.ActionStatus;
@@ -109,6 +110,7 @@ class InputsServletTest extends JerseyTest {
     private static UserBusinessLogic userBusinessLogic;
     private static InputsBusinessLogic inputsBusinessLogic;
     private static DataTypeBusinessLogic dataTypeBusinessLogic;
+    private static AccessValidations accessValidations;
     private static GroupBusinessLogic groupBL;
     private static ComponentInstanceBusinessLogic componentInstanceBL;
     private static HttpSession httpSession;
@@ -132,6 +134,7 @@ class InputsServletTest extends JerseyTest {
         groupBL = mock(GroupBusinessLogic.class);
         componentInstanceBL = mock(ComponentInstanceBusinessLogic.class);
         dataTypeBusinessLogic = mock(DataTypeBusinessLogic.class);
+        accessValidations = mock(AccessValidations.class);
         servletContext = mock(ServletContext.class);
         httpSession = mock(HttpSession.class);
         webApplicationContext = mock(WebApplicationContext.class);
@@ -152,6 +155,7 @@ class InputsServletTest extends JerseyTest {
         Mockito.reset(httpSession);
         Mockito.reset(servletContext);
         Mockito.reset(dataTypeBusinessLogic);
+        Mockito.reset(accessValidations);
         Mockito.reset(componentInstanceBL);
         Mockito.reset(groupBL);
         Mockito.reset(inputsBusinessLogic);
@@ -176,7 +180,7 @@ class InputsServletTest extends JerseyTest {
     protected Application configure() {
         InputsServlet inputsServlet = new InputsServlet(inputsBusinessLogic,
             componentInstanceBL, componentsUtils,
-            servletUtils, resourceImportManager, dataTypeBusinessLogic);
+            servletUtils, resourceImportManager, dataTypeBusinessLogic, accessValidations);
         forceSet(TestProperties.CONTAINER_PORT, "0");
         ResourceConfig resourceConfig = new ResourceConfig()
             .register(inputsServlet)
@@ -333,6 +337,19 @@ class InputsServletTest extends JerseyTest {
 
         Response response = buildGetDataTypeCall().get();
         assertThat(response.getStatus()).isEqualTo(HttpStatus.OK_200.getStatusCode());
+        verify(accessValidations).validateUserCanRetrieveComponentData(eq(RESOURCE_ID), eq("services"), eq(USER_ID), any());
+    }
+
+    @Test
+    void test_getDataType_userNotAllowed() throws Exception {
+        when(accessValidations.validateUserCanRetrieveComponentData(eq(RESOURCE_ID), eq("services"), eq(USER_ID), any()))
+            .thenThrow(new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION));
+        when(componentsUtils.getResponseFormat(ActionStatus.RESTRICTED_OPERATION))
+            .thenReturn(new ResponseFormat(HttpStatus.FORBIDDEN_403.getStatusCode()));
+
+        Response response = buildGetDataTypeCall().get();
+        assertThat(response.getStatus()).isEqualTo(HttpStatus.FORBIDDEN_403.getStatusCode());
+        verify(dataTypeBusinessLogic, never()).getPrivateDataType(any(), any());
     }
 
     @Test
@@ -372,6 +389,19 @@ class InputsServletTest extends JerseyTest {
 
         Response response = buildGetDataTypesCall().get();
         assertThat(response.getStatus()).isEqualTo(HttpStatus.OK_200.getStatusCode());
+        verify(accessValidations).validateUserCanRetrieveComponentData(eq(RESOURCE_ID), eq("services"), eq(USER_ID), any());
+    }
+
+    @Test
+    void test_getDataTypes_userNotAllowed() throws Exception {
+        when(accessValidations.validateUserCanRetrieveComponentData(eq(RESOURCE_ID), eq("services"), eq(USER_ID), any()))
+            .thenThrow(new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION));
+        when(componentsUtils.getResponseFormat(ActionStatus.RESTRICTED_OPERATION))
+            .thenReturn(new ResponseFormat(HttpStatus.FORBIDDEN_403.getStatusCode()));
+
+        Response response = buildGetDataTypesCall().get();
+        assertThat(response.getStatus()).isEqualTo(HttpStatus.FORBIDDEN_403.getStatusCode());
+        verify(dataTypeBusinessLogic, never()).getPrivateDataTypes(any());
     }
 
     @Test
@@ -410,6 +440,19 @@ class InputsServletTest extends JerseyTest {
 
         Response response = buildGetDataTypeCall().delete();
         assertThat(response.getStatus()).isEqualTo(HttpStatus.OK_200.getStatusCode());
+        verify(accessValidations).validateUserCanWorkOnComponent(eq(RESOURCE_ID), eq(ComponentTypeEnum.SERVICE), eq(USER_ID), any());
+    }
+
+    @Test
+    void test_deleteDataType_userNotAllowed() throws Exception {
+        when(accessValidations.validateUserCanWorkOnComponent(eq(RESOURCE_ID), eq(ComponentTypeEnum.SERVICE), eq(USER_ID), any()))
+            .thenThrow(new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION));
+        when(componentsUtils.getResponseFormat(ActionStatus.RESTRICTED_OPERATION))
+            .thenReturn(new ResponseFormat(HttpStatus.FORBIDDEN_403.getStatusCode()));
+
+        Response response = buildGetDataTypeCall().delete();
+        assertThat(response.getStatus()).isEqualTo(HttpStatus.FORBIDDEN_403.getStatusCode());
+        verify(dataTypeBusinessLogic, never()).deletePrivateDataType(any(String.class), any());
     }
 
     @Test
