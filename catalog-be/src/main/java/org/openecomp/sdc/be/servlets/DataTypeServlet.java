@@ -49,6 +49,7 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import org.apache.commons.lang3.StringUtils;
 import org.openecomp.sdc.be.components.impl.DataTypeBusinessLogic;
+import org.openecomp.sdc.be.components.validation.UserValidations;
 import org.openecomp.sdc.be.config.BeEcompErrorManager;
 import org.openecomp.sdc.be.dao.api.ActionStatus;
 import org.openecomp.sdc.be.datatypes.elements.DataTypeDataDefinition;
@@ -59,6 +60,7 @@ import org.openecomp.sdc.be.model.dto.PropertyDefinitionDto;
 import org.openecomp.sdc.be.model.jsonjanusgraph.operations.exception.OperationException;
 import org.openecomp.sdc.be.model.normatives.ElementTypeEnum;
 import org.openecomp.sdc.be.model.operations.impl.DataTypeOperation;
+import org.openecomp.sdc.be.user.Role;
 import org.openecomp.sdc.common.api.Constants;
 import org.openecomp.sdc.common.log.enums.EcompLoggerErrorCode;
 import org.openecomp.sdc.common.log.wrappers.Logger;
@@ -74,12 +76,14 @@ public class DataTypeServlet extends BeGenericServlet {
     private static final Logger log = Logger.getLogger(DataTypeServlet.class);
     private final DataTypeOperation dataTypeOperation;
     private final DataTypeBusinessLogic dataTypeBusinessLogic;
+    private final UserValidations userValidations;
 
-    public DataTypeServlet(final ComponentsUtils componentsUtils,
-                           final DataTypeOperation dataTypeOperation, DataTypeBusinessLogic dataTypeBusinessLogic) {
+    public DataTypeServlet(final ComponentsUtils componentsUtils, final DataTypeOperation dataTypeOperation,
+                           final DataTypeBusinessLogic dataTypeBusinessLogic, final UserValidations userValidations) {
         super(componentsUtils);
         this.dataTypeOperation = dataTypeOperation;
         this.dataTypeBusinessLogic = dataTypeBusinessLogic;
+        this.userValidations = userValidations;
     }
 
     @GET
@@ -140,14 +144,19 @@ public class DataTypeServlet extends BeGenericServlet {
             @ApiResponse(responseCode = "403", description = "Restricted operation"),
             @ApiResponse(responseCode = "404", description = "Data type not found")
         })
-    public Response createProperty(@Parameter(in = ParameterIn.PATH, required = true, description = "The data type id")
+    public Response createProperty(@HeaderParam(value = Constants.USER_ID_HEADER) final String userId,
+                                   @Parameter(in = ParameterIn.PATH, required = true, description = "The data type id")
                                    @PathParam("id") final String id,
                                    @RequestBody(description = "Property to add", required = true) final PropertyDefinitionDto propertyDefinitionDto) {
+        validateAdminUser(userId);
         Optional<DataTypeDataDefinition> dataTypeOptional = dataTypeOperation.getDataTypeByUid(id);
         dataTypeOptional.orElseThrow(() -> {
             throw new OperationException(ActionStatus.DATA_TYPE_NOT_FOUND, String.format("Failed to find data type '%s'", id));
         });
         DataTypeDataDefinition dataType = dataTypeOptional.get();
+        if (dataType.isNormative()) {
+            throw new OperationException(ActionStatus.RESTRICTED_OPERATION);
+        }
         String model = dataType.getModel();
         Optional<DataTypeDataDefinition> propertyDataType = dataTypeOperation.getDataTypeByNameAndModel(propertyDefinitionDto.getType(), model);
         if (propertyDataType.isEmpty()) {
@@ -178,15 +187,20 @@ public class DataTypeServlet extends BeGenericServlet {
             @ApiResponse(responseCode = "403", description = "Restricted operation"),
             @ApiResponse(responseCode = "404", description = "Data type not found")
         })
-    public Response updateProperty(@Parameter(in = ParameterIn.PATH, required = true, description = "The data type id")
+    public Response updateProperty(@HeaderParam(value = Constants.USER_ID_HEADER) final String userId,
+                                   @Parameter(in = ParameterIn.PATH, required = true, description = "The data type id")
                                    @PathParam("id") final String id,
                                    @RequestBody(description = "Property to update", required = true)
                                    final PropertyDefinitionDto propertyDefinitionDto) {
+        validateAdminUser(userId);
         Optional<DataTypeDataDefinition> dataTypeOptional = dataTypeOperation.getDataTypeByUid(id);
         dataTypeOptional.orElseThrow(() -> {
             throw new OperationException(ActionStatus.DATA_TYPE_NOT_FOUND, String.format("Failed to find data type '%s'", id));
         });
         DataTypeDataDefinition dataType = dataTypeOptional.get();
+        if (dataType.isNormative()) {
+            throw new OperationException(ActionStatus.RESTRICTED_OPERATION);
+        }
         String model = dataType.getModel();
         Optional<DataTypeDataDefinition> propertyDataType = dataTypeOperation.getDataTypeByNameAndModel(propertyDefinitionDto.getType(), model);
         if (propertyDataType.isEmpty()) {
@@ -222,15 +236,21 @@ public class DataTypeServlet extends BeGenericServlet {
 
     @DELETE
     @Path("{dataTypeId}/{propertyId}")
-    public Response deleteProperty(@Parameter(in = ParameterIn.PATH, required = true, description = "The data type id")
+    public Response deleteProperty(@HeaderParam(value = Constants.USER_ID_HEADER) final String userId,
+                                   @Parameter(in = ParameterIn.PATH, required = true, description = "The data type id")
                                    @PathParam("dataTypeId") final String dataTypeId,
                                    @Parameter(in = ParameterIn.PATH, required = true, description = "The property id to delete")
                                    @PathParam("propertyId") final String propertyId) {
+        validateAdminUser(userId);
         final Optional<DataTypeDataDefinition> dataTypeOptional = dataTypeOperation.getDataTypeByUid(dataTypeId);
         dataTypeOptional.orElseThrow(() -> {
             throw new OperationException(ActionStatus.DATA_TYPE_NOT_FOUND, String.format("Failed to find data type '%s'", dataTypeId));
         });
         final DataTypeDataDefinition dataTypeDataDefinition = dataTypeOptional.get();
+        if (dataTypeDataDefinition.isNormative()) {
+            throw new OperationException(ActionStatus.CANNOT_DELETE_SYSTEM_DEPLOYED_RESOURCES, ElementTypeEnum.DATA_TYPE.getToscaEntryName(),
+                dataTypeId);
+        }
         if (StringUtils.isEmpty(dataTypeDataDefinition.getModel())) {
             dataTypeDataDefinition.setModel(Constants.DEFAULT_MODEL_NAME);
         }
@@ -251,8 +271,10 @@ public class DataTypeServlet extends BeGenericServlet {
 
     @DELETE
     @Path("{dataTypeId}")
-    public Response deleteDatatype(@Parameter(in = ParameterIn.PATH, required = true, description = "The data type id")
+    public Response deleteDatatype(@HeaderParam(value = Constants.USER_ID_HEADER) final String userId,
+                                   @Parameter(in = ParameterIn.PATH, required = true, description = "The data type id")
                                    @PathParam("dataTypeId") final String dataTypeId) {
+        validateAdminUser(userId);
         final Optional<DataTypeDataDefinition> dataTypeOptional = dataTypeOperation.getDataTypeByUid(dataTypeId);
         dataTypeOptional.orElseThrow(() -> {
             throw new OperationException(ActionStatus.DATA_TYPE_NOT_FOUND, String.format("Failed to find data type '%s'", dataTypeId));
@@ -274,6 +296,10 @@ public class DataTypeServlet extends BeGenericServlet {
             throw e;
         }
         return buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.NO_CONTENT), null);
+    }
+
+    private void validateAdminUser(final String userId) {
+        userValidations.validateUserRole(userValidations.validateUserExists(userId), List.of(Role.ADMIN));
     }
 
     private String extractNameFromPropertyId(final String propertyId) {
