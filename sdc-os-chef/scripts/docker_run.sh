@@ -8,10 +8,6 @@ WORKSPACE="${WORKSPACE:-}"
 SUCCESS=0
 FAILURE=1
 
-CS_PASSWORD="onap123#@!"
-SDC_USER="asdc_user"
-SDC_PASSWORD="Aa1234%^!"
-
 JETTY_BASE="/var/lib/jetty"
 SDC_CERT_DIR="onap/cert"
 
@@ -22,6 +18,7 @@ BE_DEBUG_PORT="--publish 4000:4000"
 FE_DEBUG_PORT="--publish 6000:6000"
 ONBOARD_DEBUG_PORT="--publish 4001:4001"
 CS_PORT=${CS_PORT:-9042}
+CS_BIND_ADDRESS=${CS_BIND_ADDRESS:-127.0.0.1}
 
 OS_USER="onap"
 
@@ -272,7 +269,7 @@ function sdc-cs {
     if [ ${LOCAL} = false ]; then
         docker pull ${PREFIX}/sdc-cassandra:${RELEASE}
     fi
-    docker run -dit --name ${DOCKER_NAME} --env RELEASE="${RELEASE}" --env CS_PASSWORD="${CS_PASSWORD}" --env ENVNAME="${DEP_ENV}" --env HOST_IP=${IP} --env MAX_HEAP_SIZE="1536M" --env HEAP_NEWSIZE="512M" --log-driver=json-file --log-opt max-size=100m --log-opt max-file=10 --ulimit memlock=-1:-1 --ulimit nofile=4096:100000 ${LOCAL_TIME_MOUNT_CMD} --volume ${WORKSPACE}/data/CS:/var/lib/cassandra --volume ${WORKSPACE}/data/environments:/root/chef-solo/environments --publish ${CS_PORT}:${CS_PORT} ${PREFIX}/sdc-cassandra:${RELEASE} /bin/sh
+    docker run -dit --name ${DOCKER_NAME} --env RELEASE="${RELEASE}" --env CS_PASSWORD="${CS_PASSWORD}" --env ENVNAME="${DEP_ENV}" --env HOST_IP=${IP} --env MAX_HEAP_SIZE="1536M" --env HEAP_NEWSIZE="512M" --log-driver=json-file --log-opt max-size=100m --log-opt max-file=10 --ulimit memlock=-1:-1 --ulimit nofile=4096:100000 ${LOCAL_TIME_MOUNT_CMD} --volume ${WORKSPACE}/data/CS:/var/lib/cassandra --volume ${WORKSPACE}/data/environments:/root/chef-solo/environments --publish ${CS_BIND_ADDRESS}:${CS_PORT}:${CS_PORT} ${PREFIX}/sdc-cassandra:${RELEASE} /bin/sh
     command_exit_status $? ${DOCKER_NAME}
     echo "please wait while CS is starting..."
     monitor_docker ${DOCKER_NAME}
@@ -302,7 +299,8 @@ function sdc-cs-onboard-init {
     if [ ${LOCAL} = false ]; then
         docker pull ${PREFIX}/sdc-onboard-cassandra-init:${RELEASE}
     fi
-    docker run --name ${DOCKER_NAME} --env RELEASE="${RELEASE}" --env CS_HOST_IP=${IP} --env CS_HOST_PORT=${CS_PORT} --env SDC_USER="${SDC_USER}" --env SDC_PASSWORD="${SDC_PASSWORD}" --env CS_PASSWORD="${CS_PASSWORD}" --env ENVNAME="${DEP_ENV}" --log-driver=json-file --log-opt max-size=100m --log-opt max-file=10 --ulimit memlock=-1:-1 --ulimit nofile=4096:100000 ${LOCAL_TIME_MOUNT_CMD} --volume ${WORKSPACE}/data/CS:/var/lib/cassandra --volume ${WORKSPACE}/data/environments:/home/sdc/chef-solo/environments --volume ${WORKSPACE}/data/CS-Init:/home/sdc/chef-solo/cache ${PREFIX}/sdc-onboard-cassandra-init:${RELEASE}
+    CS_CONTAINER_IP=$(docker inspect --format '{{.NetworkSettings.IPAddress}}' sdc-cs)
+    docker run --name ${DOCKER_NAME} --env RELEASE="${RELEASE}" --env CS_HOST_IP=${CS_CONTAINER_IP} --env CS_HOST_PORT=${CS_PORT} --env SDC_USER="${SDC_USER}" --env SDC_PASSWORD="${SDC_PASSWORD}" --env CS_PASSWORD="${CS_PASSWORD}" --env ENVNAME="${DEP_ENV}" --log-driver=json-file --log-opt max-size=100m --log-opt max-file=10 --ulimit memlock=-1:-1 --ulimit nofile=4096:100000 ${LOCAL_TIME_MOUNT_CMD} --volume ${WORKSPACE}/data/CS:/var/lib/cassandra --volume ${WORKSPACE}/data/environments:/home/sdc/chef-solo/environments --volume ${WORKSPACE}/data/CS-Init:/home/sdc/chef-solo/cache ${PREFIX}/sdc-onboard-cassandra-init:${RELEASE}
     rc=$?
     docker_logs ${DOCKER_NAME}
     if [[ ${rc} != 0 ]]; then exit ${rc}; fi
@@ -576,6 +574,10 @@ while [ $# -gt 0 ]; do
           exit  ${FAILURE};;
     esac
 done
+
+: "${CS_PASSWORD:?CS_PASSWORD must be set to the Cassandra superuser password}"
+: "${SDC_USER:?SDC_USER must be set to the SDC Cassandra user name}"
+: "${SDC_PASSWORD:?SDC_PASSWORD must be set to the SDC Cassandra user password}"
 
 
 #Prefix those with WORKSPACE so it can be set to something other than /opt
