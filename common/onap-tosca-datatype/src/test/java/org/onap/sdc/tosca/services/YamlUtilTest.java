@@ -23,9 +23,12 @@ package org.onap.sdc.tosca.services;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
+import org.onap.sdc.tosca.datatypes.model.ServiceTemplate;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -76,5 +79,34 @@ public class YamlUtilTest {
                 "    description: The TOSCA Node Type all other TOSCA base Node Types derive from}";
         boolean res2 = yamlUtil.isYamlFileContentValid(yamlString2);
         assertFalse(res2);
+    }
+
+    @Test
+    public void testGlobalJavaTagsAreRejected() {
+        final String nestedTag = "tosca_definitions_version: tosca_simple_yaml_1_1\n"
+            + "description: !!java.net.URL [\"http://localhost/\"]\n";
+        final String rootTag = "!!java.net.URL [\"http://localhost/\"]\n";
+        assertThrows(RuntimeException.class, () -> yamlUtil.yamlToObject(nestedTag, Map.class));
+        assertThrows(RuntimeException.class, () -> yamlUtil.yamlToObject(nestedTag, ServiceTemplate.class));
+        assertThrows(RuntimeException.class, () -> yamlUtil.yamlToObject(rootTag, Map.class));
+        assertThrows(RuntimeException.class,
+            () -> new ToscaExtensionYamlUtil().yamlToObject(nestedTag, ServiceTemplate.class));
+        assertThrows(RuntimeException.class,
+            () -> YamlUtil.read(new ByteArrayInputStream(nestedTag.getBytes())));
+        assertFalse(yamlUtil.isYamlFileContentValid(nestedTag));
+    }
+
+    @Test
+    public void testTypedParsingStillWorks() {
+        final String yaml = "tosca_definitions_version: tosca_simple_yaml_1_1\n"
+            + "description: plain\n"
+            + "node_types:\n"
+            + "  my.Node:\n"
+            + "    derived_from: tosca.nodes.Root\n";
+        final ServiceTemplate serviceTemplate = new ToscaExtensionYamlUtil().yamlToObject(yaml, ServiceTemplate.class);
+        assertEquals("plain", serviceTemplate.getDescription());
+        assertEquals("tosca.nodes.Root", serviceTemplate.getNode_types().get("my.Node").getDerived_from());
+        final Map<Object, Object> map = yamlUtil.yamlToObject(yaml, Map.class);
+        assertEquals("plain", map.get("description"));
     }
 }

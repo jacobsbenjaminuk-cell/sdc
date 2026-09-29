@@ -174,6 +174,7 @@ import org.openecomp.sdc.common.api.Constants;
 import org.openecomp.sdc.common.datastructure.Wrapper;
 import org.openecomp.sdc.common.kpi.api.ASDCKpiApi;
 import org.openecomp.sdc.common.log.wrappers.Logger;
+import org.openecomp.sdc.common.util.SafeYamlFactory;
 import org.openecomp.sdc.common.util.ValidationUtils;
 import org.openecomp.sdc.common.zip.ZipUtils;
 import org.openecomp.sdc.common.zip.exception.ZipException;
@@ -282,7 +283,7 @@ public class ServiceImportBusinessLogic {
             throw new ByActionStatusComponentException(ActionStatus.SERVICE_NOT_FOUND, serviceId);
         }
         final Service serviceOriginal = serviceResponseFormatEither.left().value();
-        final Map<String, String> metadata = (Map<String, String>) new Yaml().loadAs(data, Map.class).get("metadata");
+        final Map<String, String> metadata = (Map<String, String>) SafeYamlFactory.create().<Map<String, Object>>load(data).get("metadata");
         validateServiceMetadataBeforeCreate(serviceOriginal, metadata);
 
         final Service newService = cloneServiceIdentifications(serviceOriginal);
@@ -308,7 +309,7 @@ public class ServiceImportBusinessLogic {
             throw new ByActionStatusComponentException(ActionStatus.CSAR_NOT_FOUND);
         }
         final byte[] mainYamlBytes = readMainYamlFile(csar);
-        final Map<String, String> metadata = (Map<String, String>) new Yaml().loadAs(new String(mainYamlBytes), Map.class).get("metadata");
+        final Map<String, String> metadata = (Map<String, String>) SafeYamlFactory.create().<Map<String, Object>>load(new String(mainYamlBytes)).get("metadata");
         validateServiceMetadataBeforeCreate(serviceOriginal, metadata);
         final Service newService = cloneServiceIdentifications(serviceOriginal);
         updateServiceMetadata(newService, metadata);
@@ -637,7 +638,7 @@ public class ServiceImportBusinessLogic {
         String assetToToscaTemplate = assetToscaTemplate.getUniqueId();
         ImmutablePair<String, byte[]> toscaTemplate = artifactsBusinessLogic.
             handleDownloadRequestById(uniqueId, assetToToscaTemplate, userId, ComponentTypeEnum.RESOURCE, null, null);
-        Map<String, Object> mappedToscaTemplate = new Yaml().load(new String(toscaTemplate.right));
+        Map<String, Object> mappedToscaTemplate = SafeYamlFactory.create().load(new String(toscaTemplate.right));
         Either<Map<String, Object>, ImportUtils.ResultStatusEnum> eitherNodeTypes =
             findFirstToscaMapElement(mappedToscaTemplate, TypeUtils.ToscaTagNamesEnum.NODE_TYPES);
         if (eitherNodeTypes.isRight()) {
@@ -1841,7 +1842,7 @@ public class ServiceImportBusinessLogic {
                 mappedToscaTemplate = nodeTypesInfo.get(nodeName).getMappedToscaTemplate();
             }
             if (MapUtils.isEmpty(mappedToscaTemplate)) {
-                mappedToscaTemplate = (Map<String, Object>) new Yaml().load(topologyTemplateYaml);
+                mappedToscaTemplate = (Map<String, Object>) SafeYamlFactory.create().load(topologyTemplateYaml);
             }
             createResourcesFromYamlNodeTypesList(yamlName, resource, mappedToscaTemplate, needLock, nodeTypesArtifactsToHandle,
                 nodeTypesNewCreatedArtifacts, nodeTypesInfo, csarInfo);
@@ -2347,7 +2348,7 @@ public class ServiceImportBusinessLogic {
 
                 if (tryHandlingAsYamlToscaFunction(validatedPropValue, value, propertyInfo)) {
                     try {
-                        final Object yamlValue = new Yaml().loadAs(value, Object.class);
+                        final Object yamlValue = SafeYamlFactory.create().load(value);
                         CustomYamlFunction toscaFunction = new CustomYamlFunction();
                         toscaFunction.setYamlValue(yamlValue);
                         property.setToscaFunction(toscaFunction);
@@ -2439,7 +2440,7 @@ public class ServiceImportBusinessLogic {
 
             if (StringUtils.isEmpty(validateSubPropValue) && StringUtils.isNotEmpty(subPropValue)) {
                 try {
-                    Object yamlValue = new Yaml().loadAs(subPropValue, Object.class);
+                    Object yamlValue = SafeYamlFactory.create().load(subPropValue);
                     SubPropertyToscaFunction subPropertyToscaFunction = new SubPropertyToscaFunction();
                     CustomYamlFunction toscaFunction = new CustomYamlFunction();
                     toscaFunction.setYamlValue(yamlValue);
@@ -3010,7 +3011,7 @@ public class ServiceImportBusinessLogic {
                 mappedToscaTemplate = nodeTypesInfo.get(nodeName).getMappedToscaTemplate();
             }
             if (MapUtils.isEmpty(mappedToscaTemplate)) {
-                mappedToscaTemplate = (Map<String, Object>) new Yaml().load(topologyTemplateYaml);
+                mappedToscaTemplate = (Map<String, Object>) SafeYamlFactory.create().load(topologyTemplateYaml);
             }
             createResourcesFromYamlNodeTypesList(yamlName, service, mappedToscaTemplate, needLock, nodeTypesArtifactsToHandle,
                 nodeTypesNewCreatedArtifacts, nodeTypesInfo, csarInfo);

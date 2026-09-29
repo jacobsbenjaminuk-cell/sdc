@@ -41,7 +41,9 @@ import org.antlr.v4.runtime.misc.ParseCancellationException;
 import org.apache.commons.io.IOUtils;
 import org.jsfr.json.JsonSurfer;
 import org.jsfr.json.JsonSurferGson;
+import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 /**
  * Yaml parser and searcher which requires 3 steps:
@@ -136,7 +138,7 @@ public class YamlParser implements AutoCloseable {
             if (Objects.isNull(inputStream) || inputStream.available() <= 0) {
                 throw new IOException("Empty input stream of yaml content.");
             }
-            parsedYamlContent = StreamSupport.stream(new Yaml().loadAll(inputStream).spliterator(), false);
+            parsedYamlContent = StreamSupport.stream(new Yaml(new SafeConstructor(new LoaderOptions())).loadAll(inputStream).spliterator(), false);
         } catch (IOException e) {
             LOGGER.log(Level.WARNING, "Cannot parse yaml: " + yaml, e);
             parsedYamlContent = Stream.empty();

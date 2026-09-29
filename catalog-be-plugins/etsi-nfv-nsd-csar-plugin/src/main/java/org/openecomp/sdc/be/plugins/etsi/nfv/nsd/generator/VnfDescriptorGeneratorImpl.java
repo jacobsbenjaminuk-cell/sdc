@@ -42,6 +42,7 @@ import org.openecomp.sdc.be.model.ArtifactDefinition;
 import org.openecomp.sdc.be.plugins.etsi.nfv.nsd.builder.NsdToscaMetadataBuilder;
 import org.openecomp.sdc.be.plugins.etsi.nfv.nsd.exception.VnfDescriptorException;
 import org.openecomp.sdc.be.plugins.etsi.nfv.nsd.model.VnfDescriptor;
+import org.openecomp.sdc.common.util.SafeYamlFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -181,7 +182,7 @@ public class VnfDescriptorGeneratorImpl implements VnfDescriptorGenerator {
     }
 
     private byte[] getVnfdAmendedForInclusionInNsd(final byte[] vnfdFileContent) {
-        final Yaml yaml = new Yaml();
+        final Yaml yaml = SafeYamlFactory.create();
         final Map<String, Object> toscaFileContent = (Map<String, Object>) yaml.load(new String(vnfdFileContent));
         toscaFileContent.remove("topology_template");
         removeInterfacesFromNodeTypes(toscaFileContent);

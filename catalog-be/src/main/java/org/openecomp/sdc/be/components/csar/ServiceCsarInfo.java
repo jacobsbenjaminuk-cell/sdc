@@ -55,7 +55,7 @@ import org.openecomp.sdc.be.utils.TypeUtils;
 import org.openecomp.sdc.be.utils.TypeUtils.ToscaTagNamesEnum;
 import org.openecomp.sdc.common.api.Constants;
 import org.openecomp.sdc.common.log.wrappers.Logger;
-import org.yaml.snakeyaml.Yaml;
+import org.openecomp.sdc.common.util.SafeYamlFactory;
 
 /**
  * Provides access to the contents of a Service CSAR
@@ -77,7 +77,7 @@ public class ServiceCsarInfo extends CsarInfo {
         final Path mainTemplateDir = Paths.get(getMainTemplateName().substring(0, getMainTemplateName().lastIndexOf('/') + 1));
         final Collection<Path> filesHandled = new HashSet<>();
         filesHandled.add(Paths.get(mainTemplateName));
-        this.mainTemplateImports = getTemplateImports(csar, new Yaml().load(mainTemplateContent), mainTemplateDir, filesHandled);
+        this.mainTemplateImports = getTemplateImports(csar, SafeYamlFactory.create().load(mainTemplateContent), mainTemplateDir, filesHandled);
     }
 
     private Map<String, Map<String, Object>> getTemplateImports(final Map<String, byte[]> csar, Map<String, Object> mappedToscaMainTemplate,
@@ -92,7 +92,7 @@ public class ServiceCsarInfo extends CsarInfo {
                 final byte[] importFile = csar.get(importFilePathString);
                 if (importFile != null) {
                     filesHandled.add(importFilePath);
-                    final Map<String, Object> mappedImportFile = new Yaml().load(new String(importFile));
+                    final Map<String, Object> mappedImportFile = SafeYamlFactory.create().load(new String(importFile));
                     templateImports.put(importFilePathString, mappedImportFile);
                     templateImports.putAll(getTemplateImports(csar, mappedImportFile, importFilePath.getParent(), filesHandled));
                 } else {

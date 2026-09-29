@@ -45,7 +45,7 @@ import org.openecomp.sdc.be.tosca.CsarUtils;
 import org.openecomp.sdc.be.utils.TypeUtils;
 import org.openecomp.sdc.be.utils.TypeUtils.ToscaTagNamesEnum;
 import org.openecomp.sdc.common.api.Constants;
-import org.yaml.snakeyaml.Yaml;
+import org.openecomp.sdc.common.util.SafeYamlFactory;
 
 /**
  * Provides access to the contents of a CSAR which has been created through the SDC onboarding process
@@ -99,7 +99,7 @@ public class OnboardedCsarInfo extends CsarInfo {
     private void extractNodeTypeInfo(final Map<String, NodeTypeInfo> nodeTypesInfo, final Set<String> nodeTypesUsedInNodeTemplates,
                                      final Map.Entry<String, byte[]> entry) {
         if (isAServiceTemplate(entry.getKey()) && !isGlobalSubstitute(entry.getKey())) {
-            final Map<String, Object> mappedToscaTemplate = (Map<String, Object>) new Yaml().load(new String(entry.getValue()));
+            final Map<String, Object> mappedToscaTemplate = (Map<String, Object>) SafeYamlFactory.create().load(new String(entry.getValue()));
             findToscaElement(mappedToscaTemplate, TypeUtils.ToscaTagNamesEnum.SUBSTITUTION_MAPPINGS, ToscaElementTypeEnum.MAP).right()
                 .on(sub -> handleSubstitutionMappings(nodeTypesInfo, entry, mappedToscaTemplate, (Map<String, Object>) sub));
             final Either<Object, ResultStatusEnum> nodeTypesEither =
@@ -152,7 +152,7 @@ public class OnboardedCsarInfo extends CsarInfo {
     private void setDerivedFrom(final Map<String, NodeTypeInfo> nodeTypesInfo) {
         for (Map.Entry<String, byte[]> entry : globalSubstitutes) {
             final String yamlFileContents = new String(entry.getValue());
-            final Map<String, Object> mappedToscaTemplate = (Map<String, Object>) new Yaml().load(yamlFileContents);
+            final Map<String, Object> mappedToscaTemplate = (Map<String, Object>) SafeYamlFactory.create().load(yamlFileContents);
             Either<Object, ResultStatusEnum> nodeTypesEither =
                 findToscaElement(mappedToscaTemplate, TypeUtils.ToscaTagNamesEnum.NODE_TYPES, ToscaElementTypeEnum.MAP);
             if (nodeTypesEither.isLeft()) {
@@ -179,7 +179,7 @@ public class OnboardedCsarInfo extends CsarInfo {
     private void addGlobalSubstitutionsToNodeTypes(final Set<String> nodeTypesUsedInNodeTemplates, final Map<String, NodeTypeInfo> nodeTypesInfo) {
         for (Map.Entry<String, byte[]> entry : globalSubstitutes) {
             final String yamlFileContents = new String(entry.getValue());
-            final Map<String, Object> mappedToscaTemplate = new Yaml().load(yamlFileContents);
+            final Map<String, Object> mappedToscaTemplate = SafeYamlFactory.create().load(yamlFileContents);
             final Either<Object, ResultStatusEnum> nodeTypesEither =
                 findToscaElement(mappedToscaTemplate, TypeUtils.ToscaTagNamesEnum.NODE_TYPES, ToscaElementTypeEnum.MAP);
             if (nodeTypesEither.isLeft()) {
@@ -199,7 +199,7 @@ public class OnboardedCsarInfo extends CsarInfo {
             artifacttypeDefinitions = new HashMap<>();
             for (Map.Entry<String, byte[]> entry : globalSubstitutes) {
                 final String yamlFileContents = new String(entry.getValue());
-                final Map<String, Object> mappedToscaTemplate = new Yaml().load(yamlFileContents);
+                final Map<String, Object> mappedToscaTemplate = SafeYamlFactory.create().load(yamlFileContents);
                 artifacttypeDefinitions.putAll(getTypesFromTemplate(mappedToscaTemplate, TypeUtils.ToscaTagNamesEnum.ARTIFACT_TYPES));
             }
             artifacttypeDefinitions.putAll(getTypesFromTemplate(mappedToscaMainTemplate, TypeUtils.ToscaTagNamesEnum.ARTIFACT_TYPES));
@@ -230,7 +230,7 @@ public class OnboardedCsarInfo extends CsarInfo {
     private Map<String, Object> getTypes(ToscaTagNamesEnum toscaTag) {
         final Map<String, Object> types = new HashMap<>();
         for (Map.Entry<String, byte[]> entry : globalSubstitutes) {
-            final Map<String, Object> mappedToscaTemplate = new Yaml().load(new String(entry.getValue()));
+            final Map<String, Object> mappedToscaTemplate = SafeYamlFactory.create().load(new String(entry.getValue()));
             types.putAll(getTypesFromTemplate(mappedToscaTemplate, toscaTag));
         }
         types.putAll(getTypesFromTemplate(mappedToscaMainTemplate, toscaTag));

@@ -36,10 +36,10 @@ import org.openecomp.sdc.be.config.Configuration;
 import org.openecomp.sdc.be.config.ConfigurationManager;
 import org.openecomp.sdc.be.datatypes.enums.PropertySource;
 import org.openecomp.sdc.be.datatypes.tosca.ToscaGetFunctionType;
+import org.openecomp.sdc.common.util.SafeYamlFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.CollectionUtils;
-import org.yaml.snakeyaml.Yaml;
 
 public class ToscaFunctionJsonDeserializer extends StdDeserializer<ToscaFunction> {
 
@@ -101,7 +101,7 @@ public class ToscaFunctionJsonDeserializer extends StdDeserializer<ToscaFunction
         }
         final String valueAsText = valueJsonNode.asText();
         try {
-            yamlFunction.setYamlValue(new Yaml().load(valueAsText));
+            yamlFunction.setYamlValue(SafeYamlFactory.create().load(valueAsText));
         } catch (final Exception e) {
             final String errorMsg = String.format("Could not parse YAML expression: '%s'", valueAsText);
             LOGGER.debug(errorMsg, e);

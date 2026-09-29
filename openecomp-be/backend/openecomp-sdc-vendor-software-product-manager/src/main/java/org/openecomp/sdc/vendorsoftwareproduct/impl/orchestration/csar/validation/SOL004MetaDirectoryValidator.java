@@ -83,7 +83,9 @@ import org.openecomp.sdc.vendorsoftwareproduct.impl.orchestration.csar.validatio
 import org.openecomp.sdc.vendorsoftwareproduct.impl.orchestration.exceptions.InvalidManifestMetadataException;
 import org.openecomp.sdc.vendorsoftwareproduct.security.SecurityManager;
 import org.openecomp.sdc.vendorsoftwareproduct.security.SecurityManagerException;
+import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 /**
  * Validates the contents of the package to ensure it complies with the "CSAR with TOSCA-Metadata directory" structure as defined in ETSI GS NFV-SOL
@@ -439,7 +441,7 @@ public class SOL004MetaDirectoryValidator implements Validator {
                 reportError(ErrorLevel.ERROR, Messages.EMPTY_YAML_FILE_1.formatMessage(filePath));
                 return;
             }
-            new Yaml().loadAll(fileContent).iterator().next();
+            new Yaml(new SafeConstructor(new LoaderOptions())).loadAll(fileContent).iterator().next();
         } catch (final IOException e) {
             final String errorMsg = Messages.FILE_LOAD_CONTENT_ERROR.formatMessage(filePath);
             reportError(ErrorLevel.ERROR, errorMsg);

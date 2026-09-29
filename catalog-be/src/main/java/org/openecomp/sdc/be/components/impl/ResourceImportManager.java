@@ -108,6 +108,7 @@ import org.openecomp.sdc.be.utils.TypeUtils;
 import org.openecomp.sdc.be.utils.TypeUtils.ToscaTagNamesEnum;
 import org.openecomp.sdc.common.log.enums.EcompLoggerErrorCode;
 import org.openecomp.sdc.common.log.wrappers.Logger;
+import org.openecomp.sdc.common.util.SafeYamlFactory;
 import org.openecomp.sdc.common.util.ThreadLocalsHolder;
 import org.openecomp.sdc.common.util.ValidationUtils;
 import org.openecomp.sdc.exception.ResponseFormat;
@@ -170,7 +171,7 @@ public class ResourceImportManager {
                                            final boolean createNewVersion, final boolean needLock) {
         final Map<String, Object> nodeTypesYamlMap;
         try {
-            nodeTypesYamlMap = new Yaml().load(resourcesYaml);
+            nodeTypesYamlMap = SafeYamlFactory.create().load(resourcesYaml);
         } catch (final Exception e) {
             log.error(EcompLoggerErrorCode.BUSINESS_PROCESS_ERROR, ResourceImportManager.class.getName(), "Could not parse node types YAML", e);
             throw new ByActionStatusComponentException(ActionStatus.INVALID_NODE_TYPES_YAML);
@@ -369,7 +370,7 @@ public class ResourceImportManager {
     }
 
     private void populateResourceFromYaml(final String resourceYml, Resource resource, Map<String, UploadComponentInstanceInfo> instancesFromCsar) {
-        @SuppressWarnings("unchecked") Object ymlObj = new Yaml().load(resourceYml);
+        @SuppressWarnings("unchecked") Object ymlObj = SafeYamlFactory.create().load(resourceYml);
         if (ymlObj instanceof Map) {
             final Either<Resource, StorageOperationStatus> existingResource = getExistingResource(resource);
             final Map<String, Object> toscaJsonAll = (Map<String, Object>) ymlObj;
@@ -919,7 +920,7 @@ public class ResourceImportManager {
     }
 
     private void setResourceMetaData(Resource resource, String resourceYml, UploadResourceInfo resourceMetaData) {
-        Map<String, Object> ymlObj = new Yaml().load(resourceYml);
+        Map<String, Object> ymlObj = SafeYamlFactory.create().load(resourceYml);
         String toscaName = getToscaResourceName(ymlObj);
         final Either<Resource, StorageOperationStatus> latestByToscaName = toscaOperationFacade
             .getLatestByToscaResourceName(toscaName, resourceMetaData.getModel());
@@ -971,7 +972,7 @@ public class ResourceImportManager {
 
     private Map<String, Object> decodePayload(final String payloadData) {
         final String decodedPayload = new String(Base64.decodeBase64(payloadData));
-        return (Map<String, Object>) new Yaml().load(decodedPayload);
+        return (Map<String, Object>) SafeYamlFactory.create().load(decodedPayload);
     }
 
     private String getToscaVersion(final String payloadData) {

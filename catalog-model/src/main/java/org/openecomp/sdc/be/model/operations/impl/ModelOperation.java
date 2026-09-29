@@ -80,6 +80,7 @@ import org.openecomp.sdc.be.resources.data.ModelData;
 import org.openecomp.sdc.be.utils.TypeUtils;
 import org.openecomp.sdc.common.log.enums.EcompLoggerErrorCode;
 import org.openecomp.sdc.common.log.wrappers.Logger;
+import org.openecomp.sdc.common.util.SafeYamlFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.yaml.snakeyaml.Yaml;
@@ -311,13 +312,13 @@ public class ModelOperation {
             rebuiltModelImportList = new ArrayList<>(modelImportList);
         }
 
-        Map<String, Object> typesYamlMap = new Yaml().loadAs(typesYaml, Map.class);
+        Map<String, Object> typesYamlMap = SafeYamlFactory.create().load(typesYaml);
         if (typesYamlMap.containsKey(DATA_TYPES.getElementName())) {
             typesYamlMap = (Map<String, Object>) typesYamlMap.get(DATA_TYPES.getElementName());
         }
         removeExistingTypesFromDefaultImports(elementTypeEnum, typesYamlMap, rebuiltModelImportList);
 
-        final Map<String, Object> originalContent = new Yaml().load(additionalTypeDefinitionsImport.getContent());
+        final Map<String, Object> originalContent = SafeYamlFactory.create().load(additionalTypeDefinitionsImport.getContent());
         additionalTypeDefinitionsImport.setContent(buildAdditionalTypeDefinitionsContent(elementTypeEnum, typesYamlMap, originalContent));
         rebuiltModelImportList.add(additionalTypeDefinitionsImport);
 
@@ -327,7 +328,7 @@ public class ModelOperation {
     private void removeExistingTypesFromDefaultImports(final ElementTypeEnum elementTypeEnum, final Map<String, Object> typesYaml,
                                                        final List<ToscaImportByModel> defaultImportList) {
         defaultImportList.forEach(toscaImportByModel -> {
-            final Map<String, Object> existingImportYamlMap = new Yaml().load(toscaImportByModel.getContent());
+            final Map<String, Object> existingImportYamlMap = SafeYamlFactory.create().load(toscaImportByModel.getContent());
             final Map<String, Object> currentTypeYamlMap = (Map<String, Object>) existingImportYamlMap.get(elementTypeEnum.getToscaEntryName());
             if (MapUtils.isNotEmpty(currentTypeYamlMap)) {
                 typesYaml.keySet().forEach(currentTypeYamlMap::remove);
@@ -411,7 +412,7 @@ public class ModelOperation {
             final Map<String, Object> existingTypeContent = getExistingTypes(elementTypeEnum, additionalTypeDefinitionsImportOptional.get());
             final Set<String> existingTypeNames = existingTypeContent.keySet();
 
-            Map<String, Object> newTypesYaml = new Yaml().load(typesYaml);
+            Map<String, Object> newTypesYaml = SafeYamlFactory.create().load(typesYaml);
             if (newTypesYaml.containsKey(DATA_TYPES.getElementName())) {
                 newTypesYaml = (Map<String, Object>) newTypesYaml.get(DATA_TYPES.getElementName());
             }
@@ -446,7 +447,7 @@ public class ModelOperation {
     }
 
     private Map<String, Object> getExistingTypes(final ElementTypeEnum elementTypeEnum, final ToscaImportByModel additionalTypeDefinitionsImport) {
-        final Map<String, Object> existingContent = new Yaml().load(additionalTypeDefinitionsImport.getContent());
+        final Map<String, Object> existingContent = SafeYamlFactory.create().load(additionalTypeDefinitionsImport.getContent());
         return (Map<String, Object>) existingContent.get(elementTypeEnum.getToscaEntryName());
     }
 
@@ -462,7 +463,7 @@ public class ModelOperation {
         final List<ToscaImportByModel> rebuiltModelImportList = modelImportList.stream()
             .filter(toscaImportByModel -> !ADDITIONAL_TYPE_DEFINITIONS_PATH.equals(Path.of(toscaImportByModel.getFullPath())))
             .collect(Collectors.toList());
-        final Map<String, Object> originalContent = new Yaml().load(additionalTypeDefinitionsImport.getContent());
+        final Map<String, Object> originalContent = SafeYamlFactory.create().load(additionalTypeDefinitionsImport.getContent());
         additionalTypeDefinitionsImport.setContent(
             buildPropertyAdditionalTypeDefinitionContent(elementTypeEnum, name, property, originalContent, isAdd));
         rebuiltModelImportList.add(additionalTypeDefinitionsImport);

@@ -80,12 +80,12 @@ import org.openecomp.sdc.common.api.UploadArtifactInfo;
 import org.openecomp.sdc.common.datastructure.Wrapper;
 import org.openecomp.sdc.common.log.wrappers.Logger;
 import org.openecomp.sdc.common.util.GeneralUtility;
+import org.openecomp.sdc.common.util.SafeYamlFactory;
 import org.openecomp.sdc.common.util.YamlToObjectConverter;
 import org.openecomp.sdc.common.zip.ZipUtils;
 import org.openecomp.sdc.common.zip.exception.ZipException;
 import org.openecomp.sdc.exception.ResponseFormat;
 import org.springframework.web.context.WebApplicationContext;
-import org.yaml.snakeyaml.Yaml;
 
 public abstract class AbstractValidationsServlet extends BeGenericServlet {
 
@@ -339,7 +339,7 @@ public abstract class AbstractValidationsServlet extends BeGenericServlet {
     protected void validatePayloadIsTosca(Wrapper<Response> responseWrapper, UploadResourceInfo uploadResourceInfo, User user, String toscaPayload) {
         log.debug("checking payload is valid tosca");
         boolean isValid;
-        Map<String, Object> mappedToscaTemplate = (Map<String, Object>) new Yaml().load(toscaPayload);
+        Map<String, Object> mappedToscaTemplate = (Map<String, Object>) SafeYamlFactory.create().load(toscaPayload);
         Either<String, ResultStatusEnum> findFirstToscaStringElement = ImportUtils
             .findFirstToscaStringElement(mappedToscaTemplate, TypeUtils.ToscaTagNamesEnum.TOSCA_VERSION);
         if (findFirstToscaStringElement.isRight()) {
@@ -415,7 +415,7 @@ public abstract class AbstractValidationsServlet extends BeGenericServlet {
                                             final String toscaPayload) {
         boolean isValid;
         String namespace = "";
-        final Map<String, Object> mappedToscaTemplate = (Map<String, Object>) new Yaml().load(toscaPayload);
+        final Map<String, Object> mappedToscaTemplate = (Map<String, Object>) SafeYamlFactory.create().load(toscaPayload);
         final Either<Map<String, Object>, ResultStatusEnum> toscaElement = ImportUtils
             .findFirstToscaMapElement(mappedToscaTemplate, TypeUtils.ToscaTagNamesEnum.NODE_TYPES);
         if (toscaElement.isRight() || toscaElement.left().value().size() != 1) {
@@ -438,7 +438,7 @@ public abstract class AbstractValidationsServlet extends BeGenericServlet {
                                                  String toscaPayload) {
         log.debug("checking payload contains single resource");
         boolean isValid;
-        Map<String, Object> mappedToscaTemplate = (Map<String, Object>) new Yaml().load(toscaPayload);
+        Map<String, Object> mappedToscaTemplate = (Map<String, Object>) SafeYamlFactory.create().load(toscaPayload);
         Either<Map<String, Object>, ResultStatusEnum> toscaElement = ImportUtils
             .findFirstToscaMapElement(mappedToscaTemplate, TypeUtils.ToscaTagNamesEnum.NODE_TYPES);
         if (toscaElement.isRight()) {
@@ -457,7 +457,7 @@ public abstract class AbstractValidationsServlet extends BeGenericServlet {
     private void validatePayloadIsNotService(Wrapper<Response> responseWrapper, User user, UploadResourceInfo uploadResourceInfo,
                                              String toscaPayload) {
         log.debug("checking payload is not a tosca service");
-        Map<String, Object> mappedToscaTemplate = (Map<String, Object>) new Yaml().load(toscaPayload);
+        Map<String, Object> mappedToscaTemplate = (Map<String, Object>) SafeYamlFactory.create().load(toscaPayload);
         Either<Object, ResultStatusEnum> toscaElement = ImportUtils
             .findToscaElement(mappedToscaTemplate, TypeUtils.ToscaTagNamesEnum.TOPOLOGY_TEMPLATE, ToscaElementTypeEnum.ALL);
         if (toscaElement.isLeft()) {
@@ -732,7 +732,7 @@ public abstract class AbstractValidationsServlet extends BeGenericServlet {
             throwComponentException(responseFormat);
         }
         log.debug("checking payload is valid tosca");
-        Map<String, Object> mappedToscaTemplate = (Map<String, Object>) new Yaml().load(toscaYaml);
+        Map<String, Object> mappedToscaTemplate = (Map<String, Object>) SafeYamlFactory.create().load(toscaYaml);
         Either<String, ResultStatusEnum> findFirstToscaStringElement = ImportUtils
             .findFirstToscaStringElement(mappedToscaTemplate, TypeUtils.ToscaTagNamesEnum.TOSCA_VERSION);
         if (findFirstToscaStringElement.isRight()) {
@@ -973,7 +973,7 @@ public abstract class AbstractValidationsServlet extends BeGenericServlet {
     protected void validatePayloadNameSpace(Wrapper<Response> responseWrapper, UploadServiceInfo serviceInfo, String toscaPayload) {
         boolean isValid;
         String nameSpace = "";
-        Map<String, Object> mappedToscaTemplate = (Map<String, Object>) new Yaml().load(toscaPayload);
+        Map<String, Object> mappedToscaTemplate = (Map<String, Object>) SafeYamlFactory.create().load(toscaPayload);
         Either<Map<String, Object>, ResultStatusEnum> toscaElement = ImportUtils
             .findFirstToscaMapElement(mappedToscaTemplate, TypeUtils.ToscaTagNamesEnum.NODE_TYPES);
         if (toscaElement.isRight() || toscaElement.left().value().size() != 1) {

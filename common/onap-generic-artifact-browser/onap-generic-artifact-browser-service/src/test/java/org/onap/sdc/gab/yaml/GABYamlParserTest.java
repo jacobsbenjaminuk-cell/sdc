@@ -212,6 +212,16 @@ class GABYamlParserTest {
         }});
     }
 
+    @Test
+    void shouldRejectYamlWithGlobalJavaTags() {
+        assertThrows(IOException.class, () -> {
+        try (GABYamlParser yamlParser = new GABYamlParser(new YamlParser())){
+            yamlParser.parseContent("event: !!java.net.URL [\"http://localhost/\"]\n")
+                .filter(EVENT)
+                .collect();
+        }});
+    }
+
     private void assertThatEntryIsEqualTo(GABResults result, int rowIndex, int entryIndex, String path, String data){
         GABResultEntry entry = result.getRows().get(rowIndex).getEntries().get(entryIndex);
         assertThat(entry.getData(), is(equalTo(data)));

@@ -76,15 +76,13 @@ import org.openecomp.sdc.be.utils.TypeUtils;
 import org.openecomp.sdc.be.utils.TypeUtils.ToscaTagNamesEnum;
 import org.openecomp.sdc.common.api.ArtifactTypeEnum;
 import org.openecomp.sdc.common.log.wrappers.Logger;
+import org.openecomp.sdc.common.util.SafeYamlFactory;
 import org.openecomp.sdc.exception.ResponseFormat;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.config.YamlProcessor;
 import org.springframework.stereotype.Component;
-import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.constructor.Constructor;
 import org.yaml.snakeyaml.nodes.Tag;
-import org.yaml.snakeyaml.representer.Representer;
 import org.yaml.snakeyaml.resolver.Resolver;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
@@ -132,8 +130,7 @@ public final class ImportUtils {
     @SuppressWarnings("unchecked")
     public static Either<List<HeatParameterDefinition>, ResultStatusEnum> getHeatParamsWithoutImplicitTypes(String heatDecodedPayload,
                                                                                                             String artifactType) {
-        Map<String, Object> heatData = (Map<String, Object>) new Yaml(new Constructor(), new Representer(), new DumperOptions(), customResolver)
-            .load(heatDecodedPayload);
+        Map<String, Object> heatData = (Map<String, Object>) SafeYamlFactory.create(customResolver).load(heatDecodedPayload);
         return getHeatParameters(heatData, artifactType);
     }
 

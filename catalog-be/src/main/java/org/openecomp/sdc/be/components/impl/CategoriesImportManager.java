@@ -47,10 +47,10 @@ import org.openecomp.sdc.be.model.category.SubCategoryDefinition;
 import org.openecomp.sdc.be.model.operations.api.IElementOperation;
 import org.openecomp.sdc.be.model.operations.impl.UniqueIdBuilder;
 import org.openecomp.sdc.common.log.wrappers.Logger;
+import org.openecomp.sdc.common.util.SafeYamlFactory;
 import org.openecomp.sdc.common.util.ValidationUtils;
 import org.openecomp.sdc.exception.ResponseFormat;
 import org.springframework.stereotype.Component;
-import org.yaml.snakeyaml.Yaml;
 
 @Component("categoriesImportManager")
 public class CategoriesImportManager {
@@ -194,7 +194,7 @@ public class CategoriesImportManager {
     }
 
     private Map<String, List<CategoryDefinition>> createCategoriesFromYml(final String categoriesTypesYml) {
-        Map<String, Object> toscaJson = new Yaml().load(categoriesTypesYml);
+        Map<String, Object> toscaJson = SafeYamlFactory.create().load(categoriesTypesYml);
         Map<String, List<CategoryDefinition>> allCategories = new HashMap<>();
         Iterator<Entry<String, Object>> categoryEntryItr = toscaJson.entrySet().iterator();
         while (categoryEntryItr.hasNext()) {
