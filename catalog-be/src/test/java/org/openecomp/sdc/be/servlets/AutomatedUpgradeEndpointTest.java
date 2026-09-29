@@ -67,6 +67,7 @@ import org.openecomp.sdc.be.model.User;
 import org.openecomp.sdc.be.model.jsonjanusgraph.operations.ToscaOperationFacade;
 import org.openecomp.sdc.be.model.jsonjanusgraph.operations.UpgradeOperation;
 import org.openecomp.sdc.be.model.operations.api.StorageOperationStatus;
+import org.openecomp.sdc.be.user.Role;
 import org.openecomp.sdc.be.user.UserBusinessLogic;
 import org.openecomp.sdc.common.api.ConfigurationSource;
 import org.openecomp.sdc.common.api.Constants;
@@ -153,6 +154,7 @@ class AutomatedUpgradeEndpointTest extends JerseySpringBaseTest {
         super.setUp();
         prepareComponents();
         when(userValidations.validateUserExists(eq(USER_ID))).thenReturn(user);
+        when(user.getRole()).thenReturn(Role.DESIGNER.name());
         when(toscaOperationFacade.getToscaFullElement(eq(RESOURCE_ID_PREV))).thenReturn(Either.left(vfPrev));
         when(toscaOperationFacade.getToscaFullElement(eq(RESOURCE_ID_NEW))).thenReturn(Either.left(vfNew));
         when(toscaOperationFacade.getToscaFullElement(eq(SERVICE_ID_PREV))).thenReturn(Either.left(servicePrev));
@@ -267,6 +269,21 @@ class AutomatedUpgradeEndpointTest extends JerseySpringBaseTest {
         ResponseFormat actual = response.readEntity(ResponseFormat.class);
         assertThat(actual.getMessageId()).isEqualTo(expected.getMessageId());
         assertThat(actual.getFormattedMessage()).isEqualTo(expected.getFormattedMessage());
+    }
+
+    @Test
+    void upgradeVfInService_missingUserId_rejected() {
+        List<UpgradeRequest> inputsToUpdate = new ArrayList<>();
+        inputsToUpdate.add(new UpgradeRequest(SERVICE_ID_PREV));
+        ResponseFormat expected = new ResponseFormat(HttpStatus.BAD_REQUEST.value());
+        expected.setServiceException(new ServiceException("POL5004", "Error: Missing 'USER_ID' HTTP header.", new String[0]));
+        when(componentsUtils.getResponseFormat(eq(ActionStatus.MISSING_USER_ID))).thenReturn(expected);
+
+        Response response = target("/v1/catalog/resources/{id}/automatedupgrade").resolveTemplate("id", RESOURCE_ID_NEW)
+            .request(MediaType.APPLICATION_JSON).post(Entity.entity(inputsToUpdate, MediaType.APPLICATION_JSON), Response.class);
+
+        assertThat(response.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST.value());
+        assertThat(response.readEntity(ResponseFormat.class).getMessageId()).isEqualTo("POL5004");
     }
 
 //    @Test

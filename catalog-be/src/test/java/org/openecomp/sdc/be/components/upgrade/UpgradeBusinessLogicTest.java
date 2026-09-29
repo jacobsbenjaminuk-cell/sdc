@@ -70,6 +70,8 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 
@@ -296,6 +298,123 @@ public class UpgradeBusinessLogicTest {
 
         assertEquals("should contain one component dependency", 1,
                 upgradeBusinessLogic.getComponentDependencies(componentId, user.getUserId()).left().value().size());
+    }
+
+    @Test
+    public void testAutomatedUpgrade_givenBlankUserId_thenReturnsMissingUserIdWithoutLifecycleChange() {
+        ResponseFormat responseFormat = new ResponseFormat(400);
+        when(componentsUtils.getResponseFormat(ActionStatus.MISSING_USER_ID)).thenReturn(responseFormat);
+
+        UpgradeStatus status = upgradeBusinessLogic.automatedUpgrade(COMPONENT_ID, getRequests(), " ");
+
+        assertEquals(responseFormat, status.getError());
+        verify(userValidations, never()).validateUserExists(anyString());
+        verifyNoLifecycleChange();
+    }
+
+    @Test
+    public void testGetComponentDependencies_givenMissingUserId_thenReturnsError() {
+        ResponseFormat responseFormat = new ResponseFormat(400);
+        when(componentsUtils.getResponseFormat(ActionStatus.MISSING_USER_ID)).thenReturn(responseFormat);
+
+        assertEquals(responseFormat, upgradeBusinessLogic.getComponentDependencies(COMPONENT_ID, null).right().value());
+        verify(upgradeOperation, never()).getComponentDependencies(anyString());
+    }
+
+    @Test
+    public void testAutomatedUpgrade_givenResourceAndTesterRole_thenReturnsRestricted() {
+        user.setRole(Role.TESTER.name());
+        ResponseFormat responseFormat = new ResponseFormat(403);
+        when(componentsUtils.getResponseFormat(ActionStatus.RESTRICTED_OPERATION)).thenReturn(responseFormat);
+        resourceMetadataDataDefinition.setHighestVersion(true);
+        resourceMetadataDataDefinition.setLifecycleState(LifecycleStateEnum.CERTIFIED.name());
+        resourceMetadataDataDefinition.setComponentType(ComponentTypeEnum.RESOURCE);
+        resourceMetadataDataDefinition.setResourceType(ResourceTypeEnum.VF);
+        when(toscaOperationFacade.getToscaFullElement(anyString())).thenReturn(Either.left(resource));
+
+        UpgradeStatus status = upgradeBusinessLogic.automatedUpgrade(COMPONENT_ID, getRequests(), user.getUserId());
+
+        assertEquals(responseFormat, status.getError());
+        verifyNoLifecycleChange();
+    }
+
+    @Test
+    public void testAutomatedUpgrade_givenResourceNotAllottedToTargetService_thenDoesNotCheckoutResource() {
+        Service target = createCertifiedService("targetId", "targetInvariant");
+        Service container = createCertifiedService(SERVICE_ID, "containerInvariant");
+        Resource victim = new Resource(new ResourceMetadataDefinition(new ResourceMetadataDataDefinition()));
+        victim.setUniqueId(RESOURCE_ID);
+        victim.setLifecycleState(LifecycleStateEnum.CERTIFIED);
+        when(toscaOperationFacade.getToscaFullElement(COMPONENT_ID)).thenReturn(Either.left(target));
+        when(toscaOperationFacade.getToscaFullElement(SERVICE_ID)).thenReturn(Either.left(container));
+        when(toscaOperationFacade.getToscaElement(RESOURCE_ID)).thenReturn(Either.left(victim));
+        when(upgradeOperation.getInstanceIdFromAllottedEdge(RESOURCE_ID, "targetInvariant")).thenReturn(new ArrayList<>());
+
+        UpgradeStatus status = upgradeBusinessLogic.automatedUpgrade(COMPONENT_ID, getRequests(), user.getUserId());
+
+        assertEquals(ActionStatus.NO_INSTANCES_TO_UPGRADE, status.getComponentToUpgradeStatus().get(0).getStatus());
+        verifyNoLifecycleChange();
+    }
+
+    @Test
+    public void testAutomatedUpgrade_givenServiceNotContainingResource_thenDoesNotCheckoutResource() {
+        Service target = createCertifiedService("targetId", "targetInvariant");
+        Service container = createCertifiedService(SERVICE_ID, "containerInvariant");
+        ComponentInstance unrelatedInstance = new ComponentInstance();
+        unrelatedInstance.setComponentUid("otherVf");
+        List<ComponentInstance> instances = new ArrayList<>();
+        instances.add(unrelatedInstance);
+        container.setComponentInstances(instances);
+        Resource otherVf = new Resource(new ResourceMetadataDefinition(new ResourceMetadataDataDefinition()));
+        otherVf.setInvariantUUID("otherInvariant");
+        Resource victim = new Resource(new ResourceMetadataDefinition(new ResourceMetadataDataDefinition()));
+        victim.setUniqueId(RESOURCE_ID);
+        victim.setInvariantUUID("victimInvariant");
+        victim.setLifecycleState(LifecycleStateEnum.CERTIFIED);
+        when(toscaOperationFacade.getToscaFullElement(COMPONENT_ID)).thenReturn(Either.left(target));
+        when(toscaOperationFacade.getToscaFullElement(SERVICE_ID)).thenReturn(Either.left(container));
+        when(toscaOperationFacade.getToscaElement(RESOURCE_ID)).thenReturn(Either.left(victim));
+        when(toscaOperationFacade.getToscaElement(eq("otherVf"), any(ComponentParametersView.class))).thenReturn(Either.left(otherVf));
+        List<String> allottedIds = new ArrayList<>();
+        allottedIds.add("instance1");
+        when(upgradeOperation.getInstanceIdFromAllottedEdge(RESOURCE_ID, "targetInvariant")).thenReturn(allottedIds);
+
+        UpgradeStatus status = upgradeBusinessLogic.automatedUpgrade(COMPONENT_ID, getRequests(), user.getUserId());
+
+        assertEquals(ActionStatus.NO_INSTANCES_TO_UPGRADE, status.getComponentToUpgradeStatus().get(0).getStatus());
+        verifyNoLifecycleChange();
+    }
+
+    @Test
+    public void testAutomatedUpgrade_givenServiceWithoutOlderVersionOfTarget_thenDoesNotCheckoutService() {
+        Service target = createCertifiedService("targetId", "targetInvariant");
+        Service unrelated = createCertifiedService(SERVICE_ID, "unrelatedInvariant");
+        unrelated.setLifecycleState(LifecycleStateEnum.NOT_CERTIFIED_CHECKIN);
+        when(toscaOperationFacade.getToscaFullElement(COMPONENT_ID)).thenReturn(Either.left(target));
+        when(toscaOperationFacade.getToscaFullElement(SERVICE_ID)).thenReturn(Either.left(unrelated));
+        List<UpgradeRequest> requests = new ArrayList<>();
+        requests.add(new UpgradeRequest(SERVICE_ID));
+
+        UpgradeStatus status = upgradeBusinessLogic.automatedUpgrade(COMPONENT_ID, requests, user.getUserId());
+
+        assertEquals(ActionStatus.NO_INSTANCES_TO_UPGRADE, status.getComponentToUpgradeStatus().get(0).getStatus());
+        verifyNoLifecycleChange();
+    }
+
+    private Service createCertifiedService(String uniqueId, String invariantUUID) {
+        Service result = new Service(new ServiceMetadataDefinition(new ServiceMetadataDataDefinition()));
+        result.setUniqueId(uniqueId);
+        result.setInvariantUUID(invariantUUID);
+        result.setHighestVersion(true);
+        result.setLifecycleState(LifecycleStateEnum.CERTIFIED);
+        result.setComponentType(ComponentTypeEnum.SERVICE);
+        result.setVersion("2.0");
+        return result;
+    }
+
+    private void verifyNoLifecycleChange() {
+        verify(lifecycleBusinessLogic, never()).changeComponentState(any(ComponentTypeEnum.class), any(), any(User.class),
+            any(LifeCycleTransitionEnum.class), any(LifecycleChangeInfoWithAction.class), anyBoolean(), anyBoolean());
     }
 
     private List<UpgradeRequest> getRequests() {

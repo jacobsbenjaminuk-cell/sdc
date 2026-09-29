@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 import org.openecomp.sdc.be.components.impl.ComponentInstanceBusinessLogic;
 import org.openecomp.sdc.be.components.lifecycle.LifecycleBusinessLogic;
 import org.openecomp.sdc.be.components.lifecycle.LifecycleChangeInfoWithAction;
@@ -60,6 +61,8 @@ public class UpgradeBusinessLogic {
     private static final List<String> INV_UUID_PROPS_NAMES = Arrays.asList("depending_service_invariant_uuid", "providing_service_invariant_uuid");
     private static final List<String> NAME_PROPS_NAMES = Arrays.asList("depending_service_name", "providing_service_name");
     private static final Logger LOGGER = Logger.getLogger(UpgradeBusinessLogic.class);
+    private static final List<Role> RESOURCE_UPGRADE_ROLES = Arrays.asList(Role.ADMIN, Role.DESIGNER);
+    private static final List<Role> SERVICE_UPGRADE_ROLES = Arrays.asList(Role.ADMIN, Role.DESIGNER, Role.TESTER);
     private final LifecycleBusinessLogic lifecycleBusinessLogic;
     private final ComponentInstanceBusinessLogic componentInstanceBusinessLogic;
     private final UserValidations userValidations;
@@ -88,6 +91,11 @@ public class UpgradeBusinessLogic {
      */
     public UpgradeStatus automatedUpgrade(String componentId, List<UpgradeRequest> upgradeRequest, String userId) {
         UpgradeStatus status = new UpgradeStatus();
+        if (StringUtils.isBlank(userId)) {
+            LOGGER.debug("automated Upgrade failed - missing user id for component {}", componentId);
+            status.setError(componentsUtils.getResponseFormat(ActionStatus.MISSING_USER_ID));
+            return status;
+        }
         User user = userValidations.validateUserExists(userId);
         Either<Component, StorageOperationStatus> storageStatus = toscaOperationFacade.getToscaFullElement(componentId);
         if (storageStatus.isRight()) {
@@ -111,6 +119,18 @@ public class UpgradeBusinessLogic {
             componentsUtils.auditComponentAdmin(responseFormat, user, component, getAuditTypeByComponent(component), component.getComponentType());
             return status;
         }
+        if (!hasUpgradeRole(user, component.getComponentType())) {
+            LOGGER.debug("automated Upgrade failed - user {} with role {} is not allowed to upgrade component {}", user.getUserId(), user.getRole(),
+                component.getName());
+            ResponseFormat responseFormat = componentsUtils.getResponseFormat(ActionStatus.RESTRICTED_OPERATION);
+            status.setError(responseFormat);
+            componentsUtils.auditComponentAdmin(responseFormat, user, component, getAuditTypeByComponent(component), component.getComponentType());
+            return status;
+        }
+        if (upgradeRequest == null) {
+            status.setError(componentsUtils.getResponseFormat(ActionStatus.INVALID_CONTENT));
+            return status;
+        }
         switch (component.getComponentType()) {
             case RESOURCE:
                 hadnleUpgradeVFInService(component, upgradeRequest, user, status);
@@ -131,7 +151,11 @@ public class UpgradeBusinessLogic {
      * @return
      */
     public Either<List<ComponentDependency>, ResponseFormat> getComponentDependencies(String componentId, String userId) {
-        User user = userValidations.validateUserExists(userId);
+        if (StringUtils.isBlank(userId)) {
+            LOGGER.debug("get component dependencies failed - missing user id for component {}", componentId);
+            return Either.right(componentsUtils.getResponseFormat(ActionStatus.MISSING_USER_ID));
+        }
+        userValidations.validateUserExists(userId);
         try {
             return upgradeOperation.getComponentDependencies(componentId).right()
                 .map(rf -> componentsUtils.getResponseFormat(componentsUtils.convertFromStorageResponse(rf)));
@@ -193,13 +217,6 @@ public class UpgradeBusinessLogic {
     }
 
     private ActionStatus upgradeChainResourceService(UpgradeRequest request, Service service, User user, UpgradeStatus upgradeStatus) {
-        Component resource;
-        Either<? extends Component, ActionStatus> upgradeAllottedResource = upgradeAllottedResource(request, user, upgradeStatus, service);
-        if (upgradeAllottedResource.isRight()) {
-            return upgradeAllottedResource.right().value();
-        }
-        resource = upgradeAllottedResource.left().value();
-        // update VF instance in service
         Either<Component, StorageOperationStatus> serviceContainer = toscaOperationFacade.getToscaFullElement(request.getServiceId());
         if (serviceContainer.isRight()) {
             LOGGER.debug("Failed to fetch resource by id {} error {}", request.getServiceId(), serviceContainer.right().value());
@@ -207,13 +224,38 @@ public class UpgradeBusinessLogic {
             upgradeStatus.addServiceStatus(request.getServiceId(), errS);
             return errS;
         }
-        return handleService(serviceContainer.left().value(), resource, user, upgradeStatus);
+        Component container = serviceContainer.left().value();
+        Either<? extends Component, ActionStatus> upgradeAllottedResource = upgradeAllottedResource(request, user, upgradeStatus, service,
+            container);
+        if (upgradeAllottedResource.isRight()) {
+            return upgradeAllottedResource.right().value();
+        }
+        // update VF instance in service
+        return handleService(container, upgradeAllottedResource.left().value(), user, upgradeStatus);
     }
 
     private Either<? extends Component, ActionStatus> upgradeAllottedResource(UpgradeRequest request, User user, UpgradeStatus upgradeStatus,
-                                                                              Service service) {
+                                                                              Service service, Component container) {
         return getElement(request.getResourceId(), upgradeStatus, request).left()
+            .bind(l -> validateAllottedChain(request, upgradeStatus, service, container, l)).left()
             .bind(l -> upgradeStateAlloted(request, user, upgradeStatus, service, l));
+    }
+
+    private Either<Component, ActionStatus> validateAllottedChain(UpgradeRequest request, UpgradeStatus upgradeStatus, Service service,
+                                                                 Component container, Component resource) {
+        List<String> allottedInstanceIds = upgradeOperation.getInstanceIdFromAllottedEdge(resource.getUniqueId(), service.getInvariantUUID());
+        if (allottedInstanceIds == null || allottedInstanceIds.isEmpty()) {
+            LOGGER.debug("Automated upgrade failed. Resource {} has no allotted instances of service {}", resource.getUniqueId(),
+                service.getUniqueId());
+            upgradeStatus.addServiceStatus(request.getServiceId(), ActionStatus.NO_INSTANCES_TO_UPGRADE);
+            return Either.right(ActionStatus.NO_INSTANCES_TO_UPGRADE);
+        }
+        if (container.getComponentType() != ComponentTypeEnum.SERVICE || !containsInstanceOf(container, resource)) {
+            LOGGER.debug("Automated upgrade failed. Service {} has no instance of resource {}", request.getServiceId(), resource.getUniqueId());
+            upgradeStatus.addServiceStatus(request.getServiceId(), ActionStatus.NO_INSTANCES_TO_UPGRADE);
+            return Either.right(ActionStatus.NO_INSTANCES_TO_UPGRADE);
+        }
+        return Either.left(resource);
     }
 
     private Either<Component, ActionStatus> getElement(String id, UpgradeStatus upgradeStatus, UpgradeRequest request) {
@@ -243,7 +285,7 @@ public class UpgradeBusinessLogic {
         Either<? extends Component, ActionStatus> result = null;
         try {
             List<String> instanceIds = upgradeOperation.getInstanceIdFromAllottedEdge(resource.getUniqueId(), service.getInvariantUUID());
-            if (instanceIds != null) {
+            if (instanceIds != null && !instanceIds.isEmpty()) {
                 Map<String, List<ComponentInstanceProperty>> componentInstancesProperties = resource.getComponentInstancesProperties();
                 Map<String, List<ComponentInstanceProperty>> propertiesToUpdate = new HashMap<>();
                 instanceIds.forEach(id -> findPropertiesToUpdate(id, componentInstancesProperties, propertiesToUpdate, service));
@@ -264,11 +306,10 @@ public class UpgradeBusinessLogic {
             }
             return result;
         } finally {
-            if (result != null && result.isRight()) {
-                // undo checkout resource in case of failure
-                LOGGER
-                    .debug("Failed to update Allotted resource {} {}, Error {}. UNDOCHEKOUT our resource", resource.getName(), resource.getUniqueId(),
-                        result.right().value());
+            if (result == null || result.isRight()) {
+                LOGGER.debug("Failed to update Allotted resource {} {}, Error {}. UNDOCHEKOUT our resource", resource.getName(),
+                    resource.getUniqueId(), result == null ? null : result.right().value());
+                undocheckoutComponent(user, resource);
                 upgradeStatus.addServiceStatus(request.getServiceId(), ActionStatus.GENERAL_ERROR);
             }
         }
@@ -313,6 +354,12 @@ public class UpgradeBusinessLogic {
             return ActionStatus.GENERAL_ERROR;
         }
         Service service = (Service) component;
+        if (!hasInstanceToUpgrade(component, newVersionComponent)) {
+            LOGGER.debug("Service {} {} has no instances of an older version of {}", component.getName(), component.getUniqueId(),
+                newVersionComponent.getUniqueId());
+            upgradeStatus.addServiceStatus(component, ActionStatus.NO_INSTANCES_TO_UPGRADE);
+            return ActionStatus.NO_INSTANCES_TO_UPGRADE;
+        }
         if (component.getLifecycleState() != LifecycleStateEnum.NOT_CERTIFIED_CHECKOUT) {
             LOGGER.debug("Service {} {} is not in CHECKOUT state . Try to checkout it", component.getName(), component.getUniqueId());
             Either<? extends Component, ActionStatus> changeComponentState = changeComponentState(component, LifeCycleTransitionEnum.CHECKOUT, user,
@@ -432,6 +479,29 @@ public class UpgradeBusinessLogic {
         ComponentInstance changeInstanceVersion = componentInstanceBusinessLogic
             .changeInstanceVersion(service, ci, newComponentInstance, user, service.getComponentType());
         return ActionStatus.OK;
+    }
+
+    private boolean hasUpgradeRole(User user, ComponentTypeEnum componentType) {
+        List<Role> allowedRoles = componentType == ComponentTypeEnum.SERVICE ? SERVICE_UPGRADE_ROLES : RESOURCE_UPGRADE_ROLES;
+        return user.getRole() != null && allowedRoles.stream().anyMatch(role -> role.name().equals(user.getRole()));
+    }
+
+    private boolean hasInstanceToUpgrade(Component service, Component newVersionComponent) {
+        List<ComponentInstance> componentInstances = service.getComponentInstances();
+        return componentInstances != null && componentInstances.stream().anyMatch(ci -> matchInstance(ci, newVersionComponent));
+    }
+
+    private boolean containsInstanceOf(Component service, Component resource) {
+        List<ComponentInstance> componentInstances = service.getComponentInstances();
+        if (componentInstances == null) {
+            return false;
+        }
+        ComponentParametersView filters = new ComponentParametersView(true);
+        return componentInstances.stream().filter(ci -> ci.getComponentUid() != null).anyMatch(ci -> {
+            Either<Component, StorageOperationStatus> origin = toscaOperationFacade.getToscaElement(ci.getComponentUid(), filters);
+            return origin != null && origin.isLeft() && resource.getInvariantUUID() != null && resource.getInvariantUUID()
+                .equals(origin.left().value().getInvariantUUID());
+        });
     }
 
     private boolean matchInstance(ComponentInstance ci, Component newVersionComponent) {
