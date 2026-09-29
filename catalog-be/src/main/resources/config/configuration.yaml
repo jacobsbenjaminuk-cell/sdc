@@ -119,6 +119,7 @@ basicAuth:
   userName: "testName"
   userPass: "testPass"
   excludedUrls: ""
+  apiPublicKeys: []
 
 cassandraConfig:
     cassandraHosts: [192.168.33.10]

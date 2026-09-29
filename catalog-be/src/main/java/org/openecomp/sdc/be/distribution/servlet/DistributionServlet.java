@@ -32,6 +32,7 @@ import io.swagger.v3.oas.annotations.servers.Server;
 import io.swagger.v3.oas.annotations.servers.Servers;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.tags.Tags;
+import java.security.Principal;
 import javax.inject.Inject;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Consumes;
@@ -43,7 +44,10 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import javax.ws.rs.core.SecurityContext;
 import org.openecomp.sdc.be.config.BeEcompErrorManager;
+import org.openecomp.sdc.be.config.Configuration.BasicAuthConfig;
+import org.openecomp.sdc.be.config.ConfigurationManager;
 import org.openecomp.sdc.be.dao.api.ActionStatus;
 import org.openecomp.sdc.be.distribution.AuditHandler;
 import org.openecomp.sdc.be.distribution.DistributionBusinessLogic;
@@ -231,7 +235,8 @@ public class DistributionServlet extends BeGenericServlet {
         @Parameter(description = "Determines the format of the body of the request", required = true) @HeaderParam(value = Constants.CONTENT_TYPE_HEADER) String contentType,
         @Parameter(description = "Length  of  the request body", required = true) @HeaderParam(value = Constants.CONTENT_LENGTH_HEADER) String contenLength,
         @Parameter(description = "The username and password", required = true) @HeaderParam(value = Constants.AUTHORIZATION_HEADER) String authorization,
-        @Parameter(hidden = true) String requestJson) {
+        @Parameter(hidden = true) String requestJson,
+        @Context SecurityContext securityContext) {
         String url = request.getMethod() + " " + request.getRequestURI();
         log.debug(START_HANDLE_REQUEST_OF, url);
         Wrapper<Response> responseWrapper = new Wrapper<>();
@@ -239,6 +244,9 @@ public class DistributionServlet extends BeGenericServlet {
         validateHeaders(responseWrapper, request, AuditingActionEnum.ADD_KEY_TO_TOPIC_ACL);
         if (responseWrapper.isEmpty()) {
             validateJson(responseWrapper, registrationRequestWrapper, requestJson);
+        }
+        if (responseWrapper.isEmpty()) {
+            validateConsumerApiKey(responseWrapper, securityContext, registrationRequestWrapper.getInnerElement());
         }
         if (responseWrapper.isEmpty()) {
             validateEnv(responseWrapper);
@@ -322,7 +330,8 @@ public class DistributionServlet extends BeGenericServlet {
         @Parameter(description = "Determines the format of the body of the request", required = true) @HeaderParam(value = Constants.CONTENT_TYPE_HEADER) String contentType,
         @Parameter(description = "Length  of  the request body", required = true) @HeaderParam(value = Constants.CONTENT_LENGTH_HEADER) String contenLength,
         @Parameter(description = "The username and password", required = true) @HeaderParam(value = Constants.AUTHORIZATION_HEADER) String authorization,
-        @Parameter(hidden = true) String requestJson) {
+        @Parameter(hidden = true) String requestJson,
+        @Context SecurityContext securityContext) {
         String url = request.getMethod() + " " + request.getRequestURI();
         log.debug(START_HANDLE_REQUEST_OF, url);
         Wrapper<Response> responseWrapper = new Wrapper<>();
@@ -330,6 +339,9 @@ public class DistributionServlet extends BeGenericServlet {
         validateHeaders(responseWrapper, request, AuditingActionEnum.REMOVE_KEY_FROM_TOPIC_ACL);
         if (responseWrapper.isEmpty()) {
             validateJson(responseWrapper, unRegistrationRequestWrapper, requestJson);
+        }
+        if (responseWrapper.isEmpty()) {
+            validateConsumerApiKey(responseWrapper, securityContext, unRegistrationRequestWrapper.getInnerElement());
         }
         if (responseWrapper.isEmpty()) {
             validateEnv(responseWrapper);
@@ -367,6 +379,20 @@ public class DistributionServlet extends BeGenericServlet {
             responseWrapper.setInnerElement(missingHeaderResponse);
             ResponseFormat responseFormat = getComponentsUtils().getResponseFormat(ActionStatus.MISSING_X_ECOMP_INSTANCE_ID);
             getComponentsUtils().auditMissingInstanceIdAsDistributionEngineEvent(auditingAction, responseFormat.getStatus().toString());
+        }
+    }
+
+    private void validateConsumerApiKey(Wrapper<Response> responseWrapper, SecurityContext securityContext,
+                                        RegistrationRequest registrationRequest) {
+        Principal principal = securityContext == null ? null : securityContext.getUserPrincipal();
+        BasicAuthConfig basicAuthConfig = ConfigurationManager.getConfigurationManager().getConfiguration().getBasicAuth();
+        boolean isConsumerApiKey = principal != null && basicAuthConfig != null && principal.getName().equals(basicAuthConfig.getUserName())
+            && basicAuthConfig.getApiPublicKeys() != null && basicAuthConfig.getApiPublicKeys().contains(registrationRequest.getApiPublicKey());
+        if (!isConsumerApiKey) {
+            log.error("Distribution consumer {} is not allowed to change topic ACLs for the requested API public key",
+                principal == null ? null : principal.getName());
+            responseWrapper.setInnerElement(
+                buildErrorResponse(distributionLogic.getResponseFormatManager().getResponseFormat(ActionStatus.AUTH_FAILED)));
         }
     }
 
