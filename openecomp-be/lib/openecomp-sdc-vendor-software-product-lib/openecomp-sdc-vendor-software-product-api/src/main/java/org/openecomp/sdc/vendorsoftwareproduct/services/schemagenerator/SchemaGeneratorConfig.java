@@ -20,6 +20,7 @@
 package org.openecomp.sdc.vendorsoftwareproduct.services.schemagenerator;
 
 import freemarker.cache.StringTemplateLoader;
+import freemarker.core.TemplateClassResolver;
 import freemarker.template.Configuration;
 import freemarker.template.Template;
 import freemarker.template.TemplateExceptionHandler;
@@ -52,6 +53,8 @@ public class SchemaGeneratorConfig {
         configuration.setTemplateExceptionHandler(TemplateExceptionHandler.RETHROW_HANDLER);
         configuration.setLogTemplateExceptions(true);
         configuration.setTemplateLoader(stringLoader);
+        configuration.setNewBuiltinClassResolver(TemplateClassResolver.ALLOWS_NOTHING_RESOLVER);
+        configuration.setAPIBuiltinEnabled(false);
     }
 
     public static void insertSchemaTemplate(SchemaTemplateContext schemaTemplateContext, CompositionEntityType entityType,

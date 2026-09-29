@@ -37,7 +37,10 @@ import java.io.InputStream;
 import java.util.ArrayList;
 
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
@@ -68,6 +71,28 @@ public class ApplicationConfigurationImplTest {
 
         assertEquals(response.getStatus(), HttpStatus.OK.value());
         verify(applicationConfigManager).insertIntoTable(eq(testNamespace),eq(testKey),eq(testValue));
+    }
+
+    @Test
+    public void validateInsertInToSchemaTemplatesNamespaceIsForbidden() {
+
+        final InputStream testInput = new ByteArrayInputStream("<#assign x = 1>".getBytes());
+
+        Response response = applicationConfiguration.insertToTable("vsp.schemaTemplates", "questionnaire.vsp", testInput);
+
+        assertEquals(HttpStatus.FORBIDDEN.value(), response.getStatus());
+        verify(applicationConfigManager, never()).insertIntoTable(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    public void validateInsertInToTableWithoutNamespaceIsForbidden() {
+
+        final InputStream testInput = new ByteArrayInputStream("testingValue".getBytes());
+
+        Response response = applicationConfiguration.insertToTable(null, "key", testInput);
+
+        assertEquals(HttpStatus.FORBIDDEN.value(), response.getStatus());
+        verify(applicationConfigManager, never()).insertIntoTable(any(), any(), any());
     }
 
     @Test

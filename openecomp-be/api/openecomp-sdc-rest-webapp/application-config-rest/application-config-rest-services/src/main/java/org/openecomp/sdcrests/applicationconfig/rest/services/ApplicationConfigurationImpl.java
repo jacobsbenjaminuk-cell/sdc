@@ -23,6 +23,7 @@ package org.openecomp.sdcrests.applicationconfig.rest.services;
 
 import java.io.InputStream;
 import java.util.Collection;
+import java.util.Set;
 import javax.inject.Named;
 import javax.ws.rs.core.Response;
 import org.openecomp.core.utilities.applicationconfig.dao.type.ApplicationConfigEntity;
@@ -47,6 +48,7 @@ import org.springframework.stereotype.Service;
 @Scope(value = "prototype")
 public class ApplicationConfigurationImpl implements ApplicationConfiguration {
 
+    private static final Set<String> READ_ONLY_NAMESPACES = Set.of("vsp.schemaTemplates");
     private final ApplicationConfigManager applicationConfigManager;
 
     @Autowired
@@ -56,6 +58,9 @@ public class ApplicationConfigurationImpl implements ApplicationConfiguration {
 
     @Override
     public Response insertToTable(String namespace, String key, InputStream fileContainingSchema) {
+        if (namespace == null || READ_ONLY_NAMESPACES.contains(namespace)) {
+            return Response.status(Response.Status.FORBIDDEN).build();
+        }
         String value = new String(FileUtils.toByteArray(fileContainingSchema));
         applicationConfigManager.insertIntoTable(namespace, key, value);
         return Response.ok().build();
