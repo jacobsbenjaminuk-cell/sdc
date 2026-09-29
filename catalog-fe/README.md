@@ -11,5 +11,4 @@ mvn jetty:run \
 ```
 
 You can check the following urls to ensure that it is working
-- http://localhost:8080/sdc1/rest/configmgr/get
 - http://localhost:8080/sdc1/proxy
