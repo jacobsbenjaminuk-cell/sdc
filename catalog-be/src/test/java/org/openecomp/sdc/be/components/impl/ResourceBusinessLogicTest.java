@@ -2563,6 +2563,105 @@ class ResourceBusinessLogicTest {
         assertEquals("resource_name", actualOperationException.getParams()[0]);
     }
 
+    private User createDesignerUser(String userId) {
+        User designer = new User();
+        designer.setUserId(userId);
+        designer.setRole(Role.DESIGNER.name());
+        when(userValidations.validateUserExists(userId)).thenReturn(designer);
+        return designer;
+    }
+
+    @Test
+    void testDeleteResource_UserRoleNotAllowed() {
+        User tester = new User();
+        tester.setUserId("tester1");
+        tester.setRole(Role.TESTER.name());
+        when(userValidations.validateUserExists("tester1")).thenReturn(tester);
+        Mockito.doThrow(new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION))
+            .when(userValidations).validateUserRole(eq(tester), anyList());
+        ByActionStatusComponentException exception = assertThrows(ByActionStatusComponentException.class,
+            () -> bl.deleteResource("1", tester));
+        assertEquals(ActionStatus.RESTRICTED_OPERATION, exception.getActionStatus());
+        Mockito.verify(toscaOperationFacade, Mockito.never()).getToscaElement(anyString());
+    }
+
+    @Test
+    void testDeleteResource_DesignerNotWorkingOnResource() {
+        User designer = createDesignerUser("designer1");
+        Resource resourceObject = createResourceObject(true);
+        resourceObject.setLastUpdaterUserId("otherDesigner");
+        Mockito.when(toscaOperationFacade.getToscaElement(anyString())).thenReturn(Either.left(resourceObject));
+        ByActionStatusComponentException exception = assertThrows(ByActionStatusComponentException.class,
+            () -> bl.deleteResource(resourceObject.getUniqueId(), designer));
+        assertEquals(ActionStatus.RESTRICTED_OPERATION, exception.getActionStatus());
+        Mockito.verify(toscaOperationFacade, Mockito.never()).markComponentToDelete(any());
+    }
+
+    @Test
+    void testDeleteResource_DesignerResourceNotCheckedOut() {
+        User designer = createDesignerUser("designer1");
+        Resource resourceObject = createResourceObject(true);
+        resourceObject.setLastUpdaterUserId("designer1");
+        resourceObject.setLifecycleState(LifecycleStateEnum.CERTIFIED);
+        Mockito.when(toscaOperationFacade.getToscaElement(anyString())).thenReturn(Either.left(resourceObject));
+        ByActionStatusComponentException exception = assertThrows(ByActionStatusComponentException.class,
+            () -> bl.deleteResource(resourceObject.getUniqueId(), designer));
+        assertEquals(ActionStatus.RESTRICTED_OPERATION, exception.getActionStatus());
+        Mockito.verify(toscaOperationFacade, Mockito.never()).markComponentToDelete(any());
+    }
+
+    @Test
+    void testDeleteResource_DesignerWorkingOnResource() {
+        User designer = createDesignerUser("designer1");
+        Resource resourceObject = createResourceObject(true);
+        resourceObject.setLastUpdaterUserId("designer1");
+        Mockito.when(toscaOperationFacade.getToscaElement(anyString())).thenReturn(Either.left(resourceObject));
+        Mockito.when(toscaOperationFacade.markComponentToDelete(resourceObject)).thenReturn(StorageOperationStatus.OK);
+        ResponseFormat actualResponseFormat = bl.deleteResource(resourceObject.getUniqueId(), designer);
+        assertEquals(204, actualResponseFormat.getStatus());
+        Mockito.verify(toscaOperationFacade).markComponentToDelete(resourceObject);
+    }
+
+    @Test
+    void testDeleteResourceByNameAndVersion_DesignerNotWorkingOnResource() {
+        User designer = createDesignerUser("designer1");
+        Resource resourceObject = createResourceObject(true);
+        resourceObject.setLastUpdaterUserId("otherDesigner");
+        Mockito.when(toscaOperationFacade.getComponentByNameAndVersion(ComponentTypeEnum.RESOURCE, RESOURCE_NAME, "0.1"))
+            .thenReturn(Either.left(resourceObject));
+        ByActionStatusComponentException exception = assertThrows(ByActionStatusComponentException.class,
+            () -> bl.deleteResourceByNameAndVersion(RESOURCE_NAME, "0.1", designer));
+        assertEquals(ActionStatus.RESTRICTED_OPERATION, exception.getActionStatus());
+        Mockito.verify(toscaOperationFacade, Mockito.never()).markComponentToDelete(any());
+    }
+
+    @Test
+    void testDeleteResourceAllVersions_DesignerNotLastUpdater() {
+        User designer = createDesignerUser("designer1");
+        Resource resourceObject = createResourceObject(true);
+        resourceObject.setArchived(true);
+        resourceObject.setLastUpdaterUserId("otherDesigner");
+        Mockito.when(toscaOperationFacade.getToscaElement(anyString())).thenReturn(Either.left(resourceObject));
+        ByActionStatusComponentException exception = assertThrows(ByActionStatusComponentException.class,
+            () -> bl.deleteResourceAllVersions(resourceObject.getUniqueId(), designer));
+        assertEquals(ActionStatus.RESTRICTED_OPERATION, exception.getActionStatus());
+        Mockito.verify(toscaOperationFacade, Mockito.never()).deleteComponent(anyString(), any(), Mockito.anyBoolean());
+    }
+
+    @Test
+    void testDeleteResourceAllVersions_DesignerLastUpdater() {
+        User designer = createDesignerUser("designer1");
+        Resource resourceObject = createResourceObject(true);
+        resourceObject.setArchived(true);
+        resourceObject.setLastUpdaterUserId("designer1");
+        Mockito.when(toscaOperationFacade.getToscaElement(anyString())).thenReturn(Either.left(resourceObject));
+        OperationException oe = new OperationException(ActionStatus.COMPONENT_IN_USE_BY_ANOTHER_COMPONENT, "resource_name");
+        Mockito.when(toscaOperationFacade.deleteComponent(resourceObject.getInvariantUUID(), NodeTypeEnum.Resource, true)).thenThrow(oe);
+        OperationException actualOperationException = assertThrows(OperationException.class,
+            () -> bl.deleteResourceAllVersions(resourceObject.getUniqueId(), designer));
+        assertEquals(ActionStatus.COMPONENT_IN_USE_BY_ANOTHER_COMPONENT, actualOperationException.getActionStatus());
+    }
+
 
     @Test
     void testCreateResource_withMultitenancyWithTenant_Success() {
