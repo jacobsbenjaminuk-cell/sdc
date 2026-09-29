@@ -55,6 +55,7 @@ import org.openecomp.sdc.be.components.impl.DataTypeBusinessLogic;
 import org.openecomp.sdc.be.components.impl.InputsBusinessLogic;
 import org.openecomp.sdc.be.components.impl.ResourceImportManager;
 import org.openecomp.sdc.be.components.impl.exceptions.ComponentException;
+import org.openecomp.sdc.be.components.validation.AccessValidations;
 import org.openecomp.sdc.be.config.BeEcompErrorManager;
 import org.openecomp.sdc.be.dao.api.ActionStatus;
 import org.openecomp.sdc.be.datatypes.enums.ComponentTypeEnum;
@@ -94,14 +95,17 @@ public class InputsServlet extends AbstractValidationsServlet {
     private static final String CREATE_INPUT = "CreateInput";
     private final DataTypeBusinessLogic businessLogic;
     private final InputsBusinessLogic inputsBusinessLogic;
+    private final AccessValidations accessValidations;
 
     @Inject
     public InputsServlet(InputsBusinessLogic inputsBusinessLogic,
                          ComponentInstanceBusinessLogic componentInstanceBL, ComponentsUtils componentsUtils, ServletUtils servletUtils,
-                         ResourceImportManager resourceImportManager, DataTypeBusinessLogic dataTypeBusinessLogic) {
+                         ResourceImportManager resourceImportManager, DataTypeBusinessLogic dataTypeBusinessLogic,
+                         AccessValidations accessValidations) {
         super(componentInstanceBL, componentsUtils, servletUtils, resourceImportManager);
         this.inputsBusinessLogic = inputsBusinessLogic;
         this.businessLogic = dataTypeBusinessLogic;
+        this.accessValidations = accessValidations;
     }
 
     @POST
@@ -394,9 +398,11 @@ public class InputsServlet extends AbstractValidationsServlet {
         @ApiResponse(responseCode = "200", description = "Data type found"), @ApiResponse(responseCode = "403", description = "Restricted operation"),
         @ApiResponse(responseCode = "404", description = "Data type not found")})
     public Response getDataType(@PathParam("componentType") final String componentType, @PathParam("componentId") final String componentId,
-                                @PathParam("dataTypeName") final String dataTypeName, @Context final HttpServletRequest request) {
+                                @PathParam("dataTypeName") final String dataTypeName, @Context final HttpServletRequest request,
+                                @HeaderParam(value = Constants.USER_ID_HEADER) String userId) {
         String url = request.getMethod() + " " + request.getRequestURI();
         log.debug("(getDataType) Start handle request of {}", url);
+        accessValidations.validateUserCanRetrieveComponentData(componentId, componentType, userId, "GET DATA TYPE");
         Response response;
         try {
             Either<DataTypeDefinition, StorageOperationStatus> getResult = businessLogic.getPrivateDataType(componentId, dataTypeName);
@@ -430,10 +436,11 @@ public class InputsServlet extends AbstractValidationsServlet {
         @ApiResponse(responseCode = "200", description = "Data type found"), @ApiResponse(responseCode = "403", description = "Restricted operation"),
         @ApiResponse(responseCode = "404", description = "Component not found")})
     public Response getDataTypes(@PathParam("componentType") final String componentType, @PathParam("componentId") final String componentId,
-                                 @Context final HttpServletRequest request) {
+                                 @Context final HttpServletRequest request, @HeaderParam(value = Constants.USER_ID_HEADER) String userId) {
         ComponentsUtils componentsUtils = getComponentsUtils();
         String url = request.getMethod() + " " + request.getRequestURI();
         log.debug("(getDataType) Start handle request of {}", url);
+        accessValidations.validateUserCanRetrieveComponentData(componentId, componentType, userId, "GET DATA TYPES");
         Response response;
         try {
             Either<List<DataTypeDefinition>, StorageOperationStatus> getResult = businessLogic.getPrivateDataTypes(componentId);
@@ -468,10 +475,12 @@ public class InputsServlet extends AbstractValidationsServlet {
         @ApiResponse(responseCode = "403", description = "Restricted operation"),
         @ApiResponse(responseCode = "404", description = "Data type not found")})
     public Response deleteDataType(@PathParam("componentType") final String componentType, @PathParam("componentId") final String componentId,
-                                   @PathParam("dataTypeName") final String dataTypeName, @Context final HttpServletRequest request) {
+                                   @PathParam("dataTypeName") final String dataTypeName, @Context final HttpServletRequest request,
+                                   @HeaderParam(value = Constants.USER_ID_HEADER) String userId) {
         ComponentsUtils componentsUtils = getComponentsUtils();
         String url = request.getMethod() + " " + request.getRequestURI();
         log.debug(START_HANDLE_REQUEST_OF, url);
+        accessValidations.validateUserCanWorkOnComponent(componentId, ComponentTypeEnum.findByParamName(componentType), userId, "DELETE DATA TYPE");
         Response response;
         try {
             Either<DataTypeDefinition, StorageOperationStatus> deleteResult = businessLogic.deletePrivateDataType(componentId, dataTypeName);
