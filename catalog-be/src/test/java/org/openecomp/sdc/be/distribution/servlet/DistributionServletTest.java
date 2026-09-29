@@ -35,7 +35,9 @@ import org.mockito.stubbing.Answer;
 import org.openecomp.sdc.be.components.distribution.engine.DistributionEngine;
 import org.openecomp.sdc.be.components.impl.ComponentInstanceBusinessLogic;
 import org.openecomp.sdc.be.components.impl.GroupBusinessLogic;
+import org.openecomp.sdc.be.components.impl.ResponseFormatManager;
 import org.openecomp.sdc.be.config.ConfigurationManager;
+import org.openecomp.sdc.be.dao.api.ActionStatus;
 import org.openecomp.sdc.be.config.SpringConfig;
 import org.openecomp.sdc.be.distribution.AuditHandler;
 import org.openecomp.sdc.be.distribution.DistributionBusinessLogic;
@@ -61,9 +63,13 @@ import javax.servlet.ServletContext;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
 import javax.ws.rs.client.Entity;
+import javax.ws.rs.container.ContainerRequestContext;
+import javax.ws.rs.container.ContainerRequestFilter;
 import javax.ws.rs.core.Application;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import javax.ws.rs.core.SecurityContext;
+import java.security.Principal;
 import java.util.Arrays;
 
 import static org.junit.Assert.assertEquals;
@@ -85,6 +91,9 @@ public class DistributionServletTest extends JerseyTest {
     static ConfigurationManager configurationManager = new ConfigurationManager(configurationSource);
 
 
+    public static final ResponseFormatManager responseFormatManager = Mockito.mock(ResponseFormatManager.class);
+    private static final String TEST_PRINCIPAL_HEADER = "X-Test-Principal";
+
     public static final String ENV_NAME = "myEnv";
     public static final String NOTIFICATION_TOPIC = ENV_NAME + "_Notification";
     public static final String STATUS_TOPIC = ENV_NAME + "_Status";
@@ -105,6 +114,8 @@ public class DistributionServletTest extends JerseyTest {
         when(distributionEngine.isEnvironmentAvailable()).thenReturn(StorageOperationStatus.OK);
 
         when(request.isUserInRole(anyString())).thenReturn(true);
+        when(distributionBusinessLogic.getResponseFormatManager()).thenReturn(responseFormatManager);
+        when(responseFormatManager.getResponseFormat(ActionStatus.AUTH_FAILED)).thenReturn(new ResponseFormat(HttpStatus.SC_FORBIDDEN));
 
         mockBusinessLogicResponse();
 
@@ -146,7 +157,7 @@ public class DistributionServletTest extends JerseyTest {
     public void registerSuccessTest() {
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
         RegistrationRequest registrationRequest = new RegistrationRequest("myPublicKey", ENV_NAME, false);
-        Response response = target().path("/v1/registerForDistribution").request(MediaType.APPLICATION_JSON).post(Entity.json(gson.toJson(registrationRequest)), Response.class);
+        Response response = target().path("/v1/registerForDistribution").request(MediaType.APPLICATION_JSON).header(TEST_PRINCIPAL_HEADER, "test").post(Entity.json(gson.toJson(registrationRequest)), Response.class);
         assertEquals(response.getStatus(), HttpStatus.SC_OK);
 
     }
@@ -155,7 +166,7 @@ public class DistributionServletTest extends JerseyTest {
     public void registerSuccessOnTenantTest() {
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
         RegistrationRequest registrationRequest = new RegistrationRequest("myPublicKey", ENV_NAME, Arrays.asList("11","22"),false);
-        Response response = target().path("/v1/registerForDistribution").request(MediaType.APPLICATION_JSON).post(Entity.json(gson.toJson(registrationRequest)), Response.class);
+        Response response = target().path("/v1/registerForDistribution").request(MediaType.APPLICATION_JSON).header(TEST_PRINCIPAL_HEADER, "test").post(Entity.json(gson.toJson(registrationRequest)), Response.class);
         assertEquals(response.getStatus(), HttpStatus.SC_OK);
 
     }
@@ -164,7 +175,7 @@ public class DistributionServletTest extends JerseyTest {
     public void unRegisterSuccessTest() {
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
         RegistrationRequest registrationRequest = new RegistrationRequest("myPublicKey", ENV_NAME, false);
-        Response response = target().path("/v1/unRegisterForDistribution").request(MediaType.APPLICATION_JSON).post(Entity.json(gson.toJson(registrationRequest)), Response.class);
+        Response response = target().path("/v1/unRegisterForDistribution").request(MediaType.APPLICATION_JSON).header(TEST_PRINCIPAL_HEADER, "test").post(Entity.json(gson.toJson(registrationRequest)), Response.class);
         assertEquals(response.getStatus(), HttpStatus.SC_OK);
 
     }
@@ -173,9 +184,41 @@ public class DistributionServletTest extends JerseyTest {
     public void unRegisterSuccessOnTenantTest() {
         Gson gson = new GsonBuilder().setPrettyPrinting().create();
         RegistrationRequest registrationRequest = new RegistrationRequest("myPublicKey", ENV_NAME, false);
-        Response response = target().path("/v1/unRegisterForDistribution").request(MediaType.APPLICATION_JSON).post(Entity.json(gson.toJson(registrationRequest)), Response.class);
+        Response response = target().path("/v1/unRegisterForDistribution").request(MediaType.APPLICATION_JSON).header(TEST_PRINCIPAL_HEADER, "test").post(Entity.json(gson.toJson(registrationRequest)), Response.class);
         assertEquals(response.getStatus(), HttpStatus.SC_OK);
 
+    }
+
+    @Test
+    public void registerWithOtherConsumerApiKeyIsForbiddenTest() {
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        RegistrationRequest registrationRequest = new RegistrationRequest("otherConsumerPublicKey", ENV_NAME, false);
+        Response response = target().path("/v1/registerForDistribution").request(MediaType.APPLICATION_JSON).header(TEST_PRINCIPAL_HEADER, "test").post(Entity.json(gson.toJson(registrationRequest)), Response.class);
+        assertEquals(HttpStatus.SC_FORBIDDEN, response.getStatus());
+    }
+
+    @Test
+    public void unRegisterWithOtherConsumerApiKeyIsForbiddenTest() {
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        RegistrationRequest registrationRequest = new RegistrationRequest("otherConsumerPublicKey", ENV_NAME, false);
+        Response response = target().path("/v1/unRegisterForDistribution").request(MediaType.APPLICATION_JSON).header(TEST_PRINCIPAL_HEADER, "test").post(Entity.json(gson.toJson(registrationRequest)), Response.class);
+        assertEquals(HttpStatus.SC_FORBIDDEN, response.getStatus());
+    }
+
+    @Test
+    public void registerWithoutAuthenticatedConsumerIsForbiddenTest() {
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        RegistrationRequest registrationRequest = new RegistrationRequest("myPublicKey", ENV_NAME, false);
+        Response response = target().path("/v1/registerForDistribution").request(MediaType.APPLICATION_JSON).post(Entity.json(gson.toJson(registrationRequest)), Response.class);
+        assertEquals(HttpStatus.SC_FORBIDDEN, response.getStatus());
+    }
+
+    @Test
+    public void unRegisterByOtherConsumerIsForbiddenTest() {
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        RegistrationRequest registrationRequest = new RegistrationRequest("myPublicKey", ENV_NAME, false);
+        Response response = target().path("/v1/unRegisterForDistribution").request(MediaType.APPLICATION_JSON).header(TEST_PRINCIPAL_HEADER, "otherConsumer").post(Entity.json(gson.toJson(registrationRequest)), Response.class);
+        assertEquals(HttpStatus.SC_FORBIDDEN, response.getStatus());
     }
 
     @Override
@@ -190,6 +233,7 @@ public class DistributionServletTest extends JerseyTest {
         enable(TestProperties.LOG_TRAFFIC);
         enable(TestProperties.DUMP_ENTITY);
         return new ResourceConfig(DistributionServlet.class)
+                .register(TestPrincipalFilter.class)
                 .register(new AbstractBinder() {
 
                     @Override
@@ -203,5 +247,38 @@ public class DistributionServletTest extends JerseyTest {
                     }
                 })
                 .property("contextConfig", context);
+    }
+
+    public static class TestPrincipalFilter implements ContainerRequestFilter {
+
+        @Override
+        public void filter(ContainerRequestContext requestContext) {
+            String userName = requestContext.getHeaderString(TEST_PRINCIPAL_HEADER);
+            if (userName == null) {
+                return;
+            }
+            Principal principal = () -> userName;
+            requestContext.setSecurityContext(new SecurityContext() {
+                @Override
+                public Principal getUserPrincipal() {
+                    return principal;
+                }
+
+                @Override
+                public boolean isUserInRole(String role) {
+                    return false;
+                }
+
+                @Override
+                public boolean isSecure() {
+                    return false;
+                }
+
+                @Override
+                public String getAuthenticationScheme() {
+                    return SecurityContext.BASIC_AUTH;
+                }
+            });
+        }
     }
 }

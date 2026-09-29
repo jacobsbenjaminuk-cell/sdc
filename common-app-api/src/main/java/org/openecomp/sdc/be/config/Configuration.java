@@ -23,6 +23,7 @@ package org.openecomp.sdc.be.config;
 import static java.lang.String.format;
 import static java.util.Collections.emptyMap;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -347,6 +348,7 @@ public class Configuration extends BasicConfiguration {
         private String userName;
         private String userPass;
         private String excludedUrls;
+        private List<String> apiPublicKeys = new ArrayList<>();
     }
 
     @Getter

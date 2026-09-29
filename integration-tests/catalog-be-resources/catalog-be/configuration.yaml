@@ -83,9 +83,10 @@ users:
 
 basicAuth:
   enabled: false
-  userName: testName
-  userPass: testPass
+  userName: ci
+  userPass: "123456"
   excludedUrls: "/sdc2/rest/healthCheck"
+  apiPublicKeys: []
 
 cassandraConfig:
     cassandraHosts: [sdc-cs]

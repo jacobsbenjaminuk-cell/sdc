@@ -116,9 +116,10 @@ neo4j:
 
 basicAuth:
   enabled: false
-  userName: "testName"
-  userPass: "testPass"
+  userName: ""
+  userPass: ""
   excludedUrls: ""
+  apiPublicKeys: []
 
 cassandraConfig:
     cassandraHosts: [192.168.33.10]

@@ -23,6 +23,8 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.Principal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.StringTokenizer;
@@ -35,7 +37,9 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.ResponseBuilder;
 import javax.ws.rs.core.Response.Status;
+import javax.ws.rs.core.SecurityContext;
 import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.lang3.StringUtils;
 import org.glassfish.jersey.server.ContainerRequest;
 import org.openecomp.sdc.be.config.Configuration;
 import org.openecomp.sdc.be.config.ConfigurationManager;
@@ -55,8 +59,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter {
 
     private static final Logger log = Logger.getLogger(BasicAuthenticationFilter.class);
     private static final String COMPONENT_UTILS_FAILED = "Authentication Filter Failed to get component utils.";
-    private static final ConfigurationManager configurationManager = ConfigurationManager.getConfigurationManager();
-    private static final Configuration.BasicAuthConfig basicAuthConf = configurationManager.getConfiguration().getBasicAuth();
+    private static final String DISTRIBUTION_API_SERVLET_PATH = "/sdc";
     private static LoggerSdcAudit audit = new LoggerSdcAudit(BasicAuthenticationFilter.class);
     protected Gson gson = new GsonBuilder().setPrettyPrinting().create();
     @Context
@@ -66,27 +69,25 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter {
     @Override
     public void filter(ContainerRequestContext requestContext) throws IOException {
         audit.startLog(requestContext);
-        if (!basicAuthConf.isEnabled()) {
-            return;
+        Configuration.BasicAuthConfig basicAuthConf = getBasicAuthConfig();
+        if (!isDistributionApi()) {
+            boolean isEnabled = basicAuthConf != null && basicAuthConf.isEnabled();
+            if (!isEnabled || isExcludedUrl(basicAuthConf, requestContext)) {
+                return;
+            }
         }
-        List<String> excludedUrls = Arrays.asList(basicAuthConf.getExcludedUrls().split(","));
-        if (excludedUrls.contains(((ContainerRequest) requestContext).getRequestUri().getPath())) {
+        if (basicAuthConf == null || StringUtils.isAnyBlank(basicAuthConf.getUserName(), basicAuthConf.getUserPass())) {
+            log.error("Authentication Filter rejected request, basic authentication credentials are not configured");
+            authRequiredError(requestContext);
             return;
         }
         String authHeader = requestContext.getHeaderString(Constants.AUTHORIZATION_HEADER);
         if (authHeader != null) {
             StringTokenizer st = new StringTokenizer(authHeader);
             String failedToRetrieveAuthErrorMsg = "Authentication Filter Failed Couldn't retrieve authentication, no basic authentication.";
-            if (st.hasMoreTokens()) {
-                String basic = st.nextToken();
-                if ("Basic".equalsIgnoreCase(basic)) {
-                    String credentials = new String(Base64.decodeBase64(st.nextToken()), StandardCharsets.UTF_8);
-                    log.debug("Credentials: {}", credentials);
-                    checkUserCredentials(requestContext, credentials);
-                } else {
-                    log.error(failedToRetrieveAuthErrorMsg);
-                    authInvalidHeaderError(requestContext);
-                }
+            if (st.countTokens() == 2 && "Basic".equalsIgnoreCase(st.nextToken())) {
+                String credentials = new String(Base64.decodeBase64(st.nextToken()), StandardCharsets.UTF_8);
+                checkUserCredentials(requestContext, basicAuthConf, credentials);
             } else {
                 log.error(failedToRetrieveAuthErrorMsg);
                 authInvalidHeaderError(requestContext);
@@ -97,20 +98,46 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter {
         }
     }
 
-    private void checkUserCredentials(ContainerRequestContext requestContext, String credentials) {
+    private Configuration.BasicAuthConfig getBasicAuthConfig() {
+        ConfigurationManager configurationManager = ConfigurationManager.getConfigurationManager();
+        if (configurationManager == null || configurationManager.getConfiguration() == null) {
+            return null;
+        }
+        return configurationManager.getConfiguration().getBasicAuth();
+    }
+
+    private boolean isExcludedUrl(Configuration.BasicAuthConfig basicAuthConf, ContainerRequestContext requestContext) {
+        if (basicAuthConf == null || StringUtils.isBlank(basicAuthConf.getExcludedUrls())) {
+            return false;
+        }
+        List<String> excludedUrls = Arrays.asList(basicAuthConf.getExcludedUrls().split(","));
+        return excludedUrls.contains(((ContainerRequest) requestContext).getRequestUri().getPath());
+    }
+
+    private boolean isDistributionApi() {
+        return DISTRIBUTION_API_SERVLET_PATH.equals(sr.getServletPath());
+    }
+
+    private void checkUserCredentials(ContainerRequestContext requestContext, Configuration.BasicAuthConfig basicAuthConf, String credentials) {
         int p = credentials.indexOf(':');
         if (p != -1) {
             String userName = credentials.substring(0, p).trim();
             String password = credentials.substring(p + 1).trim();
-            if (!userName.equals(basicAuthConf.getUserName()) || !password.equals(basicAuthConf.getUserPass())) {
+            if (!constantTimeEquals(userName, basicAuthConf.getUserName()) || !constantTimeEquals(password, basicAuthConf.getUserPass())) {
                 log.error("Authentication Failed. Invalid userName or password");
                 authInvalidPasswordError(requestContext, userName);
+                return;
             }
+            requestContext.setSecurityContext(new BasicAuthSecurityContext(userName, requestContext.getSecurityContext()));
             authSuccessful(requestContext, userName);
         } else {
             log.error("Authentication Filter Failed Couldn't retrieve authentication, no basic authentication.");
             authInvalidHeaderError(requestContext);
         }
+    }
+
+    private static boolean constantTimeEquals(String actual, String expected) {
+        return MessageDigest.isEqual(actual.getBytes(StandardCharsets.UTF_8), expected.trim().getBytes(StandardCharsets.UTF_8));
     }
 
     private void authSuccessful(ContainerRequestContext requestContext, String userName) {
@@ -128,7 +155,7 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter {
             abortWith(requestContext, COMPONENT_UTILS_FAILED, Response.status(Status.INTERNAL_SERVER_ERROR).build());
         } else {
             componentUtils.auditAuthEvent(requestContext.getUriInfo().getPath(), userName, AuthStatus.AUTH_FAILED_INVALID_PASSWORD.toString(), realm);
-            ResponseFormat responseFormat = getComponentsUtils().getResponseFormat(ActionStatus.AUTH_FAILED);
+            ResponseFormat responseFormat = componentUtils.getResponseFormat(ActionStatus.AUTH_FAILED);
             abortWith(requestContext, responseFormat.getFormattedMessage(), buildErrorResponse(responseFormat, false));
         }
     }
@@ -137,10 +164,11 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter {
         ComponentsUtils componentUtils = getComponentsUtils();
         if (componentUtils == null) {
             abortWith(requestContext, COMPONENT_UTILS_FAILED, Response.status(Status.INTERNAL_SERVER_ERROR).build());
+            return;
         }
-        getComponentsUtils()
+        componentUtils
             .auditAuthEvent(requestContext.getUriInfo().getPath(), "", AuthStatus.AUTH_FAILED_INVALID_AUTHENTICATION_HEADER.toString(), realm);
-        ResponseFormat responseFormat = getComponentsUtils().getResponseFormat(ActionStatus.AUTH_FAILED_INVALIDE_HEADER);
+        ResponseFormat responseFormat = componentUtils.getResponseFormat(ActionStatus.AUTH_FAILED_INVALIDE_HEADER);
         abortWith(requestContext, responseFormat.getFormattedMessage(), buildErrorResponse(responseFormat, false));
     }
 
@@ -148,9 +176,10 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter {
         ComponentsUtils componentUtils = getComponentsUtils();
         if (componentUtils == null) {
             abortWith(requestContext, COMPONENT_UTILS_FAILED, Response.status(Status.INTERNAL_SERVER_ERROR).build());
+            return;
         }
-        getComponentsUtils().auditAuthEvent(requestContext.getUriInfo().getPath(), "", AuthStatus.AUTH_REQUIRED.toString(), realm);
-        ResponseFormat responseFormat = getComponentsUtils().getResponseFormat(ActionStatus.AUTH_REQUIRED);
+        componentUtils.auditAuthEvent(requestContext.getUriInfo().getPath(), "", AuthStatus.AUTH_REQUIRED.toString(), realm);
+        ResponseFormat responseFormat = componentUtils.getResponseFormat(ActionStatus.AUTH_REQUIRED);
         abortWith(requestContext, responseFormat.getFormattedMessage(), buildErrorResponse(responseFormat, true));
     }
 
@@ -177,6 +206,37 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter {
         log.error(message);
         audit.clearMyData();
         requestContext.abortWith(response);
+    }
+
+    private static final class BasicAuthSecurityContext implements SecurityContext {
+
+        private final Principal principal;
+        private final SecurityContext delegate;
+
+        private BasicAuthSecurityContext(String userName, SecurityContext delegate) {
+            this.principal = () -> userName;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public Principal getUserPrincipal() {
+            return principal;
+        }
+
+        @Override
+        public boolean isUserInRole(String role) {
+            return delegate != null && delegate.isUserInRole(role);
+        }
+
+        @Override
+        public boolean isSecure() {
+            return delegate != null && delegate.isSecure();
+        }
+
+        @Override
+        public String getAuthenticationScheme() {
+            return SecurityContext.BASIC_AUTH;
+        }
     }
 
     public enum AuthStatus {

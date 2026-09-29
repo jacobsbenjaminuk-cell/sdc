@@ -87,6 +87,7 @@ basicAuth:
   userName: test
   userPass: test
   excludedUrls: '/test1'
+  apiPublicKeys: ['myPublicKey']
 
 cassandraConfig:
     cassandraHosts: ['localhost']
