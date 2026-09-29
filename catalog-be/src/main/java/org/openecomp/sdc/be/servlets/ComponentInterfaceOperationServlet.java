@@ -139,7 +139,7 @@ public class ComponentInterfaceOperationServlet extends AbstractValidationsServl
         final Wrapper<ResponseFormat> errorWrapper = new Wrapper<>();
         try {
             final Optional<ComponentInstance> actionResponse = componentInterfaceOperationBusinessLogic.updateComponentInstanceInterfaceOperation(
-                componentId, componentInstanceId, mappedInterfaceOperationData.get(), componentTypeEnum, errorWrapper, true);
+                componentId, componentInstanceId, userId, mappedInterfaceOperationData.get(), componentTypeEnum, errorWrapper, true);
             if (actionResponse.isEmpty()) {
                 LOGGER.error(FAILED_TO_UPDATE_INTERFACE_OPERATION, componentInstanceId);
                 return buildErrorResponse(errorWrapper.getInnerElement());
@@ -147,6 +147,9 @@ public class ComponentInterfaceOperationServlet extends AbstractValidationsServl
                 LOGGER.debug(INTERFACE_OPERATION_SUCCESSFULLY_UPDATED, componentInstanceId);
                 return buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.CREATED), actionResponse.get());
             }
+        } catch (final ComponentException e) {
+            //let it be handled by org.openecomp.sdc.be.servlets.exception.ComponentExceptionMapper
+            throw e;
         } catch (final Exception e) {
             BeEcompErrorManager.getInstance().logBeRestApiGeneralError(UPDATE_INTERFACE_OPERATION);
             LOGGER.error(FAILED_TO_UPDATE_INTERFACE_OPERATION_WITH_ERROR, e);
@@ -243,7 +246,7 @@ public class ComponentInterfaceOperationServlet extends AbstractValidationsServl
         final Wrapper<ResponseFormat> errorWrapper = new Wrapper<>();
         try {
             final Optional<ComponentInstance> actionResponse = componentInterfaceOperationBusinessLogic.createComponentInstanceInterfaceOperation(
-                componentId, componentInstanceId, mappedInterfaceOperationData.get(), componentTypeEnum, errorWrapper, true);
+                componentId, componentInstanceId, userId, mappedInterfaceOperationData.get(), componentTypeEnum, errorWrapper, true);
             if (actionResponse.isEmpty()) {
                 LOGGER.error(FAILED_TO_UPDATE_INTERFACE_OPERATION, componentInstanceId);
                 return buildErrorResponse(errorWrapper.getInnerElement());
@@ -251,6 +254,9 @@ public class ComponentInterfaceOperationServlet extends AbstractValidationsServl
                 LOGGER.debug(INTERFACE_OPERATION_SUCCESSFULLY_UPDATED, componentInstanceId);
                 return buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.CREATED), actionResponse.get());
             }
+        } catch (final ComponentException e) {
+            //let it be handled by org.openecomp.sdc.be.servlets.exception.ComponentExceptionMapper
+            throw e;
         } catch (final Exception e) {
             BeEcompErrorManager.getInstance().logBeRestApiGeneralError(UPDATE_INTERFACE_OPERATION);
             LOGGER.error(FAILED_TO_UPDATE_INTERFACE_OPERATION_WITH_ERROR, e);
@@ -294,7 +300,7 @@ public class ComponentInterfaceOperationServlet extends AbstractValidationsServl
         final Wrapper<ResponseFormat> errorWrapper = new Wrapper<>();
         try {
             final Optional<Component> actionResponse = componentInterfaceOperationBusinessLogic.createInterfaceOperationInResource(
-                componentId, mappedInterfaceOperationData.get(), componentTypeEnum, errorWrapper, true);
+                componentId, userId, mappedInterfaceOperationData.get(), componentTypeEnum, errorWrapper, true);
             if (actionResponse.isEmpty()) {
                 LOGGER.error(FAILED_TO_UPDATE_INTERFACE_OPERATION, componentId);
                 return buildErrorResponse(errorWrapper.getInnerElement());
@@ -302,6 +308,9 @@ public class ComponentInterfaceOperationServlet extends AbstractValidationsServl
                 LOGGER.debug(INTERFACE_OPERATION_SUCCESSFULLY_UPDATED, componentId);
                 return buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.CREATED), actionResponse.get());
             }
+        } catch (final ComponentException e) {
+            //let it be handled by org.openecomp.sdc.be.servlets.exception.ComponentExceptionMapper
+            throw e;
         } catch (final Exception e) {
             BeEcompErrorManager.getInstance().logBeRestApiGeneralError(UPDATE_INTERFACE_OPERATION);
             LOGGER.error(FAILED_TO_UPDATE_INTERFACE_OPERATION_WITH_ERROR, e);
