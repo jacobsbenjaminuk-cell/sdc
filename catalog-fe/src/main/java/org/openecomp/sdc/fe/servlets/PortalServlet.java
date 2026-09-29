@@ -23,6 +23,7 @@ package org.openecomp.sdc.fe.servlets;
 import java.io.IOException;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Optional;
 import javax.servlet.RequestDispatcher;
 import javax.servlet.ServletException;
 import javax.servlet.http.Cookie;
@@ -44,6 +45,7 @@ import org.openecomp.sdc.fe.Constants;
 import org.openecomp.sdc.fe.config.Configuration;
 import org.openecomp.sdc.fe.config.ConfigurationManager;
 import org.openecomp.sdc.fe.config.FeEcompErrorManager;
+import org.openecomp.sdc.fe.impl.AnonymousDefaultUser;
 
 /**
  * Root resource (exposed at "/" path)
@@ -134,12 +136,13 @@ public class PortalServlet extends HttpServlet {
             }
         }
         if (StringUtils.isEmpty(userId)) {
-            userId = configuration.getDefaultUserId();
-            if (StringUtils.isEmpty(userId)) {
+            final Optional<String> anonymousUserId = AnonymousDefaultUser.resolve(configuration);
+            if (anonymousUserId.isEmpty()) {
                 response.sendError(HttpServletResponse.SC_USE_PROXY, MISSING_HEADERS_MSG);
                 return;
             }
-            log.info("Request carries no identity headers and no portal cookie, falling back to default user {}", userId);
+            userId = anonymousUserId.get();
+            log.warn("Request carries no identity headers and no portal cookie, serving it as anonymous default user {}", userId);
         }
         // Replace webseal header with open source header
         mutableRequest.putHeader(Constants.USER_ID, userId);

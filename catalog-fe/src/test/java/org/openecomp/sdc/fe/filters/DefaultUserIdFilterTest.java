@@ -63,6 +63,7 @@ class DefaultUserIdFilterTest {
         final ConfigurationManager configurationManager = Mockito.mock(ConfigurationManager.class);
         when(configurationManager.getConfiguration()).thenReturn(configuration);
         ConfigurationManager.setTestInstance(configurationManager);
+        when(configuration.isAllowAnonymousDefaultUser()).thenReturn(true);
         when(configuration.getDefaultUserId()).thenReturn("cs0008");
         when(request.getContextPath()).thenReturn(CONTEXT_PATH);
         filter = new DefaultUserIdFilter();
@@ -146,6 +147,20 @@ class DefaultUserIdFilterTest {
     void doesNothingWhenNoDefaultUserIsConfigured() throws IOException, ServletException {
         when(request.getRequestURI()).thenReturn(CONTEXT_PATH + "/");
         when(configuration.getDefaultUserId()).thenReturn("");
+
+        filter.doFilter(request, response, chain);
+
+        verify(response, never()).addCookie(Mockito.any(Cookie.class));
+        verify(chain, times(1)).doFilter(request, response);
+    }
+
+    /**
+     * A defaultUserId on its own must not identify anyone: handing an unauthenticated visitor a working identity needs the explicit opt-in.
+     */
+    @Test
+    void doesNothingWhenAnonymousDefaultUserIsNotAllowed() throws IOException, ServletException {
+        when(request.getRequestURI()).thenReturn(CONTEXT_PATH + "/");
+        when(configuration.isAllowAnonymousDefaultUser()).thenReturn(false);
 
         filter.doFilter(request, response, chain);
 
