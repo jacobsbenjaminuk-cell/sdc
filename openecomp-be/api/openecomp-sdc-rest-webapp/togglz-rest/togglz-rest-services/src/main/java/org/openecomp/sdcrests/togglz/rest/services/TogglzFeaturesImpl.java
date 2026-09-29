@@ -16,6 +16,7 @@
 package org.openecomp.sdcrests.togglz.rest.services;
 
 import java.util.Arrays;
+import java.util.function.Supplier;
 import javax.inject.Named;
 import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
@@ -37,14 +38,14 @@ import org.togglz.core.util.NamedFeature;
 public class TogglzFeaturesImpl implements TogglzFeatures {
 
     private static final String BASIC_CHALLENGE = "Basic realm=\"togglz\"";
-    private final TogglzAdminAuthorizer adminAuthorizer;
+    private final Supplier<TogglzAdminAuthorizer> adminAuthorizer;
 
     public TogglzFeaturesImpl() {
-        this(TogglzAdminAuthorizer.fromConfiguration());
+        this.adminAuthorizer = TogglzAdminAuthorizer::fromConfiguration;
     }
 
     public TogglzFeaturesImpl(TogglzAdminAuthorizer adminAuthorizer) {
-        this.adminAuthorizer = adminAuthorizer;
+        this.adminAuthorizer = () -> adminAuthorizer;
     }
 
     private static Response unauthorized() {
@@ -64,7 +65,7 @@ public class TogglzFeaturesImpl implements TogglzFeatures {
 
     @Override
     public Response setAllFeatures(boolean active, String authorization) {
-        if (!adminAuthorizer.isAuthorized(authorization)) {
+        if (!adminAuthorizer.get().isAuthorized(authorization)) {
             return unauthorized();
         }
         FeatureSetDto featureSetDto = new FeatureSetDto();
@@ -79,7 +80,7 @@ public class TogglzFeaturesImpl implements TogglzFeatures {
 
     @Override
     public Response setFeatureState(String featureName, boolean active, String authorization) {
-        if (!adminAuthorizer.isAuthorized(authorization)) {
+        if (!adminAuthorizer.get().isAuthorized(authorization)) {
             return unauthorized();
         }
         if (!isKnownFeature(featureName)) {
