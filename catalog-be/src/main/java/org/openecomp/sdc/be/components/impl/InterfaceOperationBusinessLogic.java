@@ -111,6 +111,10 @@ public class InterfaceOperationBusinessLogic extends BaseBusinessLogic {
             return Either.right(componentEither.right().value());
         }
         Component storedComponent = componentEither.left().value();
+        Optional<ResponseFormat> canWorkOnComponentError = validateCanWorkOnComponentForUser(storedComponent, user);
+        if (canWorkOnComponentError.isPresent()) {
+            return Either.right(canWorkOnComponentError.get());
+        }
         lockComponentResult(lock, storedComponent, DELETE_INTERFACE_OPERATION);
         try {
             Optional<InterfaceDefinition> optionalInterface = getInterfaceDefinitionFromComponentByInterfaceId(storedComponent, interfaceId);
@@ -204,6 +208,15 @@ public class InterfaceOperationBusinessLogic extends BaseBusinessLogic {
         return Either.left(componentStorageOperationStatusEither.left().value());
     }
 
+    private Optional<ResponseFormat> validateCanWorkOnComponentForUser(Component component, User user) {
+        try {
+            validateCanWorkOnComponent(component, user.getUserId());
+        } catch (ComponentException e) {
+            return Optional.of(componentsUtils.getResponseFormat(e));
+        }
+        return Optional.empty();
+    }
+
     private Either<Boolean, ResponseFormat> lockComponentResult(boolean lock, Component component, String action) {
         if (lock) {
             try {
@@ -266,12 +279,17 @@ public class InterfaceOperationBusinessLogic extends BaseBusinessLogic {
             return Either.right(componentEither.right().value());
         }
         Component storedComponent = componentEither.left().value();
-        lockComponentResult(lock, storedComponent, errorContext);
-        Either<Map<String, InterfaceDefinition>, ResponseFormat> interfaceLifecycleTypes = getAllInterfaceLifecycleTypes(storedComponent.getModel());
-        if (interfaceLifecycleTypes.isRight()) {
-            return Either.right(interfaceLifecycleTypes.right().value());
+        Optional<ResponseFormat> canWorkOnComponentError = validateCanWorkOnComponentForUser(storedComponent, user);
+        if (canWorkOnComponentError.isPresent()) {
+            return Either.right(canWorkOnComponentError.get());
         }
+        lockComponentResult(lock, storedComponent, errorContext);
         try {
+            Either<Map<String, InterfaceDefinition>, ResponseFormat> interfaceLifecycleTypes =
+                getAllInterfaceLifecycleTypes(storedComponent.getModel());
+            if (interfaceLifecycleTypes.isRight()) {
+                return Either.right(interfaceLifecycleTypes.right().value());
+            }
             List<InterfaceDefinition> interfacesCollection = new ArrayList<>();
             Map<String, Operation> operationsCollection = new HashMap<>();
             for (InterfaceDefinition inputInterfaceDefinition : interfaceDefinitions) {

@@ -21,6 +21,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -40,6 +42,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.MockitoJUnitRunner;
 import org.openecomp.sdc.be.components.impl.exceptions.ByActionStatusComponentException;
+import org.openecomp.sdc.be.components.impl.exceptions.ComponentException;
 import org.openecomp.sdc.be.components.utils.ResourceBuilder;
 import org.openecomp.sdc.be.components.validation.InterfaceOperationValidation;
 import org.openecomp.sdc.be.components.validation.UserValidations;
@@ -58,6 +61,7 @@ import org.openecomp.sdc.be.model.CapabilityDefinition;
 import org.openecomp.sdc.be.model.ComponentInstanceProperty;
 import org.openecomp.sdc.be.model.InputDefinition;
 import org.openecomp.sdc.be.model.InterfaceDefinition;
+import org.openecomp.sdc.be.model.LifecycleStateEnum;
 import org.openecomp.sdc.be.model.Resource;
 import org.openecomp.sdc.be.model.User;
 import org.openecomp.sdc.be.model.jsonjanusgraph.operations.ArtifactsOperations;
@@ -84,6 +88,8 @@ public class InterfaceOperationBusinessLogicTest {
     private static final String operationId1 = "operationId1";
     private static final String interfaceId1 = "interfaceId1";
     private static final String operationName = "createOperation";
+    private static final String USER_ID = "cs0008";
+    private static final String OTHER_USER_ID = "jh0003";
 
     @InjectMocks
     private InterfaceOperationBusinessLogic interfaceOperationBusinessLogic;
@@ -118,12 +124,15 @@ public class InterfaceOperationBusinessLogicTest {
         interfaceOperationBusinessLogic.setJanusGraphDao(janusGraphDao);
         interfaceOperationBusinessLogic.setComponentsUtils(componentsUtils);
         resource = new ResourceBuilder().setComponentType(ComponentTypeEnum.RESOURCE).setUniqueId(resourceId)
-                           .setName(RESOURCE_NAME).build();
+                           .setName(RESOURCE_NAME).setLifeCycleState(LifecycleStateEnum.NOT_CERTIFIED_CHECKOUT)
+                           .setLastUpdaterUserId(USER_ID).build();
         resource.setInterfaces(InterfaceOperationTestUtils.createMockInterfaceDefinitionMap(interfaceId, operationId,
                 operationName));
         resource.setInputs(createInputsForResource());
 
         user = new User();
+        user.setUserId(USER_ID);
+        when(userValidations.isSameUser(USER_ID, USER_ID)).thenReturn(true);
         when(toscaOperationFacade.getToscaElement(resourceId)).thenReturn(Either.left(resource));
         when(graphLockOperation.lockComponent(Mockito.anyString(), eq(NodeTypeEnum.Resource)))
                 .thenReturn(StorageOperationStatus.OK);
@@ -495,6 +504,65 @@ public class InterfaceOperationBusinessLogicTest {
         when(janusGraphDao.commit()).thenThrow(new RuntimeException());
         Assert.assertTrue(interfaceOperationBusinessLogic.getInterfaceOperation(resourceId, interfaceId,
                 Collections.singletonList(operationId), user, true).isRight());
+    }
+
+    @Test
+    public void shouldRejectCreateInterfaceOperationOnCertifiedComponent() {
+        resource.setLifecycleState(LifecycleStateEnum.CERTIFIED);
+        stubRestrictedOperationResponse();
+        Assert.assertTrue(interfaceOperationBusinessLogic.createInterfaceOperation(resourceId,
+                Collections.singletonList(InterfaceOperationTestUtils.createMockInterface(interfaceId, operationId, operationName)),
+                user, true).isRight());
+        verifyComponentNotLockedOrModified();
+    }
+
+    @Test
+    public void shouldRejectUpdateInterfaceOperationOnCheckedInComponent() {
+        resource.setLifecycleState(LifecycleStateEnum.NOT_CERTIFIED_CHECKIN);
+        stubRestrictedOperationResponse();
+        Assert.assertTrue(interfaceOperationBusinessLogic.updateInterfaceOperation(resourceId,
+                Collections.singletonList(InterfaceOperationTestUtils.createMockInterface(interfaceId, operationId, operationName)),
+                user, true).isRight());
+        verifyComponentNotLockedOrModified();
+    }
+
+    @Test
+    public void shouldRejectUpdateInterfaceOperationOnArchivedComponent() {
+        resource.setArchived(true);
+        stubRestrictedOperationResponse();
+        Assert.assertTrue(interfaceOperationBusinessLogic.updateInterfaceOperation(resourceId,
+                Collections.singletonList(InterfaceOperationTestUtils.createMockInterface(interfaceId, operationId, operationName)),
+                user, true).isRight());
+        verifyComponentNotLockedOrModified();
+    }
+
+    @Test
+    public void shouldRejectDeleteInterfaceOperationOnComponentCheckedOutByOtherUser() {
+        resource.setLastUpdaterUserId(OTHER_USER_ID);
+        stubRestrictedOperationResponse();
+        Assert.assertTrue(interfaceOperationBusinessLogic.deleteInterfaceOperation(resourceId, interfaceId,
+                Collections.singletonList(operationId), user, true).isRight());
+        verifyComponentNotLockedOrModified();
+    }
+
+    @Test
+    public void shouldRejectDeleteInterfaceOperationOnCertifiedComponent() {
+        resource.setLifecycleState(LifecycleStateEnum.CERTIFIED);
+        stubRestrictedOperationResponse();
+        Assert.assertTrue(interfaceOperationBusinessLogic.deleteInterfaceOperation(resourceId, interfaceId,
+                Collections.singletonList(operationId), user, true).isRight());
+        verifyComponentNotLockedOrModified();
+    }
+
+    private void stubRestrictedOperationResponse() {
+        when(componentsUtils.getResponseFormat(any(ComponentException.class))).thenReturn(new ResponseFormat(403));
+    }
+
+    private void verifyComponentNotLockedOrModified() {
+        verify(graphLockOperation, never()).lockComponent(Mockito.anyString(), any());
+        verify(interfaceOperation, never()).updateInterfaces(any(), any());
+        verify(interfaceOperation, never()).deleteInterface(any(), any());
+        verify(artifactCassandraDao, never()).deleteArtifact(any(String.class));
     }
 
     @Test

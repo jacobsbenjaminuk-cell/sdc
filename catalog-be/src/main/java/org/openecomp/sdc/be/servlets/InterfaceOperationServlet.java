@@ -50,6 +50,7 @@ import javax.ws.rs.core.Response;
 import org.openecomp.sdc.be.components.impl.ComponentInstanceBusinessLogic;
 import org.openecomp.sdc.be.components.impl.InterfaceOperationBusinessLogic;
 import org.openecomp.sdc.be.components.impl.ResourceImportManager;
+import org.openecomp.sdc.be.components.impl.exceptions.ComponentException;
 import org.openecomp.sdc.be.config.BeEcompErrorManager;
 import org.openecomp.sdc.be.dao.api.ActionStatus;
 import org.openecomp.sdc.be.datatypes.enums.ComponentTypeEnum;
@@ -124,6 +125,8 @@ public class InterfaceOperationServlet extends AbstractValidationsServlet {
                 return buildErrorResponse(actionResponse.right().value());
             }
             return buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.OK), getFormattedResponse(actionResponse.left().value()));
+        } catch (final ComponentException e) {
+            throw e;
         } catch (Exception e) {
             BeEcompErrorManager.getInstance().logBeRestApiGeneralError("Interface Operation Creation or update");
             log.error("create or update interface Operation with an error", e);
@@ -193,6 +196,8 @@ public class InterfaceOperationServlet extends AbstractValidationsServlet {
                 return buildErrorResponse(actionResponse.right().value());
             }
             return buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.OK), getFormattedResponse(actionResponse.left().value()));
+        } catch (final ComponentException e) {
+            throw e;
         } catch (Exception e) {
             BeEcompErrorManager.getInstance().logBeRestApiGeneralError("Delete Interface Operation");
             log.error("Delete interface operation with an error", e);
