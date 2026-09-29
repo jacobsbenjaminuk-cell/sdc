@@ -765,6 +765,7 @@ class ServiceBusinessLogicTest extends ServiceBusinessLogicBaseTestSetup {
         final User designer = createDesigner();
         final Service service = createNewService();
         service.setArchived(true);
+        service.setHighestVersion(true);
         service.setLastUpdaterUserId("otherUser");
         Mockito.when(toscaOperationFacade.getToscaElement(Mockito.anyString())).thenReturn(Either.left(service));
         final ComponentException actualException = assertThrows(ComponentException.class, () -> bl.deleteServiceAllVersions("12345", designer));
@@ -777,12 +778,73 @@ class ServiceBusinessLogicTest extends ServiceBusinessLogicBaseTestSetup {
         final User designer = createDesigner();
         final Service service = createNewService();
         service.setArchived(true);
+        service.setHighestVersion(true);
         service.setLastUpdaterUserId(designer.getUserId());
         Mockito.when(toscaOperationFacade.getToscaElement(Mockito.anyString())).thenReturn(Either.left(service));
         Mockito.when(toscaOperationFacade.deleteService(Mockito.any(), Mockito.eq(true))).thenReturn(new ArrayList<>());
         Mockito.when(modelOperation.findModelByName(Mockito.any())).thenReturn(Optional.empty());
         bl.deleteServiceAllVersions("12345", designer);
         Mockito.verify(toscaOperationFacade, Mockito.times(1)).deleteService(Mockito.any(), Mockito.eq(true));
+    }
+
+    @Test
+    void testDeleteArchivedService_DesignerIsLastUpdaterOfHighestVersion() throws ToscaOperationException {
+        final User designer = createDesigner();
+        final Service selectedVersion = createNewService();
+        selectedVersion.setArchived(true);
+        selectedVersion.setHighestVersion(false);
+        selectedVersion.setInvariantUUID("invariantUUID");
+        selectedVersion.setLastUpdaterUserId("otherUser");
+        final Service highestVersion = createNewService();
+        highestVersion.setLastUpdaterUserId(designer.getUserId());
+        Mockito.when(toscaOperationFacade.getToscaElement(Mockito.anyString())).thenReturn(Either.left(selectedVersion));
+        Mockito.when(toscaOperationFacade.getComponentListByInvariantUuid(Mockito.eq("invariantUUID"), Mockito.anyMap()))
+            .thenReturn(Either.left(Lists.newArrayList(highestVersion)));
+        Mockito.when(toscaOperationFacade.deleteService(Mockito.any(), Mockito.eq(true))).thenReturn(new ArrayList<>());
+        Mockito.when(modelOperation.findModelByName(Mockito.any())).thenReturn(Optional.empty());
+        bl.deleteServiceAllVersions("12345", designer);
+        Mockito.verify(toscaOperationFacade, Mockito.times(1)).deleteService(Mockito.any(), Mockito.eq(true));
+    }
+
+    @Test
+    void testDeleteArchivedService_DesignerIsNotLastUpdaterOfHighestVersion() {
+        final User designer = createDesigner();
+        final Service selectedVersion = createNewService();
+        selectedVersion.setArchived(true);
+        selectedVersion.setHighestVersion(false);
+        selectedVersion.setInvariantUUID("invariantUUID");
+        selectedVersion.setLastUpdaterUserId(designer.getUserId());
+        final Service highestVersion = createNewService();
+        highestVersion.setLastUpdaterUserId("otherUser");
+        Mockito.when(toscaOperationFacade.getToscaElement(Mockito.anyString())).thenReturn(Either.left(selectedVersion));
+        Mockito.when(toscaOperationFacade.getComponentListByInvariantUuid(Mockito.eq("invariantUUID"), Mockito.anyMap()))
+            .thenReturn(Either.left(Lists.newArrayList(highestVersion)));
+        final ComponentException actualException = assertThrows(ComponentException.class, () -> bl.deleteServiceAllVersions("12345", designer));
+        assertEquals(ActionStatus.RESTRICTED_OPERATION, actualException.getActionStatus());
+        Mockito.verify(toscaOperationFacade, Mockito.never()).deleteService(Mockito.anyString(), Mockito.anyBoolean());
+    }
+
+    @Test
+    void testDeleteServiceByNameAndVersion_RoleNotAllowed() {
+        Mockito.doThrow(new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION))
+            .when(userValidations).validateUserRole(user, Arrays.asList(Role.ADMIN, Role.DESIGNER));
+        final ComponentException actualException = assertThrows(ComponentException.class,
+            () -> bl.deleteServiceByNameAndVersion("serviceName", "1.0", user));
+        assertEquals(ActionStatus.RESTRICTED_OPERATION, actualException.getActionStatus());
+        Mockito.verify(toscaOperationFacade, Mockito.never()).markComponentToDelete(Mockito.any());
+    }
+
+    @Test
+    void testDeleteServiceByNameAndVersion_DesignerCannotWorkOnService() {
+        final User designer = createDesigner();
+        final Service service = createNewService();
+        service.setLifecycleState(LifecycleStateEnum.NOT_CERTIFIED_CHECKOUT);
+        service.setLastUpdaterUserId("otherUser");
+        Mockito.when(toscaOperationFacade.<Service>getComponentByNameAndVersion(ComponentTypeEnum.SERVICE, "serviceName", "1.0"))
+            .thenReturn(Either.left(service));
+        final ResponseFormat response = bl.deleteServiceByNameAndVersion("serviceName", "1.0", designer);
+        assertEquals(HttpStatus.FORBIDDEN.value(), response.getStatus());
+        Mockito.verify(toscaOperationFacade, Mockito.never()).markComponentToDelete(Mockito.any());
     }
 
     @Test
@@ -824,6 +886,7 @@ class ServiceBusinessLogicTest extends ServiceBusinessLogicBaseTestSetup {
         designer.setUserId("cs0008");
         designer.setRole(Role.DESIGNER.name());
         Mockito.when(userValidations.validateUserExists(designer)).thenReturn(designer);
+        Mockito.when(userValidations.validateUserNotEmpty(Mockito.eq(designer), Mockito.anyString())).thenReturn(designer);
         return designer;
     }
 
