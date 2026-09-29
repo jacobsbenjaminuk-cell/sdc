@@ -77,10 +77,15 @@ public class Configuration extends BasicConfiguration {
     private List<List<String>> optionalHeaderFields;
     private List<String> forwardHeaderFields;
     /**
-     * User id assumed when a request carries no identity headers. The ONAP Portal used to supply them; with no portal deployed there is nothing to
-     * authenticate against, so requests are attributed to this user. Set it to empty to reject unidentified requests instead.
+     * User id assumed when a request carries no identity headers. Only honoured when {@link #allowAnonymousDefaultUser} is true; otherwise
+     * unidentified requests are rejected.
      */
-    private String defaultUserId = "cs0008";
+    private String defaultUserId;
+    /**
+     * Development-only opt-in that lets anonymous visitors act as {@link #defaultUserId} with no authentication at all. Never enable it on an
+     * instance reachable by untrusted users.
+     */
+    private boolean allowAnonymousDefaultUser;
     private String dataValidatorFilterExcludedUrls; // Comma separated list of excluded URLs by the DataValidatorFilter
     private String permittedAncestors; // Space separated list of permitted ancestors
 

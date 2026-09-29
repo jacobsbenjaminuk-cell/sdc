@@ -149,7 +149,19 @@ class PortalServletTest extends JerseyTest {
     }
 
     @Test
+    void testMissingHeadersRequestIsRejectedWhenAnonymousDefaultUserIsNotAllowed() throws IOException {
+        when(configuration.isAllowAnonymousDefaultUser()).thenReturn(false);
+        when(configuration.getDefaultUserId()).thenReturn("cs0008");
+        when(request.getHeader(Mockito.anyString())).thenReturn(null);
+        when(request.getCookies()).thenReturn(getCookies());
+        target().path("/portal").request().get();
+        Mockito.verify(response, times(1))
+            .sendError(HttpServletResponse.SC_USE_PROXY, PortalServlet.MISSING_HEADERS_MSG);
+    }
+
+    @Test
     void testMissingHeadersRequestUsesConfiguredDefaultUser() throws IOException, ServletException {
+        when(configuration.isAllowAnonymousDefaultUser()).thenReturn(true);
         when(configuration.getDefaultUserId()).thenReturn("cs0008");
         when(request.getHeader(Mockito.anyString())).thenReturn(null);
         when(request.getCookies()).thenReturn(getCookies());

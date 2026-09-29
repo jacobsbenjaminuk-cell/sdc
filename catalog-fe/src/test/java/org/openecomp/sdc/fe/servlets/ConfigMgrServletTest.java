@@ -87,7 +87,7 @@ public class ConfigMgrServletTest {
             + "  \"version\": \"VERSION 1\",\n"
             + "  \"threadpoolSize\": 0,\n"
             + "  \"requestTimeout\": 0,\n"
-            + "  \"defaultUserId\": \"cs0008\"\n"
+            + "  \"allowAnonymousDefaultUser\": false\n"
             + "}";
 
         Configuration configuration = new Configuration();

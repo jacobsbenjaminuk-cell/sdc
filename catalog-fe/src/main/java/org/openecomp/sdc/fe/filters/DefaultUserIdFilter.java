@@ -22,6 +22,7 @@ package org.openecomp.sdc.fe.filters;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Optional;
 import javax.servlet.Filter;
 import javax.servlet.FilterChain;
 import javax.servlet.FilterConfig;
@@ -37,9 +38,11 @@ import org.openecomp.sdc.common.log.wrappers.Logger;
 import org.openecomp.sdc.fe.Constants;
 import org.openecomp.sdc.fe.config.Configuration;
 import org.openecomp.sdc.fe.config.ConfigurationManager;
+import org.openecomp.sdc.fe.impl.AnonymousDefaultUser;
 
 /**
- * Gives the single page application an identity when it is opened directly rather than through the ONAP Portal.
+ * Gives the single page application an identity when it is opened directly rather than through the ONAP Portal. Only active when the
+ * development-only {@code allowAnonymousDefaultUser} opt-in is set, see {@link AnonymousDefaultUser}.
  *
  * <p>{@link org.openecomp.sdc.fe.servlets.PortalServlet} already falls back to the configured {@code defaultUserId}, but it is mapped to
  * {@code /portal} - the deep link the portal used to hand out. Browsers open the context root, which the container answers from the welcome file
@@ -125,17 +128,18 @@ public class DefaultUserIdFilter implements Filter {
 
     private void addDefaultUserIdCookie(final HttpServletRequest request, final HttpServletResponse response) {
         final Configuration configuration = ConfigurationManager.getConfigurationManager().getConfiguration();
-        final String defaultUserId = configuration.getDefaultUserId();
-        if (StringUtils.isEmpty(defaultUserId)) {
+        final Optional<String> anonymousUserId = AnonymousDefaultUser.resolve(configuration);
+        if (anonymousUserId.isEmpty()) {
             return;
         }
+        final String defaultUserId = anonymousUserId.get();
         try {
             final Cookie cookie = new Cookie(Constants.USER_ID, CipherUtil.encryptPKC(defaultUserId));
             // The backend decrypts any base64-looking USER_ID, so an encrypted value is the only contract it understands. Deliberately not HttpOnly:
             // the single page application reads this with document.cookie and copies it onto every backend call.
             cookie.setSecure(isHttps(request));
             response.addCookie(cookie);
-            log.info("Request to {} carries no portal identity, defaulting to user {}", request.getRequestURI(), defaultUserId);
+            log.warn("Request to {} carries no portal identity, serving it as anonymous default user {}", request.getRequestURI(), defaultUserId);
         } catch (final Exception e) {
             log.error("Failed to build the default user cookie, the application will load unidentified", e);
         }

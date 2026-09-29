@@ -53,14 +53,16 @@ During initial install following users are created:
 Default User
 ------------
 
-By default, SDC UI is launched with default user 'cs0008'. To override see section :ref:`Using Cookies to set User <using_cookies>`.
+SDC does not assign a default user. A request with no identity is rejected. For an isolated development setup only, the frontend can serve
+anonymous visitors as a fixed user by setting ``allowAnonymousDefaultUser: true`` and ``defaultUserId`` in the catalog-fe configuration.yaml;
+the frontend logs a warning at startup when this is on. To choose the user explicitly see section :ref:`Using Cookies to set User <using_cookies>`.
 
 
 Using Cookies to set User
 -------------------------
 .. _using_cookies:
 
-The default user can be overridden by setting the following cookie in your browser or API call:
+The user can be set with the following cookie in your browser or API call:
 
 ::
 

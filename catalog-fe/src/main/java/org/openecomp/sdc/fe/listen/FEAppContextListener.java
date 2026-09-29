@@ -28,6 +28,7 @@ import org.openecomp.sdc.common.impl.ExternalConfiguration;
 import org.openecomp.sdc.common.listener.AppContextListener;
 import org.openecomp.sdc.common.log.wrappers.Logger;
 import org.openecomp.sdc.fe.config.ConfigurationManager;
+import org.openecomp.sdc.fe.impl.AnonymousDefaultUser;
 import org.openecomp.sdc.fe.impl.HealthCheckService;
 import org.openecomp.sdc.fe.impl.PluginStatusBL;
 import org.openecomp.sdc.fe.monitoring.FeMonitoringService;
@@ -56,6 +57,7 @@ public class FEAppContextListener extends AppContextListener implements ServletC
             log.debug("ERROR: configuration was not properly loaded");
             return;
         }
+        AnonymousDefaultUser.logStartupState(configurationManager.getConfiguration());
         ExecutorService executorPool = Executors.newFixedThreadPool(configurationManager.getConfiguration().getThreadpoolSize());
         context.getServletContext().setAttribute(Constants.THREAD_EXECUTOR_ATTR, executorPool);
         log.debug("After executing {}", this.getClass());

@@ -31,8 +31,6 @@ import org.onap.sdc.security.AuthenticationCookie;
 import org.onap.sdc.security.IUsersThreadLocalHolder;
 import org.onap.sdc.security.PortalClient;
 import org.onap.sdc.security.RestrictionAccessFilterException;
-import org.openecomp.sdc.be.config.Configuration;
-import org.openecomp.sdc.be.config.ConfigurationManager;
 import org.openecomp.sdc.be.model.User;
 import org.openecomp.sdc.be.user.UserBusinessLogic;
 import org.openecomp.sdc.common.api.Constants;
@@ -78,24 +76,12 @@ public class ThreadLocalUtils implements IUsersThreadLocalHolder {
     }
 
     protected void setUserContextFromDB(HttpServletRequest httpRequest) {
-        String userId = httpRequest.getHeader(Constants.USER_ID_HEADER);
-        final Configuration.BasicAuthConfig basicAuthConf = ConfigurationManager.getConfigurationManager().getConfiguration().getBasicAuth();
+        final String userId = httpRequest.getHeader(Constants.USER_ID_HEADER);
         if (StringUtils.isBlank(userId)) {
-            final String excludedUrls = basicAuthConf.getExcludedUrls();
-            //there are some internal request that have no user_id header e.g. healthcheck
-            if (StringUtils.isBlank(excludedUrls) || !checkForExclusion(excludedUrls, httpRequest.getPathInfo())) {
-                log.info("UserId is empty");
-                userId = "cs0008";
-            } else {
-                log.debug("user_id value in req header is null, userContext will not be initialized");
-                return;
-            }
+            log.debug("user_id value in req header is empty, userContext will not be initialized");
+            return;
         }
         updateUserContext(userId);
-    }
-
-    private boolean checkForExclusion(final String excludedUrls, final String pathInfo) {
-        return Arrays.stream(excludedUrls.split(";")).anyMatch(s -> s.endsWith(pathInfo));
     }
 
     private void updateUserContext(String userId) {
