@@ -38,6 +38,8 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -61,6 +63,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import javax.servlet.http.HttpServletRequest;
 import mockit.Deencapsulation;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.collections.CollectionUtils;
@@ -131,7 +134,9 @@ import org.openecomp.sdc.be.model.operations.impl.ArtifactOperation;
 import org.openecomp.sdc.be.model.operations.impl.ArtifactTypeOperation;
 import org.openecomp.sdc.be.model.operations.impl.UserAdminOperation;
 import org.openecomp.sdc.be.resources.data.DAOArtifactData;
+import org.openecomp.sdc.be.resources.data.ResourceMetadataData;
 import org.openecomp.sdc.be.resources.data.auditing.AuditingActionEnum;
+import org.openecomp.sdc.be.resources.data.auditing.model.ResourceCommonInfo;
 import org.openecomp.sdc.be.servlets.RepresentationUtils;
 import org.openecomp.sdc.be.tosca.CsarUtils;
 import org.openecomp.sdc.be.tosca.ToscaExportHandler;
@@ -139,6 +144,7 @@ import org.openecomp.sdc.be.user.Role;
 import org.openecomp.sdc.be.user.UserBusinessLogic;
 import org.openecomp.sdc.common.api.ArtifactGroupTypeEnum;
 import org.openecomp.sdc.common.api.ArtifactTypeEnum;
+import org.openecomp.sdc.common.api.Constants;
 import org.openecomp.sdc.common.datastructure.Wrapper;
 import org.openecomp.sdc.common.util.GeneralUtility;
 import org.openecomp.sdc.exception.ResponseFormat;
@@ -2440,6 +2446,121 @@ public class ArtifactsBusinessLogicTest extends BaseBusinessLogicMock {
 
         byte[] result = artifactBL.downloadRsrcArtifactByNames(serviceName, version, resourceName, version, artifactName);
         Assert.assertEquals(esArtifactData.getDataAsArray(), result);
+    }
+
+    @Test
+    public void testUpdateArtifactOnInterfaceOperationByResourceUUIDRejectsMissingUserId() {
+        final ArtifactsBusinessLogic testSubject = prepareInterfaceOperationArtifactUpdate("designer1");
+        final ResponseFormat missingInformation = new ResponseFormat(403);
+        when(componentsUtils.getResponseFormat(ActionStatus.MISSING_INFORMATION)).thenReturn(missingInformation);
+
+        final Either<ArtifactDefinition, ResponseFormat> result = updateInterfaceOperationArtifact(testSubject, null);
+
+        assertTrue(result.isRight());
+        assertEquals(missingInformation, result.right().value());
+        verify(interfaceOperation, never()).updateInterfaces(any(Component.class), anyList());
+    }
+
+    @Test
+    public void testUpdateArtifactOnInterfaceOperationByResourceUUIDRejectsNonOwner() {
+        final ArtifactsBusinessLogic testSubject = prepareInterfaceOperationArtifactUpdate("designer1");
+        final User otherDesigner = new User();
+        otherDesigner.setUserId("designer2");
+        otherDesigner.setRole(Role.DESIGNER.name());
+        when(userValidations.validateUserExists("designer2")).thenReturn(otherDesigner);
+        when(userValidations.isSameUser("designer2", "designer1")).thenReturn(false);
+
+        final Either<ArtifactDefinition, ResponseFormat> result = updateInterfaceOperationArtifact(testSubject, "designer2");
+
+        assertTrue(result.isRight());
+        verify(interfaceOperation, never()).updateInterfaces(any(Component.class), anyList());
+    }
+
+    @Test
+    public void testUpdateArtifactOnInterfaceOperationByResourceUUIDRejectsNonDesignerRole() {
+        final ArtifactsBusinessLogic testSubject = prepareInterfaceOperationArtifactUpdate("tester1");
+        final User tester = new User();
+        tester.setUserId("tester1");
+        tester.setRole(Role.TESTER.name());
+        when(userValidations.validateUserExists("tester1")).thenReturn(tester);
+        when(userValidations.isSameUser("tester1", "tester1")).thenReturn(true);
+
+        final Either<ArtifactDefinition, ResponseFormat> result = updateInterfaceOperationArtifact(testSubject, "tester1");
+
+        assertTrue(result.isRight());
+        verify(interfaceOperation, never()).updateInterfaces(any(Component.class), anyList());
+    }
+
+    @Test
+    public void testUpdateArtifactOnInterfaceOperationByResourceUUIDAllowsCheckoutOwner() {
+        final ArtifactsBusinessLogic testSubject = prepareInterfaceOperationArtifactUpdate("designer1");
+        final User owner = new User();
+        owner.setUserId("designer1");
+        owner.setRole(Role.DESIGNER.name());
+        when(userValidations.validateUserExists("designer1")).thenReturn(owner);
+        when(userValidations.isSameUser("designer1", "designer1")).thenReturn(true);
+        when(interfaceOperation.updateInterfaces(any(Component.class), anyList())).thenReturn(Either.left(new ArrayList<>()));
+
+        final Either<ArtifactDefinition, ResponseFormat> result = updateInterfaceOperationArtifact(testSubject, "designer1");
+
+        assertTrue(result.isLeft());
+        assertEquals("deployment-artifact.yml", result.left().value().getArtifactName());
+        verify(interfaceOperation, times(1)).updateInterfaces(any(Component.class), anyList());
+    }
+
+    private ArtifactsBusinessLogic prepareInterfaceOperationArtifactUpdate(final String lastUpdaterUserId) {
+        final String componentId = "componentId";
+        final ResourceMetadataDataDefinition metadataDefinition = new ResourceMetadataDataDefinition();
+        metadataDefinition.setUniqueId(componentId);
+        metadataDefinition.setName("componentName");
+        metadataDefinition.setLifecycleState(LifecycleStateEnum.NOT_CERTIFIED_CHECKOUT.name());
+        metadataDefinition.setLastUpdaterUserId(lastUpdaterUserId);
+        when(toscaOperationFacade.getLatestComponentMetadataByUuid("componentUuid", JsonParseFlagEnum.ParseMetadata, true))
+            .thenReturn(Either.left(new ResourceMetadataData(metadataDefinition)));
+
+        final ArtifactDefinition implementationArtifact = new ArtifactDefinition();
+        implementationArtifact.setArtifactName("implementation.yml");
+        final Operation operation = new Operation();
+        operation.setUniqueId("operationId");
+        operation.setImplementation(implementationArtifact);
+        final Map<String, Operation> operations = new HashMap<>();
+        operations.put("operationId", operation);
+        final InterfaceDefinition interfaceDefinition = new InterfaceDefinition();
+        interfaceDefinition.setUniqueId("interfaceId");
+        interfaceDefinition.setType("interfaceType");
+        interfaceDefinition.setOperationsMap(operations);
+        final Map<String, InterfaceDefinition> interfaces = new HashMap<>();
+        interfaces.put("interfaceType", interfaceDefinition);
+
+        final ArtifactDefinition deploymentArtifact = new ArtifactDefinition();
+        deploymentArtifact.setArtifactName("deployment-artifact.yml");
+        deploymentArtifact.setUniqueId("deploymentArtifactId");
+        final Map<String, ArtifactDefinition> deploymentArtifacts = new HashMap<>();
+        deploymentArtifacts.put("deploymentArtifact", deploymentArtifact);
+
+        final ResourceMetadataDataDefinition resourceMetadata = new ResourceMetadataDataDefinition();
+        resourceMetadata.setLifecycleState(LifecycleStateEnum.NOT_CERTIFIED_CHECKOUT.name());
+        resourceMetadata.setLastUpdaterUserId(lastUpdaterUserId);
+        final Resource storedResource = new Resource(new ResourceMetadataDefinition(resourceMetadata));
+        storedResource.setUniqueId(componentId);
+        storedResource.setInterfaces(interfaces);
+        storedResource.setDeploymentArtifacts(deploymentArtifacts);
+        when(toscaOperationFacade.getToscaElement(componentId)).thenReturn(Either.left(storedResource));
+
+        final ArtifactsBusinessLogic testSubject = getTestSubject();
+        testSubject.setToscaOperationFacade(toscaOperationFacade);
+        testSubject.setUserValidations(userValidations);
+        return testSubject;
+    }
+
+    private Either<ArtifactDefinition, ResponseFormat> updateInterfaceOperationArtifact(final ArtifactsBusinessLogic testSubject,
+                                                                                        final String userId) {
+        final HttpServletRequest request = mock(HttpServletRequest.class);
+        when(request.getHeader(Constants.USER_ID_HEADER)).thenReturn(userId);
+        return testSubject.updateArtifactOnInterfaceOperationByResourceUUID("{\"artifactName\":\"deployment-artifact.yml\"}", request,
+            ComponentTypeEnum.RESOURCE, "componentUuid", "interfaceId", "operationId", "artifactUuid",
+            new ResourceCommonInfo(ComponentTypeEnum.RESOURCE.getValue()),
+            new ArtifactOperationInfo(true, false, ArtifactOperationEnum.UPDATE));
     }
 
     private ArtifactsBusinessLogic getTestSubject() {

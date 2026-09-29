@@ -3756,6 +3756,11 @@ public class ArtifactsBusinessLogic extends BaseBusinessLogic {
                         }
                     }
                     if (existingArtifactInfo != null) {
+                        Either<Boolean, ResponseFormat> canWorkOnComponent = validateUserCanUpdateComponentArtifact(
+                            toscaComponentEither.left().value(), userId, componentType, operation, artifactUUID, origMd5);
+                        if (canWorkOnComponent.isRight()) {
+                            return Either.right(canWorkOnComponent.right().value());
+                        }
                         return updateOperationArtifact(componentId, interfaceName, operationUUID, existingArtifactInfo);
                     }
                 }
@@ -3768,6 +3773,28 @@ public class ArtifactsBusinessLogic extends BaseBusinessLogic {
             updateArtifactResult = Either.right(errorWrapper.getInnerElement());
         }
         return updateArtifactResult;
+    }
+
+    private Either<Boolean, ResponseFormat> validateUserCanUpdateComponentArtifact(Component component, String userId,
+                                                                                    ComponentTypeEnum componentType,
+                                                                                    ArtifactOperationInfo operation, String artifactId,
+                                                                                    String origMd5) {
+        AuditingActionEnum auditingAction = detectAuditingType(operation, origMd5);
+        String componentId = component.getUniqueId();
+        if (userId == null) {
+            ResponseFormat responseFormat = componentsUtils.getResponseFormat(ActionStatus.MISSING_INFORMATION);
+            log.debug("validateUserCanUpdateComponentArtifact - no USER_ID header, component id {}", componentId);
+            handleAuditing(auditingAction, null, componentId, null, null, null, artifactId, responseFormat, componentType, null);
+            return Either.right(responseFormat);
+        }
+        try {
+            User user = validateUserExists(userId, auditingAction, componentId, artifactId, componentType, false);
+            validateUserRole(user, auditingAction, componentId, artifactId, componentType, operation);
+            validateWorkOnComponent(component, userId, auditingAction, user, artifactId, operation);
+        } catch (ComponentException e) {
+            return Either.right(e.getResponseFormat());
+        }
+        return Either.left(true);
     }
 
     private Either<ArtifactDefinition, ResponseFormat> handleArtifactRequestAndFlatten(String componentId, String userId,
