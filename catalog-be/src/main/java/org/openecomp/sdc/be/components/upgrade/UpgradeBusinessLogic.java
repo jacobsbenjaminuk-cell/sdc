@@ -247,12 +247,12 @@ public class UpgradeBusinessLogic {
         if (allottedInstanceIds == null || allottedInstanceIds.isEmpty()) {
             LOGGER.debug("Automated upgrade failed. Resource {} has no allotted instances of service {}", resource.getUniqueId(),
                 service.getUniqueId());
-            upgradeStatus.addServiceStatus(request.getServiceId(), ActionStatus.NO_INSTANCES_TO_UPGRADE);
+            upgradeStatus.addServiceStatus(container, ActionStatus.NO_INSTANCES_TO_UPGRADE);
             return Either.right(ActionStatus.NO_INSTANCES_TO_UPGRADE);
         }
         if (container.getComponentType() != ComponentTypeEnum.SERVICE || !containsInstanceOf(container, resource)) {
             LOGGER.debug("Automated upgrade failed. Service {} has no instance of resource {}", request.getServiceId(), resource.getUniqueId());
-            upgradeStatus.addServiceStatus(request.getServiceId(), ActionStatus.NO_INSTANCES_TO_UPGRADE);
+            upgradeStatus.addServiceStatus(container, ActionStatus.NO_INSTANCES_TO_UPGRADE);
             return Either.right(ActionStatus.NO_INSTANCES_TO_UPGRADE);
         }
         return Either.left(resource);

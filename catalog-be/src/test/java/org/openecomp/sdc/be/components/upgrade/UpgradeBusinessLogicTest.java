@@ -342,6 +342,7 @@ public class UpgradeBusinessLogicTest {
     public void testAutomatedUpgrade_givenResourceNotAllottedToTargetService_thenDoesNotCheckoutResource() {
         Service target = createCertifiedService("targetId", "targetInvariant");
         Service container = createCertifiedService(SERVICE_ID, "containerInvariant");
+        container.setName("containerName");
         Resource victim = new Resource(new ResourceMetadataDefinition(new ResourceMetadataDataDefinition()));
         victim.setUniqueId(RESOURCE_ID);
         victim.setLifecycleState(LifecycleStateEnum.CERTIFIED);
@@ -353,6 +354,7 @@ public class UpgradeBusinessLogicTest {
         UpgradeStatus status = upgradeBusinessLogic.automatedUpgrade(COMPONENT_ID, getRequests(), user.getUserId());
 
         assertEquals(ActionStatus.NO_INSTANCES_TO_UPGRADE, status.getComponentToUpgradeStatus().get(0).getStatus());
+        assertEquals("containerName", status.getComponentToUpgradeStatus().get(0).getName());
         verifyNoLifecycleChange();
     }
 
@@ -360,6 +362,7 @@ public class UpgradeBusinessLogicTest {
     public void testAutomatedUpgrade_givenServiceNotContainingResource_thenDoesNotCheckoutResource() {
         Service target = createCertifiedService("targetId", "targetInvariant");
         Service container = createCertifiedService(SERVICE_ID, "containerInvariant");
+        container.setName("containerName");
         ComponentInstance unrelatedInstance = new ComponentInstance();
         unrelatedInstance.setComponentUid("otherVf");
         List<ComponentInstance> instances = new ArrayList<>();
@@ -382,6 +385,7 @@ public class UpgradeBusinessLogicTest {
         UpgradeStatus status = upgradeBusinessLogic.automatedUpgrade(COMPONENT_ID, getRequests(), user.getUserId());
 
         assertEquals(ActionStatus.NO_INSTANCES_TO_UPGRADE, status.getComponentToUpgradeStatus().get(0).getStatus());
+        assertEquals("containerName", status.getComponentToUpgradeStatus().get(0).getName());
         verifyNoLifecycleChange();
     }
 
