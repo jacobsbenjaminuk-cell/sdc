@@ -50,9 +50,10 @@ public class BasicAuthenticationFilter implements Filter {
     private static final String CONFIG_SECTION = "basicAuth";
 
     private static Object getAuthenticationConfiguration(String file) throws IOException {
-        InputStream fileInput = new FileInputStream(file);
-        YamlUtil yamlUtil = new YamlUtil();
-        Map<?, ?> configuration = Objects.requireNonNull(yamlUtil.yamlToMap(fileInput), "Configuration cannot be empty");
+        Map<?, ?> configuration;
+        try (InputStream fileInput = new FileInputStream(file)) {
+            configuration = Objects.requireNonNull(new YamlUtil().yamlToMap(fileInput), "Configuration cannot be empty");
+        }
         Object authenticationConfig = configuration.get(CONFIG_SECTION);
         if (authenticationConfig == null) {
             throw new EntryNotConfiguredException(CONFIG_SECTION + " section");
