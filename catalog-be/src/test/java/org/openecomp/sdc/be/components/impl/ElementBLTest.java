@@ -288,6 +288,7 @@ public class ElementBLTest {
         User user = new User();
         String userId = "userId";
         user.setUserId(userId);
+        user.setRole(Role.ADMIN.name());
         when(elementBusinessLogic.validateUserExists(anyString())).thenReturn(user);
         when(elementOperation.deleteSubCategory(NodeTypeEnum.ResourceSubcategory, CATEGORY_UNIQUE_ID)).thenReturn(Either.left(subCategoryDef));
         result = elementBusinessLogic.deleteSubCategory(CATEGORY_UNIQUE_ID, ComponentTypeEnum.RESOURCE_PARAM_NAME, userId);
@@ -298,6 +299,10 @@ public class ElementBLTest {
     public void testDeleteGrouping() {
         Either<GroupingDefinition, ResponseFormat> result;
         GroupingDefinition groupDef = Mockito.mock(GroupingDefinition.class);
+        User user = new User();
+        user.setUserId("userId");
+        user.setRole(Role.ADMIN.name());
+        when(elementBusinessLogic.validateUserExists(anyString())).thenReturn(user);
         when(elementOperation.deleteGrouping(null, "groupId")).thenReturn(Either.left(groupDef));
         result = elementBusinessLogic.deleteGrouping("groupId", ComponentTypeEnum.RESOURCE_PARAM_NAME, "userId");
         Assert.assertTrue(result.isLeft());

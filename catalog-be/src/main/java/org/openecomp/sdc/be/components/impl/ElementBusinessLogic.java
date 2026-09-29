@@ -734,11 +734,16 @@ public class ElementBusinessLogic extends BaseBusinessLogic {
     }
 
     public Either<CategoryDefinition, ResponseFormat> deleteCategory(String categoryId, String componentTypeParamName, String userId) {
-        validateUserExists(userId);
+        User user = validateUserExists(userId);
         ComponentTypeEnum componentTypeEnum = ComponentTypeEnum.findByParamName(componentTypeParamName);
         if (componentTypeEnum == null) {
             log.debug("Cannot create category for component type {}", componentTypeParamName);
             return Either.right(componentsUtils.getResponseFormat(ActionStatus.INVALID_CONTENT));
+        }
+        Either<Boolean, ResponseFormat> validateUserRole = validateUserRole(user, componentTypeEnum);
+        if (validateUserRole.isRight()) {
+            log.debug(VALIDATION_OF_USER_ROLE_FAILED_USER_ID, userId);
+            return Either.right(validateUserRole.right().value());
         }
         NodeTypeEnum nodeTypeEnum = NodeTypeConvertUtils.getCategoryNodeTypeByComponentParam(componentTypeEnum, CategoryTypeEnum.CATEGORY);
         Either<CategoryDefinition, ActionStatus> deleteCategoryByType = elementOperation.deleteCategory(nodeTypeEnum, categoryId);
@@ -752,11 +757,16 @@ public class ElementBusinessLogic extends BaseBusinessLogic {
     }
 
     public Either<SubCategoryDefinition, ResponseFormat> deleteSubCategory(String parentSubCategoryId, String componentTypeParamName, String userId) {
-        validateUserExists(userId);
+        User user = validateUserExists(userId);
         ComponentTypeEnum componentTypeEnum = ComponentTypeEnum.findByParamName(componentTypeParamName);
         if (componentTypeEnum == null) {
             log.debug("Cannot delete sub-category for component type {}", componentTypeParamName);
             return Either.right(componentsUtils.getResponseFormat(ActionStatus.INVALID_CONTENT));
+        }
+        Either<Boolean, ResponseFormat> validateUserRole = validateUserRole(user, componentTypeEnum);
+        if (validateUserRole.isRight()) {
+            log.debug(VALIDATION_OF_USER_ROLE_FAILED_USER_ID, userId);
+            return Either.right(validateUserRole.right().value());
         }
         NodeTypeEnum nodeTypeEnum = NodeTypeConvertUtils.getCategoryNodeTypeByComponentParam(componentTypeEnum, CategoryTypeEnum.SUBCATEGORY);
         Either<SubCategoryDefinition, ActionStatus> deleteSubCategoryByType = elementOperation.deleteSubCategory(nodeTypeEnum, parentSubCategoryId);
@@ -770,11 +780,16 @@ public class ElementBusinessLogic extends BaseBusinessLogic {
     }
 
     public Either<GroupingDefinition, ResponseFormat> deleteGrouping(String groupingId, String componentTypeParamName, String userId) {
-        validateUserExists(userId);
+        User user = validateUserExists(userId);
         ComponentTypeEnum componentTypeEnum = ComponentTypeEnum.findByParamName(componentTypeParamName);
         if (componentTypeEnum == null) {
             log.debug("Cannot delete grouping for component type {}", componentTypeParamName);
             return Either.right(componentsUtils.getResponseFormat(ActionStatus.INVALID_CONTENT));
+        }
+        Either<Boolean, ResponseFormat> validateUserRole = validateUserRole(user, componentTypeEnum);
+        if (validateUserRole.isRight()) {
+            log.debug(VALIDATION_OF_USER_ROLE_FAILED_USER_ID, userId);
+            return Either.right(validateUserRole.right().value());
         }
         NodeTypeEnum nodeTypeEnum = NodeTypeConvertUtils.getCategoryNodeTypeByComponentParam(componentTypeEnum, CategoryTypeEnum.GROUPING);
         Either<GroupingDefinition, ActionStatus> deleteGroupingByType = elementOperation.deleteGrouping(nodeTypeEnum, groupingId);
