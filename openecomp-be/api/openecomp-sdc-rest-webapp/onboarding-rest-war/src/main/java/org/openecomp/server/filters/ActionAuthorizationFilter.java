@@ -36,7 +36,7 @@ public class ActionAuthorizationFilter implements Filter {
     public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain)
         throws IOException, ServletException {
         HttpServletRequest httpRequest = (HttpServletRequest) servletRequest;
-        if (httpRequest.isUserInRole(httpRequest.getMethod().toUpperCase())) {
+        if (httpRequest.getUserPrincipal() != null && httpRequest.isUserInRole(httpRequest.getMethod().toUpperCase())) {
             filterChain.doFilter(servletRequest, servletResponse);
         } else {
             setResponseStatus((HttpServletResponse) servletResponse, HttpServletResponse.SC_FORBIDDEN);
