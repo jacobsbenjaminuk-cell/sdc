@@ -1454,6 +1454,8 @@ public class ComponentInstanceServlet extends AbstractValidationsServlet {
             Map<String, List<String>> deleteErrorMap = componentInstanceBusinessLogic
                 .batchDeleteComponentInstance(containerComponentType, componentId, componentInstanceIdList, userId);
             return buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.OK), deleteErrorMap);
+        } catch (ComponentException e) {
+            throw e;
         } catch (Exception e) {
             BeEcompErrorManager.getInstance().logBeRestApiGeneralError("Batch Delete ResourceInstances");
             log.error("batch delete resource instances with exception", e);

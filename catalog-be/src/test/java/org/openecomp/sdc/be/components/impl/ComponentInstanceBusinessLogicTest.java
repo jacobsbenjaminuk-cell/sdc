@@ -1511,6 +1511,62 @@ class ComponentInstanceBusinessLogicTest {
     }
 
     @Test
+    void testBatchDeleteComponentInstanceFailsWithBlankUserId() {
+        List<String> componentInstanceIdList = Collections.singletonList(TO_INSTANCE_ID);
+        ComponentException e = assertThrows(ComponentException.class, () -> componentInstanceBusinessLogic
+            .batchDeleteComponentInstance(ComponentTypeEnum.SERVICE_PARAM_NAME, service.getUniqueId(), componentInstanceIdList, " "));
+        assertEquals(ActionStatus.MISSING_USER_ID, e.getActionStatus());
+        verify(toscaOperationFacade, times(0)).deleteComponentInstanceFromTopologyTemplate(any(), any());
+    }
+
+    @Test
+    void testBatchDeleteComponentInstanceFailsWhenNotCheckedOut() {
+        LifecycleStateEnum oldLifeCycleState = service.getLifecycleState();
+        String oldLastUpdatedUserId = service.getLastUpdaterUserId();
+        service.setLastUpdaterUserId(USER_ID);
+        service.setLifecycleState(LifecycleStateEnum.CERTIFIED);
+        assertBatchDeleteRejected(ActionStatus.RESTRICTED_OPERATION);
+        service.setLastUpdaterUserId(oldLastUpdatedUserId);
+        service.setLifecycleState(oldLifeCycleState);
+    }
+
+    @Test
+    void testBatchDeleteComponentInstanceFailsWhenCheckedOutByAnotherUser() {
+        LifecycleStateEnum oldLifeCycleState = service.getLifecycleState();
+        String oldLastUpdatedUserId = service.getLastUpdaterUserId();
+        service.setLastUpdaterUserId("otherUser");
+        service.setLifecycleState(LifecycleStateEnum.NOT_CERTIFIED_CHECKOUT);
+        assertBatchDeleteRejected(ActionStatus.RESTRICTED_OPERATION);
+        service.setLastUpdaterUserId(oldLastUpdatedUserId);
+        service.setLifecycleState(oldLifeCycleState);
+    }
+
+    @Test
+    void testBatchDeleteComponentInstanceFailsWhenArchived() {
+        LifecycleStateEnum oldLifeCycleState = service.getLifecycleState();
+        String oldLastUpdatedUserId = service.getLastUpdaterUserId();
+        Boolean oldArchived = service.isArchived();
+        service.setLastUpdaterUserId(USER_ID);
+        service.setLifecycleState(LifecycleStateEnum.NOT_CERTIFIED_CHECKOUT);
+        service.setArchived(true);
+        assertBatchDeleteRejected(ActionStatus.COMPONENT_IS_ARCHIVED);
+        service.setArchived(oldArchived);
+        service.setLastUpdaterUserId(oldLastUpdatedUserId);
+        service.setLifecycleState(oldLifeCycleState);
+    }
+
+    private void assertBatchDeleteRejected(ActionStatus expectedStatus) {
+        when(toscaOperationFacade.getToscaElement(eq(service.getUniqueId()), any(ComponentParametersView.class)))
+            .thenReturn(Either.left(service));
+        List<String> componentInstanceIdList = Collections.singletonList(TO_INSTANCE_ID);
+        ComponentException e = assertThrows(ComponentException.class, () -> componentInstanceBusinessLogic
+            .batchDeleteComponentInstance(ComponentTypeEnum.SERVICE_PARAM_NAME, service.getUniqueId(), componentInstanceIdList, USER_ID));
+        assertEquals(expectedStatus, e.getActionStatus());
+        verify(graphLockOperation, times(0)).lockComponent(any(), any());
+        verify(toscaOperationFacade, times(0)).deleteComponentInstanceFromTopologyTemplate(any(), any());
+    }
+
+    @Test
     void testDissociateRIFromRIFailDissociate() {
 
         List<RequirementCapabilityRelDef> result;
