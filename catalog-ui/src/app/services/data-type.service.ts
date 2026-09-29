@@ -100,12 +100,14 @@ export class DataTypeService {
 
     public createProperty(id: string, property: PropertyBEModel): Observable<PropertyBEModel> {
         const url = `${this.dataTypeUrl}/${id}/properties`;
-        return this.httpClient.post<PropertyBEModel>(url, property);
+        const headers = new HttpHeaders({USER_ID: this.authService.getLoggedinUser().userId});
+        return this.httpClient.post<PropertyBEModel>(url, property, {headers});
     }
 
     public updateProperty(id: string, property: PropertyBEModel): Observable<PropertyBEModel> {
         const url = `${this.dataTypeUrl}/${id}/properties`;
-        return this.httpClient.put<PropertyBEModel>(url, property);
+        const headers = new HttpHeaders({USER_ID: this.authService.getLoggedinUser().userId});
+        return this.httpClient.put<PropertyBEModel>(url, property, {headers});
     }
 
     public deleteProperty(dataTypeId: string, propertyId: string): Observable<Object> {
