@@ -30,6 +30,8 @@ import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import fj.data.Either;
@@ -62,6 +64,7 @@ import org.openecomp.sdc.be.model.Resource;
 import org.openecomp.sdc.be.model.Service;
 import org.openecomp.sdc.be.model.User;
 import org.openecomp.sdc.be.model.category.CategoryDefinition;
+import org.openecomp.sdc.be.model.category.GroupingDefinition;
 import org.openecomp.sdc.be.model.category.SubCategoryDefinition;
 import org.openecomp.sdc.be.model.jsonjanusgraph.operations.ToscaOperationFacade;
 import org.openecomp.sdc.be.model.operations.api.StorageOperationStatus;
@@ -214,10 +217,56 @@ class ElementBusinessLogicTest extends BaseBusinessLogicMock {
 
     @Test
     void testDeleteCategory_givenValidComponentTypeAndCategoryId_thenReturnsSuccessful() {
+        user.setRole(Role.ADMIN.name());
+        when(userValidations.validateUserExists(user.getUserId()))
+            .thenReturn(user);
         when(elementDao.deleteCategory(any(NodeTypeEnum.class), anyString()))
             .thenReturn(Either.left(new CategoryDefinition()));
 
         assertTrue(elementBusinessLogic.deleteCategory("cat1", "resources", user.getUserId()).isLeft());
+    }
+
+    @Test
+    void testDeleteCategory_givenDesignerUser_thenReturnsRestrictedOperation() {
+        ResponseFormat restricted = stubDesignerUserAndRestrictedResponse();
+
+        Either<CategoryDefinition, ResponseFormat> result = elementBusinessLogic.deleteCategory("cat1", "resources", user.getUserId());
+
+        assertTrue(result.isRight());
+        assertEquals(restricted, result.right().value());
+        verify(elementDao, never()).deleteCategory(any(), anyString());
+    }
+
+    @Test
+    void testDeleteSubCategory_givenDesignerUser_thenReturnsRestrictedOperation() {
+        ResponseFormat restricted = stubDesignerUserAndRestrictedResponse();
+
+        Either<SubCategoryDefinition, ResponseFormat> result = elementBusinessLogic.deleteSubCategory("subCat1", "resources", user.getUserId());
+
+        assertTrue(result.isRight());
+        assertEquals(restricted, result.right().value());
+        verify(elementDao, never()).deleteSubCategory(any(), anyString());
+    }
+
+    @Test
+    void testDeleteGrouping_givenDesignerUser_thenReturnsRestrictedOperation() {
+        ResponseFormat restricted = stubDesignerUserAndRestrictedResponse();
+
+        Either<GroupingDefinition, ResponseFormat> result = elementBusinessLogic.deleteGrouping("group1", "products", user.getUserId());
+
+        assertTrue(result.isRight());
+        assertEquals(restricted, result.right().value());
+        verify(elementDao, never()).deleteGrouping(any(), anyString());
+    }
+
+    private ResponseFormat stubDesignerUserAndRestrictedResponse() {
+        user.setRole(Role.DESIGNER.name());
+        ResponseFormat restricted = new ResponseFormat(409);
+        when(userValidations.validateUserExists(user.getUserId()))
+            .thenReturn(user);
+        when(componentsUtils.getResponseFormat(ActionStatus.RESTRICTED_OPERATION))
+            .thenReturn(restricted);
+        return restricted;
     }
 
     @Test
