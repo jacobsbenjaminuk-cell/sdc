@@ -85,6 +85,7 @@ import org.openecomp.sdc.be.config.ConfigurationManager;
 import org.openecomp.sdc.be.dao.api.ActionStatus;
 import org.openecomp.sdc.be.dao.janusgraph.JanusGraphDao;
 import org.openecomp.sdc.be.dao.janusgraph.JanusGraphOperationStatus;
+import org.openecomp.sdc.be.dao.jsongraph.GraphVertex;
 import org.openecomp.sdc.be.datamodel.utils.ArtifactUtils;
 import org.openecomp.sdc.be.datatypes.elements.CustomYamlFunction;
 import org.openecomp.sdc.be.datatypes.elements.GetInputValueDataDefinition;
@@ -166,6 +167,7 @@ import org.openecomp.sdc.be.resources.data.auditing.AuditingActionEnum;
 import org.openecomp.sdc.be.tosca.CsarUtils;
 import org.openecomp.sdc.be.tosca.ToscaExportHandler;
 import org.openecomp.sdc.be.ui.model.OperationUi;
+import org.openecomp.sdc.be.user.Role;
 import org.openecomp.sdc.be.utils.TypeUtils;
 import org.openecomp.sdc.be.utils.TypeUtils.ToscaTagNamesEnum;
 import org.openecomp.sdc.common.api.ArtifactGroupTypeEnum;
@@ -282,6 +284,7 @@ public class ServiceImportBusinessLogic {
             throw new ByActionStatusComponentException(ActionStatus.SERVICE_NOT_FOUND, serviceId);
         }
         final Service serviceOriginal = serviceResponseFormatEither.left().value();
+        validateCanUpdateServiceFromTosca(serviceOriginal, modifier);
         final Map<String, String> metadata = (Map<String, String>) new Yaml().loadAs(data, Map.class).get("metadata");
         validateServiceMetadataBeforeCreate(serviceOriginal, metadata);
 
@@ -298,6 +301,7 @@ public class ServiceImportBusinessLogic {
             throw new ByActionStatusComponentException(ActionStatus.SERVICE_NOT_FOUND, serviceId);
         }
         final Service serviceOriginal = serviceResponseFormatEither.left().value();
+        validateCanUpdateServiceFromTosca(serviceOriginal, modifier);
         Map<String, byte[]> csar = null;
         try {
             csar = ZipUtils.readZip(fileToUpload.readAllBytes(), false);
@@ -313,6 +317,17 @@ public class ServiceImportBusinessLogic {
         final Service newService = cloneServiceIdentifications(serviceOriginal);
         updateServiceMetadata(newService, metadata);
         return createService(newService, AuditingActionEnum.UPDATE_SERVICE_TOSCA_MODEL, modifier, csar, null);
+    }
+
+    private void validateCanUpdateServiceFromTosca(final Service service, final User modifier) {
+        final User user = serviceBusinessLogic.validateUserExists(modifier);
+        serviceBusinessLogic.validateUserRole(user, Arrays.asList(Role.DESIGNER, Role.ADMIN));
+        serviceBusinessLogic.validateCanWorkOnComponent(service, user.getUserId());
+        final List<GraphVertex> allVersions = toscaOperationFacade.findVertexListByInvariantUuid(service.getInvariantUUID());
+        if (allVersions != null && allVersions.size() > 1) {
+            log.info("Service {} has {} versions, refusing TOSCA update that would delete them", service.getUniqueId(), allVersions.size());
+            throw new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION);
+        }
     }
 
     private byte[] readMainYamlFile(final Map<String, byte[]> csar) {
