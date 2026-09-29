@@ -38,7 +38,7 @@ target explicit and is required for the dev-server path.
 - Node.js 18+ (Playwright ≥ 1.42 requires it)
 - Docker with Compose v2
 - ~6 GB RAM for the containers
-- Free host ports (the full set the fabric8 stack binds): 4000, 4001, 4444, 5000, 5900, 6000,
+- Free host ports (the full set the fabric8 stack binds): 4000, 4001, 4444, 5900, 6000,
   8080, 8081, 8085, 8181, 8285, 8286, 8443, 8445, 9042, 9443
 - ONAP `settings.xml` at `~/.m2/settings.xml` (only for the Maven build steps)
 

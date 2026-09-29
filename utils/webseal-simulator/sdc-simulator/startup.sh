@@ -9,8 +9,13 @@ envsubst '${FE_URL} ${PERMITTED_ANCESTORS}' \
   < "$JETTY_BASE/config/sdc-simulator/webseal.conf.tpl" \
   > "$JETTY_BASE/config/sdc-simulator/webseal.conf"
 
+# Remote debugging is off unless JDWP_ENABLED=true; it binds to loopback by default
+if [ "${JDWP_ENABLED:-false}" = "true" ]; then
+  JAVA_OPTIONS="$JAVA_OPTIONS -agentlib:jdwp=transport=dt_socket,address=${JDWP_ADDRESS:-127.0.0.1:5000},server=y,suspend=n"
+fi
+
 JAVA_OPTIONS=" $JAVA_OPTIONS \
-		-Xdebug -agentlib:jdwp=transport=dt_socket,address=*:5000,server=y,suspend=n -Xmx128m -Xms128m -Xss1m \
+  -Xmx128m -Xms128m -Xss1m \
   -Dconfig.home=$JETTY_BASE/config/sdc-simulator \
   -Dlog.home=$JETTY_BASE/logs \
   -Dlogback.configurationFile=$JETTY_BASE/config/sdc-simulator/logback.xml \

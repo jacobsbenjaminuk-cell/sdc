@@ -1201,7 +1201,6 @@ limitations under the License.
                                         <ports>
                                             <port>8080</port>
                                             <port>8443</port>
-                                            <port>5000</port>
                                         </ports>
                                     </tcp>
                                 </wait>
@@ -1209,7 +1208,6 @@ limitations under the License.
                                     <!-- http://localhost:8285/login to access SDC -->
                                     <port>8285:8080</port>
                                     <port>8286:8443</port>
-                                    <port>5000:5000</port>
                                 </ports>
                                 <network>
                                     <mode>custom</mode>
