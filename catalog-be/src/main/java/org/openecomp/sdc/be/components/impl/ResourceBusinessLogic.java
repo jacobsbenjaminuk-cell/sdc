@@ -167,6 +167,7 @@ import org.openecomp.sdc.be.resources.data.auditing.model.ResourceVersionInfo;
 import org.openecomp.sdc.be.tosca.CsarUtils;
 import org.openecomp.sdc.be.tosca.CsarUtils.NonMetaArtifactInfo;
 import org.openecomp.sdc.be.ui.model.UiComponentDataTransfer;
+import org.openecomp.sdc.be.user.Role;
 import org.openecomp.sdc.be.user.UserBusinessLogic;
 import org.openecomp.sdc.be.utils.CommonBeUtils;
 import org.openecomp.sdc.be.utils.TypeUtils;
@@ -193,6 +194,7 @@ import org.yaml.snakeyaml.Yaml;
 public class ResourceBusinessLogic extends ComponentBusinessLogic {
 
     private static final String DELETE_RESOURCE = "Delete Resource";
+    private static final List<Role> DELETE_RESOURCE_ROLES = List.of(Role.ADMIN, Role.DESIGNER);
     private static final String IN_RESOURCE = "  in resource {} ";
     private static final String PLACE_HOLDER_RESOURCE_TYPES = "validForResourceTypes";
     private static final String INITIAL_VERSION = "0.1";
@@ -4126,13 +4128,14 @@ public class ResourceBusinessLogic extends ComponentBusinessLogic {
      */
     public ResponseFormat deleteResource(String resourceId, User user) {
         ResponseFormat responseFormat;
-        validateUserExists(user);
+        User modifier = validateUserCanDeleteResources(user);
         Either<Resource, StorageOperationStatus> resourceStatus = toscaOperationFacade.getToscaElement(resourceId);
         if (resourceStatus.isRight()) {
             log.debug("failed to get resource {}", resourceId);
             return componentsUtils.getResponseFormat(componentsUtils.convertFromStorageResponse(resourceStatus.right().value()), "");
         }
         Resource resource = resourceStatus.left().value();
+        validateUserCanMarkResourceToDelete(resource, modifier);
         StorageOperationStatus result = StorageOperationStatus.OK;
         lockComponent(resourceId, resource, "Mark resource to delete");
         try {
@@ -4158,6 +4161,30 @@ public class ResourceBusinessLogic extends ComponentBusinessLogic {
         return resource.getComponentMetadataDefinition().getMetadataDataDefinition().isNormative();
     }
 
+    private User validateUserCanDeleteResources(User user) {
+        User modifier = validateUserExists(user.getUserId());
+        validateUserRole(modifier, DELETE_RESOURCE_ROLES);
+        return modifier;
+    }
+
+    private boolean isAdmin(User user) {
+        return Role.ADMIN.name().equals(user.getRole());
+    }
+
+    private void validateUserCanMarkResourceToDelete(Resource resource, User user) {
+        if (!isAdmin(user) && !ComponentValidationUtils.canWorkOnComponent(resource, user.getUserId())) {
+            log.debug("User {} is not allowed to delete resource {}", user.getUserId(), resource.getUniqueId());
+            throw new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION);
+        }
+    }
+
+    private void validateUserCanDeleteAllResourceVersions(Resource resource, User user) {
+        if (!isAdmin(user) && !user.getUserId().equals(resource.getLastUpdaterUserId())) {
+            log.debug("User {} is not allowed to delete all versions of resource {}", user.getUserId(), resource.getUniqueId());
+            throw new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION);
+        }
+    }
+
     /**
      * Deletes every version of the provided resource
      *
@@ -4167,7 +4194,7 @@ public class ResourceBusinessLogic extends ComponentBusinessLogic {
      * @throws ComponentException if there is any error in the deletion of the resource operation
      */
     public void deleteResourceAllVersions(String resourceId, User user) {
-        validateUserExists(user);
+        User modifier = validateUserCanDeleteResources(user);
         Either<Resource, StorageOperationStatus> resourceStatus = toscaOperationFacade.getToscaElement(resourceId);
         if (resourceStatus.isRight()) {
             log.debug("Failed to get resource {}", resourceId);
@@ -4182,6 +4209,7 @@ public class ResourceBusinessLogic extends ComponentBusinessLogic {
             log.debug("The resource, {}, requested for delete has not been archived.", resourceId);
             throw new ComponentException(ActionStatus.COMPONENT_NOT_ARCHIVED, resourceId);
         }
+        validateUserCanDeleteAllResourceVersions(resource, modifier);
         try {
             String model = resource.getModel();
             final Optional<Model> modelOptional = modelOperation.findModelByName(model);
@@ -4203,7 +4231,7 @@ public class ResourceBusinessLogic extends ComponentBusinessLogic {
 
     public ResponseFormat deleteResourceByNameAndVersion(String resourceName, String version, User user) {
         ResponseFormat responseFormat = componentsUtils.getResponseFormat(ActionStatus.NO_CONTENT);
-        validateUserExists(user);
+        User modifier = validateUserCanDeleteResources(user);
         Resource resource = null;
         StorageOperationStatus result = StorageOperationStatus.OK;
         boolean failed = false;
@@ -4220,6 +4248,7 @@ public class ResourceBusinessLogic extends ComponentBusinessLogic {
             janusGraphDao.commit();
         }
         if (resource != null) {
+            validateUserCanMarkResourceToDelete(resource, modifier);
             lockComponent(resource.getUniqueId(), resource, DELETE_RESOURCE);
             try {
                 result = markComponentToDelete(resource);
