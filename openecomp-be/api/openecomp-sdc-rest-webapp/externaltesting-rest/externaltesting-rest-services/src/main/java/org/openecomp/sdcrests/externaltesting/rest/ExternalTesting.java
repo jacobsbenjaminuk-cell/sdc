@@ -19,11 +19,13 @@ package org.openecomp.sdcrests.externaltesting.rest;
 import io.swagger.v3.oas.annotations.info.Info;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.tags.Tags;
+import static org.openecomp.sdcrests.common.RestConstants.USER_ID_HEADER_PARAM;
+
 import java.util.List;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
+import javax.ws.rs.HeaderParam;
 import javax.ws.rs.POST;
-import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
@@ -32,8 +34,6 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import org.apache.cxf.jaxrs.ext.multipart.Attachment;
 import org.apache.cxf.jaxrs.ext.multipart.Multipart;
-import org.openecomp.core.externaltesting.api.ClientConfiguration;
-import org.openecomp.core.externaltesting.api.RemoteTestingEndpointDefinition;
 import org.springframework.validation.annotation.Validated;
 
 @Path("/v1.0/externaltesting")
@@ -48,10 +48,6 @@ public interface ExternalTesting {
     @Path("/config")
     Response getConfig();
 
-    @PUT
-    @Path("/config")
-    Response setConfig(ClientConfiguration config);
-
     @GET
     @Path("/testcasetree")
     Response getTestCasesAsTree();
@@ -59,10 +55,6 @@ public interface ExternalTesting {
     @GET
     @Path("/endpoints")
     Response getEndpoints();
-
-    @PUT
-    @Path("/endpoints")
-    Response setEndpoints(List<RemoteTestingEndpointDefinition> endpoints);
 
     @GET
     @Path("/endpoints/{endpointId}/scenarios")
@@ -90,7 +82,7 @@ public interface ExternalTesting {
     @Path("/executions")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     Response execute(@QueryParam("vspId") String vspId, @QueryParam("vspVersionId") String vspVersionId,
-            @QueryParam("requestId") String requestId,
+            @QueryParam("requestId") String requestId, @HeaderParam(USER_ID_HEADER_PARAM) String user,
             @Multipart(value = "files", required = false) List<Attachment> files,
             @Multipart(value = "testdata", required = false) String testData);
 

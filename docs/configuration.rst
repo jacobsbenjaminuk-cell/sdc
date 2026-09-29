@@ -1226,6 +1226,8 @@ externaltesting-configuration.yaml
       enabled: true
     # array of endpoints that SDC-BE should connect with for external testing
     # id,label,enabled,url[,scenariofilter][,apikey]
+    # url must be a plain http(s) base URL (no user info, query or fragment); invalid entries are ignored
+    # endpoints are read from this file only and cannot be changed through the REST API
     endpoints:
       - vtp:VTP,true,http://<hostname>[:<port>]/onapapi/vnfsdk-marketplace,c.*
       - repository:Repository,false,http://<ovphostname>[:<ovpport>]

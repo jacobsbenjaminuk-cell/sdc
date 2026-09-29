@@ -10,7 +10,6 @@
         <class name="org.onap.sdc.frontend.ci.tests.execute.sanity.OnboardingFlowsUi">
             <methods>
                 <include name="onapOnboardVSPValidationsSanityFlow"/>
-                <include name="onapOnboardVSPValidationsConfigurationChangeCheck"/>
                 <include name="onapOnboardVSPCertificationQueryFlow"/>
                 <include name="onapOnboardVSPComplianceCheckFlow"/>
                 <include name="onapOnboardVSPComplianceCheckOperations"/>

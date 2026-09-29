@@ -193,56 +193,11 @@
           }
         },
         "tags" : [ "SDCE-1 APIs", "External-Testing" ]
-      },
-      "put" : {
-        "operationId" : "setConfig",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "$ref" : "#/components/schemas/ClientConfiguration"
-              }
-            }
-          }
-        },
-        "responses" : {
-          "default" : {
-            "content" : {
-              "application/json" : { }
-            },
-            "description" : "default response"
-          }
-        },
-        "tags" : [ "SDCE-1 APIs", "External-Testing" ]
       }
     },
     "/v1.0/externaltesting/endpoints" : {
       "get" : {
         "operationId" : "getEndpoints",
-        "responses" : {
-          "default" : {
-            "content" : {
-              "application/json" : { }
-            },
-            "description" : "default response"
-          }
-        },
-        "tags" : [ "SDCE-1 APIs", "External-Testing" ]
-      },
-      "put" : {
-        "operationId" : "setEndpoints",
-        "requestBody" : {
-          "content" : {
-            "application/json" : {
-              "schema" : {
-                "type" : "array",
-                "items" : {
-                  "$ref" : "#/components/schemas/RemoteTestingEndpointDefinition"
-                }
-              }
-            }
-          }
-        },
         "responses" : {
           "default" : {
             "content" : {
@@ -452,6 +407,12 @@
         }, {
           "in" : "query",
           "name" : "requestId",
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "in" : "header",
+          "name" : "USER_ID",
           "schema" : {
             "type" : "string"
           }

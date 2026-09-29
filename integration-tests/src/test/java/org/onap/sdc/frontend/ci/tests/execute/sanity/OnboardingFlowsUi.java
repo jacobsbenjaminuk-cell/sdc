@@ -21,7 +21,6 @@
 
 package org.onap.sdc.frontend.ci.tests.execute.sanity;
 
-import static org.testng.AssertJUnit.assertEquals;
 import static org.testng.AssertJUnit.assertFalse;
 import static org.testng.AssertJUnit.assertNotNull;
 import static org.testng.AssertJUnit.assertTrue;
@@ -90,6 +89,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 import org.testng.AssertJUnit;
+import org.testng.SkipException;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Optional;
 import org.testng.annotations.Parameters;
@@ -99,6 +99,7 @@ public class OnboardingFlowsUi extends SetupCDTest {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(OnboardingFlowsUi.class);
     private static final String NO_TESTS_ARE_AVAILABLE = "No Tests are Available";
+    private static final String EXTERNAL_TESTING_DISABLED = "External testing is disabled in this deployment";
     private static final String NEXT_BUTTON_IS_ENABLED_IT_SHOULD_HAVE_BEEN_ENABLED =
             "Next Button is enabled, it should have been enabled";
     private static final String NEXT_BUTTON_IS_DISABLED_IT_SHOULD_HAVE_BEEN_ENABLED =
@@ -198,41 +199,13 @@ public class OnboardingFlowsUi extends SetupCDTest {
     }
 
     @Test(dataProviderClass = OnboardingDataProviders.class, dataProvider = "Single_VNF")
-    public void onapOnboardVSPValidationsConfigurationChangeCheck(String filePath, String vnfFile) throws Exception {
-        setLog(vnfFile);
-        String vspName = createNewVSP(filePath, vnfFile);
-        if (OnboardingUiUtils.getVspValidationCongiguration()) {
-            goToVspScreen(true, vspName);
-            //check links are available
-            checkVspValidationLinksVisibility();
-
-            //change config
-            changeVspValidationConfig(false, vspName, OnboardingUiUtils.getVspValidationCongiguration());
-
-            //check links are not available
-            checkVspValidationLinksInvisibility();
-        } else {
-            goToVspScreen(true, vspName);
-            //check links are not available
-            checkVspValidationLinksInvisibility();
-
-            changeVspValidationConfig(false, vspName, OnboardingUiUtils.getVspValidationCongiguration());
-
-            //check links are available
-            checkVspValidationLinksVisibility();
-        }
-    }
-
-    @Test(dataProviderClass = OnboardingDataProviders.class, dataProvider = "Single_VNF")
     public void onapOnboardVSPCertificationQueryFlow(String filePath, String vnfFile) throws Exception {
         setLog(vnfFile);
         String vspName = createNewVSP(filePath, vnfFile);
         if (!OnboardingUiUtils.getVspValidationCongiguration()) {
-            //change config to true to test the feature
-            changeVspValidationConfig(true, vspName, OnboardingUiUtils.getVspValidationCongiguration());
-        } else {
-            goToVspScreen(true, vspName);
+            throw new SkipException(EXTERNAL_TESTING_DISABLED);
         }
+        goToVspScreen(true, vspName);
         VspValidationPage.navigateToVspValidationPageUsingNavbar();
         assertTrue(NEXT_BUTTON_IS_ENABLED_IT_SHOULD_HAVE_BEEN_DISABLED, VspValidationPage.checkNextButtonDisabled());
 
@@ -257,11 +230,9 @@ public class OnboardingFlowsUi extends SetupCDTest {
         setLog(vnfFile);
         String vspName = createNewVSP(filePath, vnfFile);
         if (!OnboardingUiUtils.getVspValidationCongiguration()) {
-            //change config to true to test the feature
-            changeVspValidationConfig(true, vspName, OnboardingUiUtils.getVspValidationCongiguration());
-        } else {
-            goToVspScreen(true, vspName);
+            throw new SkipException(EXTERNAL_TESTING_DISABLED);
         }
+        goToVspScreen(true, vspName);
 
         VspValidationPage.navigateToVspValidationPageUsingNavbar();
         assertTrue(NEXT_BUTTON_IS_ENABLED_IT_SHOULD_HAVE_BEEN_ENABLED, VspValidationPage.checkNextButtonDisabled());
@@ -287,11 +258,9 @@ public class OnboardingFlowsUi extends SetupCDTest {
         setLog(vnfFile);
         String vspName = createNewVSP(filePath, vnfFile);
         if (!OnboardingUiUtils.getVspValidationCongiguration()) {
-            //change config to true to test the feature
-            changeVspValidationConfig(true, vspName, OnboardingUiUtils.getVspValidationCongiguration());
-        } else {
-            goToVspScreen(true, vspName);
+            throw new SkipException(EXTERNAL_TESTING_DISABLED);
         }
+        goToVspScreen(true, vspName);
 
         VspValidationPage.navigateToVspValidationPageUsingNavbar();
         assertTrue(NEXT_BUTTON_IS_ENABLED_IT_SHOULD_HAVE_BEEN_ENABLED, VspValidationPage.checkNextButtonDisabled());
@@ -317,11 +286,9 @@ public class OnboardingFlowsUi extends SetupCDTest {
         setLog(vnfFile);
         String vspName = createNewVSP(filePath, vnfFile);
         if (!OnboardingUiUtils.getVspValidationCongiguration()) {
-            //change config to true to test the feature
-            changeVspValidationConfig(true, vspName, OnboardingUiUtils.getVspValidationCongiguration());
-        } else {
-            goToVspScreen(true, vspName);
+            throw new SkipException(EXTERNAL_TESTING_DISABLED);
         }
+        goToVspScreen(true, vspName);
 
         VspValidationPage.navigateToVspValidationPageUsingNavbar();
         assertTrue(NEXT_BUTTON_IS_ENABLED_IT_SHOULD_HAVE_BEEN_ENABLED, VspValidationPage.checkNextButtonDisabled());
@@ -351,24 +318,6 @@ public class OnboardingFlowsUi extends SetupCDTest {
         //check links not available
         assertTrue("Validation Link is still available", GeneralUIUtils.isElementInvisibleByTestId(DataTestIdEnum.VspValidationPage.VSP_VALIDATION_PAGE_NAVBAR.getValue()));
         assertTrue("Validation Results Link is still available", GeneralUIUtils.isElementInvisibleByTestId(DataTestIdEnum.VspValidationResultsPage.VSP_VALIDATION_RESULTS_PAGE_NAVBAR.getValue()));
-    }
-
-    private void changeVspValidationConfig(boolean isCurrentScreenCatalogPage, String vspName, boolean vspConfig) throws Exception {
-        //change config
-        OnboardingUiUtils.putVspValidationCongiguration(!vspConfig);
-        assertTrue(String.format("Failed to set Congiguration to %s", !vspConfig), OnboardingUiUtils.getVspValidationCongiguration() != vspConfig);
-
-        if (!isCurrentScreenCatalogPage) {
-            GeneralUIUtils.refreshWebpage();
-            GeneralUIUtils.ultimateWait();
-        }
-
-        goToVspScreen(isCurrentScreenCatalogPage, vspName);
-
-        //revert the config
-        OnboardingUiUtils.putVspValidationCongiguration(vspConfig);
-        assertEquals(String.format("Failed to revert Configuration to %s", vspConfig), vspConfig,
-            OnboardingUiUtils.getVspValidationCongiguration());
     }
 
     private void goToVspScreen(boolean isCurrentScreenCatalogPage, String vspName) {

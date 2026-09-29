@@ -161,22 +161,6 @@ public class OnboardingUtils {
 		//return response;
 	}
 
-	public static String putVspValidationConfiguration(boolean value) throws Exception {
-		Config config = Utils.getConfig();
-		String url = String.format(Urls.VSP_VALIDATION_CONFIGURATION, config.getOnboardingBeHost(), config.getOnboardingBePort());
-		Map<String, String> headersMap = prepareHeadersMap("cs0008");
-
-		String body = String.format("{\"enabled\": \"%s\"}", value);
-
-		HttpRequest http = new HttpRequest();
-		RestResponse response = http.httpSendPut(url, body, headersMap);
-		if(response.getErrorCode().intValue() == 200){
-			return ResponseParser.getValueFromJsonResponse(response.getResponse(), "enabled");
-		}
-		throw new Exception("Cannot set configuration file");
-		//return response;
-	}
-
 	protected static Map<String, String> prepareHeadersMap(String userId) {
 		Map<String, String> headersMap = new HashMap<String, String>();
 		headersMap.put(HttpHeaderEnum.CONTENT_TYPE.getValue(), "application/json");
