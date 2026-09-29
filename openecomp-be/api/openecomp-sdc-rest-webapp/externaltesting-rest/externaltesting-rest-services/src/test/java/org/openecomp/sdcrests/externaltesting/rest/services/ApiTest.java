@@ -19,7 +19,6 @@ package org.openecomp.sdcrests.externaltesting.rest.services;
 
 import static org.mockito.MockitoAnnotations.openMocks;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +27,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.openecomp.core.externaltesting.api.ClientConfiguration;
 import org.openecomp.core.externaltesting.api.ExternalTestingManager;
 import org.openecomp.core.externaltesting.api.RemoteTestingEndpointDefinition;
@@ -38,6 +38,7 @@ import org.openecomp.core.externaltesting.api.VtpTestExecutionOutput;
 import org.openecomp.core.externaltesting.api.VtpTestExecutionRequest;
 import org.openecomp.core.externaltesting.api.VtpTestExecutionResponse;
 import org.openecomp.core.externaltesting.errors.ExternalTestingException;
+import org.openecomp.sdc.itempermissions.PermissionsManager;
 import org.openecomp.sdc.vendorsoftwareproduct.VendorSoftwareProductManager;
 
 
@@ -49,12 +50,18 @@ public class ApiTest {
     private static final String TS = "ts";
     private static final String TC = "tc";
     private static final String EXPECTED = "Expected";
+    private static final String VSP_ID = "vspId";
+    private static final String USER = "cs0008";
+    private static final String EDIT_ITEM = "Edit_Item";
 
     @Mock
     private ExternalTestingManager testingManager;
 
     @Mock
     VendorSoftwareProductManager vendorSoftwareProductManager;
+
+    @Mock
+    private PermissionsManager permissionsManager;
 
     @Before
     public void setUp() {
@@ -63,6 +70,7 @@ public class ApiTest {
         } catch (Exception e) {
             e.printStackTrace();
         }
+        Mockito.when(permissionsManager.isAllowed(VSP_ID, USER, EDIT_ITEM)).thenReturn(true);
     }
 
 
@@ -74,7 +82,7 @@ public class ApiTest {
     public void testApi() {
 
 
-        ExternalTestingImpl testing = new ExternalTestingImpl(testingManager, vendorSoftwareProductManager);
+        ExternalTestingImpl testing = new ExternalTestingImpl(testingManager, vendorSoftwareProductManager, permissionsManager);
         Assert.assertNotNull(testing.getConfig());
         Assert.assertNotNull(testing.getEndpoints());
         Assert.assertNotNull(testing.getExecution(EP, EXEC));
@@ -86,30 +94,28 @@ public class ApiTest {
 
         List<VtpTestExecutionRequest> requests =
                 Arrays.asList(new VtpTestExecutionRequest(), new VtpTestExecutionRequest());
-        Assert.assertNotNull(testing.execute("vspId", "vspVersionId", "abc", null, "[]"));
+        Response executeResponse = testing.execute(VSP_ID, "vspVersionId", "abc", USER, null, "[]");
+        Assert.assertEquals(200, executeResponse.getStatus());
+    }
 
+    /**
+     * Callers without permission on the VSP must not be able to run tests against it.
+     */
+    @Test
+    public void testExecuteRequiresVspPermission() {
+        ExternalTestingImpl testing = new ExternalTestingImpl(testingManager, vendorSoftwareProductManager, permissionsManager);
 
-        ClientConfiguration cc = new ClientConfiguration();
-        Assert.assertNotNull(testing.setConfig(cc));
-
-        ArrayList<RemoteTestingEndpointDefinition> lst = new ArrayList<>();
-        Assert.assertNotNull(testing.setEndpoints(lst));
+        Assert.assertEquals(403, testing.execute(VSP_ID, "vspVersionId", "abc", "intruder", null, "[]").getStatus());
+        Assert.assertEquals(403, testing.execute(VSP_ID, "vspVersionId", "abc", null, null, "[]").getStatus());
+        Assert.assertEquals(403, testing.execute(null, "vspVersionId", "abc", USER, null, "[]").getStatus());
+        Mockito.verify(testingManager, Mockito.never())
+                .execute(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any());
     }
 
     class ApiTestExternalTestingManager implements ExternalTestingManager {
 
         @Override
         public ClientConfiguration getConfig() {
-            throw new ExternalTestingException(EXPECTED, 500, EXPECTED);
-        }
-
-        @Override
-        public ClientConfiguration setConfig(ClientConfiguration config) {
-            throw new ExternalTestingException(EXPECTED, 500, EXPECTED);
-        }
-
-        @Override
-        public List<RemoteTestingEndpointDefinition> setEndpoints(List<RemoteTestingEndpointDefinition> endpoints) {
             throw new ExternalTestingException(EXPECTED, 500, EXPECTED);
         }
 
@@ -170,13 +176,10 @@ public class ApiTest {
         openMocks(this);
 
         ExternalTestingManager m = new ApiTestExternalTestingManager();
-        ExternalTestingImpl testingF = new ExternalTestingImpl(m, vendorSoftwareProductManager);
+        ExternalTestingImpl testingF = new ExternalTestingImpl(m, vendorSoftwareProductManager, permissionsManager);
 
         Response getResponse = testingF.getConfig();
         Assert.assertEquals(500, getResponse.getStatus());
-
-        Response setResponse = testingF.setConfig(new ClientConfiguration());
-        Assert.assertEquals(500, setResponse.getStatus());
     }
 
     /**
@@ -187,13 +190,10 @@ public class ApiTest {
         openMocks(this);
 
         ExternalTestingManager m = new ApiTestExternalTestingManager();
-        ExternalTestingImpl testingF = new ExternalTestingImpl(m, vendorSoftwareProductManager);
+        ExternalTestingImpl testingF = new ExternalTestingImpl(m, vendorSoftwareProductManager, permissionsManager);
 
         Response getResponse = testingF.getEndpoints();
         Assert.assertEquals(500, getResponse.getStatus());
-
-        Response setResponse = testingF.setEndpoints(new ArrayList<>());
-        Assert.assertEquals(500, setResponse.getStatus());
     }
 
     /**
@@ -202,11 +202,12 @@ public class ApiTest {
     @Test()
     public void testExecutionExceptions() {
         openMocks(this);
+        Mockito.when(permissionsManager.isAllowed(VSP_ID, USER, EDIT_ITEM)).thenReturn(true);
 
         ExternalTestingManager m = new ApiTestExternalTestingManager();
-        ExternalTestingImpl testingF = new ExternalTestingImpl(m, vendorSoftwareProductManager);
+        ExternalTestingImpl testingF = new ExternalTestingImpl(m, vendorSoftwareProductManager, permissionsManager);
 
-        Response invokeResponse = testingF.execute("vspId", "vspVersionId", "abc", null, "[]");
+        Response invokeResponse = testingF.execute(VSP_ID, "vspVersionId", "abc", USER, null, "[]");
         Assert.assertEquals(500, invokeResponse.getStatus());
 
         Response getResponse = testingF.getExecution(EP, EXEC);
@@ -223,7 +224,7 @@ public class ApiTest {
         openMocks(this);
 
         ExternalTestingManager m = new ApiTestExternalTestingManager();
-        ExternalTestingImpl testingF = new ExternalTestingImpl(m, vendorSoftwareProductManager);
+        ExternalTestingImpl testingF = new ExternalTestingImpl(m, vendorSoftwareProductManager, permissionsManager);
 
         Response response = testingF.getScenarios(EP);
         Assert.assertEquals(500, response.getStatus());
@@ -238,7 +239,7 @@ public class ApiTest {
         openMocks(this);
 
         ExternalTestingManager m = new ApiTestExternalTestingManager();
-        ExternalTestingImpl testingF = new ExternalTestingImpl(m, vendorSoftwareProductManager);
+        ExternalTestingImpl testingF = new ExternalTestingImpl(m, vendorSoftwareProductManager, permissionsManager);
 
         Response response = testingF.getTestcase(EP, SC, TS, TC);
         Assert.assertEquals(500, response.getStatus());
@@ -253,7 +254,7 @@ public class ApiTest {
         openMocks(this);
 
         ExternalTestingManager m = new ApiTestExternalTestingManager();
-        ExternalTestingImpl testingF = new ExternalTestingImpl(m, vendorSoftwareProductManager);
+        ExternalTestingImpl testingF = new ExternalTestingImpl(m, vendorSoftwareProductManager, permissionsManager);
 
         Response response = testingF.getTestcases(EP, SC);
         Assert.assertEquals(500, response.getStatus());
@@ -268,7 +269,7 @@ public class ApiTest {
         openMocks(this);
 
         ExternalTestingManager m = new ApiTestExternalTestingManager();
-        ExternalTestingImpl testingF = new ExternalTestingImpl(m, vendorSoftwareProductManager);
+        ExternalTestingImpl testingF = new ExternalTestingImpl(m, vendorSoftwareProductManager, permissionsManager);
 
         Response response = testingF.getTestsuites(EP, SC);
         Assert.assertEquals(500, response.getStatus());
@@ -283,7 +284,7 @@ public class ApiTest {
         openMocks(this);
 
         ExternalTestingManager m = new ApiTestExternalTestingManager();
-        ExternalTestingImpl testingF = new ExternalTestingImpl(m, vendorSoftwareProductManager);
+        ExternalTestingImpl testingF = new ExternalTestingImpl(m, vendorSoftwareProductManager, permissionsManager);
 
         Response response = testingF.getTestCasesAsTree();
         Assert.assertEquals(500, response.getStatus());

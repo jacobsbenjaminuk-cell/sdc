@@ -52,8 +52,6 @@ import org.openecomp.core.externaltesting.api.VtpTestExecutionResponse;
 import org.openecomp.core.externaltesting.errors.ExternalTestingException;
 import org.openecomp.sdc.vendorsoftwareproduct.OrchestrationTemplateCandidateManager;
 import org.openecomp.sdc.vendorsoftwareproduct.VendorSoftwareProductManager;
-import org.openecomp.sdc.versioning.VersioningManager;
-import org.openecomp.sdc.versioning.dao.types.Version;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -71,9 +69,6 @@ public class ExternalTestingManagerImplTest {
 
   @Mock
   private RestTemplate restTemplate;
-
-  @Mock
-  private VersioningManager versioningManager;
 
   @Mock
   private VendorSoftwareProductManager vendorSoftwareProductManager;
@@ -133,9 +128,6 @@ public class ExternalTestingManagerImplTest {
     byte[] csar = IOUtils.toByteArray(new FileInputStream("src/test/data/csar.zip"));
     byte[] heat = IOUtils.toByteArray(new FileInputStream("src/test/data/heat.zip"));
 
-    List<Version> versionList = new ArrayList<>();
-    versionList.add(new Version(UUID.randomUUID().toString()));
-
     Mockito.when(candidateManager.get(ArgumentMatchers.contains("csar"), ArgumentMatchers.any()))
             .thenReturn(Optional.of(Pair.of("Processed.zip", csar)));
 
@@ -153,7 +145,6 @@ public class ExternalTestingManagerImplTest {
             .thenReturn(Optional.empty());
 
 
-    Mockito.when(versioningManager.list(ArgumentMatchers.contains("missing"))).thenReturn(versionList);
 
 
     Mockito.when(restTemplate.exchange(ArgumentMatchers.endsWith("/scenarios"), ArgumentMatchers.eq(HttpMethod.GET),
@@ -302,19 +293,34 @@ public class ExternalTestingManagerImplTest {
 
 
   @Test
-  public void testManagerConfigOverrides() throws IOException {
-    ExternalTestingManager m = configTestManager(false);
+  public void testEndpointUrlValidation() {
+    Assert.assertTrue(ExternalTestingManagerImpl.isValidEndpointUrl("http://vtp.example.com:8702/onapapi/vnfsdk-marketplace"));
+    Assert.assertTrue(ExternalTestingManagerImpl.isValidEndpointUrl("https://vtp.example.com"));
+    Assert.assertFalse(ExternalTestingManagerImpl.isValidEndpointUrl("http://10.0.0.5:8080/internal#"));
+    Assert.assertFalse(ExternalTestingManagerImpl.isValidEndpointUrl("http://10.0.0.5:8080/internal?x="));
+    Assert.assertFalse(ExternalTestingManagerImpl.isValidEndpointUrl("http://user@vtp.example.com"));
+    Assert.assertFalse(ExternalTestingManagerImpl.isValidEndpointUrl("file:///etc/passwd"));
+    Assert.assertFalse(ExternalTestingManagerImpl.isValidEndpointUrl("gopher://vtp.example.com"));
+    Assert.assertFalse(ExternalTestingManagerImpl.isValidEndpointUrl("not a url"));
+  }
 
-    ClientConfiguration cc = new ClientConfiguration();
-    cc.setEnabled(true);
-    m.setConfig(cc);
-    Assert.assertTrue(m.getConfig().isEnabled());
+  @Test
+  public void testUpstreamErrorBodyNotReturned() throws IOException {
+    ExternalTestingManager m = configTestManager(true);
 
-    List<RemoteTestingEndpointDefinition> lst = new ArrayList<>();
-    lst.add(new RemoteTestingEndpointDefinition());
-    lst.get(0).setEnabled(true);
-    m.setEndpoints(lst);
-    Assert.assertEquals(1, m.getEndpoints().size());
+    HttpHeaders textHeaders = new HttpHeaders();
+    textHeaders.setContentType(MediaType.TEXT_HTML);
+    Mockito.when(restTemplate.exchange(ArgumentMatchers.endsWith("/leaky"), ArgumentMatchers.eq(HttpMethod.GET),
+            ArgumentMatchers.any(), ArgumentMatchers.eq(new ParameterizedTypeReference<VtpTestCase>() { })))
+            .thenThrow(new HttpServerErrorException(HttpStatus.INTERNAL_SERVER_ERROR, "Server Error", textHeaders,
+                    "internal-secret".getBytes(), Charset.defaultCharset()));
+
+    try {
+      m.getTestCase("repository", "scen", "suite", "leaky");
+      Assert.fail("not expected to retrieve leaky test case");
+    } catch (ExternalTestingException e) {
+      Assert.assertFalse(e.getDetail().contains("internal-secret"));
+    }
   }
 
   @Test
@@ -374,6 +380,7 @@ public class ExternalTestingManagerImplTest {
       Assert.fail("expected to receive an exception here");
     } catch (ExternalTestingException ex) {
       Assert.assertEquals(500, ex.getHttpStatus());
+      Assert.assertFalse(ex.getDetail().contains("Known versions"));
     }
 
   }

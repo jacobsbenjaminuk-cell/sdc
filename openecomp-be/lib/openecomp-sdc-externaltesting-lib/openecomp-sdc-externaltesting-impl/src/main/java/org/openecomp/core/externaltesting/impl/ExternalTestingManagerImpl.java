@@ -25,6 +25,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -53,8 +55,6 @@ import org.openecomp.sdc.vendorsoftwareproduct.OrchestrationTemplateCandidateMan
 import org.openecomp.sdc.vendorsoftwareproduct.OrchestrationTemplateCandidateManagerFactory;
 import org.openecomp.sdc.vendorsoftwareproduct.VendorSoftwareProductManager;
 import org.openecomp.sdc.vendorsoftwareproduct.VspManagerFactory;
-import org.openecomp.sdc.versioning.VersioningManager;
-import org.openecomp.sdc.versioning.VersioningManagerFactory;
 import org.openecomp.sdc.versioning.dao.types.Version;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -97,10 +97,10 @@ public class ExternalTestingManagerImpl implements ExternalTestingManager {
     private static final String ENDPOINT_ERROR_CODE = "SDC-TEST-003";
     private static final String TESTING_HTTP_ERROR_CODE = "SDC-TEST-004";
     private static final String SDC_RESOLVER_ERR = "SDC-TEST-005";
+    private static final String UNEXPECTED_ENDPOINT_RESPONSE = "Unexpected response from testing endpoint";
     private static final String VSP_CSAR = "vsp";
     private static final String VSP_HEAT = "vsp-zip";
     private Logger logger = LoggerFactory.getLogger(ExternalTestingManagerImpl.class);
-    private VersioningManager versioningManager;
     private VendorSoftwareProductManager vendorSoftwareProductManager;
     private OrchestrationTemplateCandidateManager candidateManager;
 
@@ -113,11 +113,9 @@ public class ExternalTestingManagerImpl implements ExternalTestingManager {
         restTemplate = new RestTemplate();
     }
 
-    ExternalTestingManagerImpl(VersioningManager versioningManager,
-                               VendorSoftwareProductManager vendorSoftwareProductManager,
+    ExternalTestingManagerImpl(VendorSoftwareProductManager vendorSoftwareProductManager,
                                OrchestrationTemplateCandidateManager candidateManager) {
         this();
-        this.versioningManager = versioningManager;
         this.vendorSoftwareProductManager = vendorSoftwareProductManager;
         this.candidateManager = candidateManager;
     }
@@ -129,9 +127,6 @@ public class ExternalTestingManagerImpl implements ExternalTestingManager {
     @PostConstruct
     public void init() {
 
-        if (versioningManager == null) {
-            versioningManager = VersioningManagerFactory.getInstance().createInterface();
-        }
         if (vendorSoftwareProductManager == null) {
             vendorSoftwareProductManager = VspManagerFactory.getInstance().createInterface();
         }
@@ -152,6 +147,10 @@ public class ExternalTestingManagerImpl implements ExternalTestingManager {
             rv.setId(cfg[0]);
             rv.setTitle(cfg[1]);
             rv.setEnabled("true".equals(cfg[2]));
+            if (!isValidEndpointUrl(cfg[3])) {
+                logger.error("invalid url for endpoint {}", cfg[0]);
+                return Stream.empty();
+            }
             rv.setUrl(cfg[3]);
             if (cfg.length > 4) {
                 rv.setScenarioFilter(cfg[4]);
@@ -160,6 +159,20 @@ public class ExternalTestingManagerImpl implements ExternalTestingManager {
                 rv.setApiKey(cfg[5]);
             }
             return Stream.of(rv);
+        }
+    }
+
+    /**
+     * Endpoint URLs are used as the prefix of every outbound request, so only plain http(s) base URLs are accepted.
+     */
+    static boolean isValidEndpointUrl(String url) {
+        try {
+            URI uri = new URI(url);
+            String scheme = uri.getScheme();
+            return ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) && StringUtils.isNotBlank(uri.getHost())
+                && uri.getRawUserInfo() == null && uri.getRawQuery() == null && uri.getRawFragment() == null;
+        } catch (URISyntaxException e) {
+            return false;
         }
     }
 
@@ -210,31 +223,6 @@ public class ExternalTestingManagerImpl implements ExternalTestingManager {
             cc.setEnabled(false);
         }
         return cc;
-    }
-
-    /**
-     * To allow for functional testing, we let a caller invoke a setConfig request to enable/disable the client.  This new value is not persisted.
-     *
-     * @return new client configuration
-     */
-    @Override
-    public ClientConfiguration setConfig(ClientConfiguration cc) {
-        if (accessConfig == null) {
-            accessConfig = new TestingAccessConfig();
-        }
-        accessConfig.setClient(cc);
-        return getConfig();
-    }
-
-    /**
-     * To allow for functional testing, we let a caller invoke a setEndpoints request to configure where the BE makes request to.
-     *
-     * @return new endpoint definitions.
-     */
-    @Override
-    public List<RemoteTestingEndpointDefinition> setEndpoints(List<RemoteTestingEndpointDefinition> endpoints) {
-        this.endpoints = endpoints;
-        return this.getEndpoints();
     }
 
 
@@ -640,7 +628,7 @@ public class ExternalTestingManagerImpl implements ExternalTestingManager {
 
             if (responseHeadersContentType == null || (!responseHeadersContentType.isCompatibleWith(MediaType.APPLICATION_JSON)
                 && !responseHeadersContentType.isCompatibleWith(MediaType.parseMediaType("application/problem+json")))) {
-                throw new ExternalTestingException(ENDPOINT_ERROR_CODE, ex.getStatusCode().value(), ex.getResponseBodyAsString(), ex);
+                throw new ExternalTestingException(ENDPOINT_ERROR_CODE, ex.getStatusCode().value(), UNEXPECTED_ENDPOINT_RESPONSE, ex);
             }
 
             String s = ex.getResponseBodyAsString();
@@ -651,13 +639,13 @@ public class ExternalTestingManagerImpl implements ExternalTestingManager {
                 throw buildTestingException(ex.getRawStatusCode(), o);
             } catch (JsonParseException e) {
                 logger.warn("unexpected JSON response", e);
-                throw new ExternalTestingException(ENDPOINT_ERROR_CODE, ex.getStatusCode().value(),
-                    ex.getResponseBodyAsString(), ex);
+                throw new ExternalTestingException(ENDPOINT_ERROR_CODE, ex.getStatusCode().value(), UNEXPECTED_ENDPOINT_RESPONSE,
+                    ex);
             }
         } catch (ResourceAccessException ex) {
-            throw new ExternalTestingException(ENDPOINT_ERROR_CODE, 500, ex.getMessage(), ex);
+            throw new ExternalTestingException(ENDPOINT_ERROR_CODE, 500, "Unable to contact testing endpoint", ex);
         } catch (Exception ex) {
-            throw new ExternalTestingException(ENDPOINT_ERROR_CODE, 500, "Generic Exception " + ex.getMessage(), ex);
+            throw new ExternalTestingException(ENDPOINT_ERROR_CODE, 500, UNEXPECTED_ENDPOINT_RESPONSE, ex);
         }
 
         if (re != null) {
@@ -741,16 +729,7 @@ public class ExternalTestingManagerImpl implements ExternalTestingManager {
         }
 
         if (!ozip.isPresent()) {
-            List<Version> versions = versioningManager.list(vspId);
-            String knownVersions = versions.stream()
-                .map(v -> String.format("%d.%d: %s (%s)", v.getMajor(), v.getMinor(),
-                    v.getStatus(), v.getId())).collect(Collectors.joining("\n"));
-
-            String detail = String.format(
-                "Archive processing failed.  Unable to find archive for VSP ID %s and Version %s.  Known versions are:\n%s",
-                vspId, version, knownVersions);
-
-            throw new ExternalTestingException(SDC_RESOLVER_ERR, 500, detail);
+            throw new ExternalTestingException(SDC_RESOLVER_ERR, 500, "Archive processing failed.  Unable to find archive for the VSP version.");
         }
 
         // safe here to do get.

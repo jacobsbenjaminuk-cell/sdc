@@ -93,10 +93,6 @@ public class OnboardingUiUtils {
         return Boolean.parseBoolean(OnboardingUtils.getVspValidationConfiguration());
     }
 
-    public static boolean putVspValidationCongiguration(boolean value) throws Exception {
-        return Boolean.parseBoolean(OnboardingUtils.putVspValidationConfiguration(value));
-    }
-
     public static void doCheckOut() {
         String lifeCycleState = ResourceGeneralPage.getLifeCycleState();
         boolean needCheckout = lifeCycleState.equals(LifeCycleStateEnum.CHECKIN.getValue()) || lifeCycleState.equals(LifeCycleStateEnum.CERTIFIED.getValue());

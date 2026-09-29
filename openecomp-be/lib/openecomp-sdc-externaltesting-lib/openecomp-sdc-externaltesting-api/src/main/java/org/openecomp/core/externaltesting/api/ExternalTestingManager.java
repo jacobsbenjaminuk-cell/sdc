@@ -28,11 +28,6 @@ public interface ExternalTestingManager {
     ClientConfiguration getConfig();
 
     /**
-     * For testing purposes, set the client configuration.
-     */
-    ClientConfiguration setConfig(ClientConfiguration config);
-
-    /**
      * Build a tree of all test cases for the client including all defined endpoints, scenarios, and test suites.
      *
      * @return test case tree.
@@ -43,12 +38,6 @@ public interface ExternalTestingManager {
      * Get a list of testing endpoints.
      */
     List<RemoteTestingEndpointDefinition> getEndpoints();
-
-
-    /**
-     * For functional testing purposes, allow the endpoint configuration to be provisioned to the BE.
-     */
-    List<RemoteTestingEndpointDefinition> setEndpoints(List<RemoteTestingEndpointDefinition> endpoints);
 
     /**
      * Get a list of scenarios from and endpoint.

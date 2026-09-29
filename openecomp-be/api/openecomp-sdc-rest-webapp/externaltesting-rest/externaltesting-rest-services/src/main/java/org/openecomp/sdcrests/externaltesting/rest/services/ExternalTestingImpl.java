@@ -30,15 +30,16 @@ import java.util.stream.Collectors;
 import javax.inject.Named;
 import javax.ws.rs.core.Response;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.cxf.jaxrs.ext.multipart.Attachment;
-import org.openecomp.core.externaltesting.api.ClientConfiguration;
 import org.openecomp.core.externaltesting.api.ExternalTestingManager;
-import org.openecomp.core.externaltesting.api.RemoteTestingEndpointDefinition;
 import org.openecomp.core.externaltesting.api.TestErrorBody;
 import org.openecomp.core.externaltesting.api.VtpTestExecutionOutput;
 import org.openecomp.core.externaltesting.api.VtpTestExecutionRequest;
 import org.openecomp.core.externaltesting.api.VtpTestExecutionResponse;
 import org.openecomp.core.externaltesting.errors.ExternalTestingException;
+import org.openecomp.sdc.itempermissions.PermissionsManager;
+import org.openecomp.sdc.itempermissions.PermissionsManagerFactory;
 import org.openecomp.sdc.logging.api.Logger;
 import org.openecomp.sdc.logging.api.LoggerFactory;
 import org.openecomp.sdc.vendorsoftwareproduct.VendorSoftwareProductManager;
@@ -58,7 +59,10 @@ public class ExternalTestingImpl implements ExternalTesting {
     private final ExternalTestingManager testingManager;
     private static final int REQUEST_ID_LENGTH = 8;
     private static final String TESTING_INTERNAL_ERROR = "SDC-TEST-005";
+    private static final String TESTING_PERMISSION_ERROR = "SDC-TEST-006";
+    private static final String EDIT_ITEM_ACTION = "Edit_Item";
     private final VendorSoftwareProductManager vendorSoftwareProductManager;
+    private final PermissionsManager permissionsManager;
 
     private static final Logger logger = LoggerFactory.getLogger(ExternalTestingImpl.class);
 
@@ -66,12 +70,14 @@ public class ExternalTestingImpl implements ExternalTesting {
     public ExternalTestingImpl(ExternalTestingManager testingManager) {
         this.testingManager = testingManager;
         this.vendorSoftwareProductManager = VspManagerFactory.getInstance().createInterface();
+        this.permissionsManager = PermissionsManagerFactory.getInstance().createInterface();
     }
 
     public ExternalTestingImpl(ExternalTestingManager testingManager,
-        VendorSoftwareProductManager vendorSoftwareProductManager) {
+        VendorSoftwareProductManager vendorSoftwareProductManager, PermissionsManager permissionsManager) {
         this.testingManager = testingManager;
         this.vendorSoftwareProductManager = vendorSoftwareProductManager;
+        this.permissionsManager = permissionsManager;
     }
 
     /**
@@ -83,21 +89,6 @@ public class ExternalTestingImpl implements ExternalTesting {
     public Response getConfig() {
         try {
             return Response.ok(testingManager.getConfig()).build();
-        } catch (ExternalTestingException e) {
-            return convertTestingException(e);
-        }
-    }
-
-    /**
-     * To enable automated functional testing, allow
-     * a put for the client configuration.
-     *
-     * @return JSON response content.
-     */
-    @Override
-    public Response setConfig(ClientConfiguration config) {
-        try {
-            return Response.ok(testingManager.setConfig(config)).build();
         } catch (ExternalTestingException e) {
             return convertTestingException(e);
         }
@@ -122,20 +113,6 @@ public class ExternalTestingImpl implements ExternalTesting {
     public Response getEndpoints() {
         try {
             return Response.ok(testingManager.getEndpoints()).build();
-        } catch (ExternalTestingException e) {
-            return convertTestingException(e);
-        }
-    }
-
-    /**
-     * To enable automated functional testing, allow a put of the endpoints.
-     *
-     * @return JSON response content.
-     */
-    @Override
-    public Response setEndpoints(List<RemoteTestingEndpointDefinition> endpoints) {
-        try {
-            return Response.ok(testingManager.setEndpoints(endpoints)).build();
         } catch (ExternalTestingException e) {
             return convertTestingException(e);
         }
@@ -179,8 +156,13 @@ public class ExternalTestingImpl implements ExternalTesting {
     }
 
     @Override
-    public Response execute(String vspId, String vspVersionId, String requestId, List<Attachment> files,
+    public Response execute(String vspId, String vspVersionId, String requestId, String user, List<Attachment> files,
             String testDataString) {
+        if (StringUtils.isAnyBlank(vspId, user) || !permissionsManager.isAllowed(vspId, user, EDIT_ITEM_ACTION)) {
+            TestErrorBody body = new TestErrorBody(TESTING_PERMISSION_ERROR, HttpStatus.FORBIDDEN.value(),
+                    "User is not permitted to run tests on this VSP");
+            return Response.status(HttpStatus.FORBIDDEN.value()).entity(body).build();
+        }
         try {
             List<VtpTestExecutionRequest> req = getVtpTestExecutionRequestObj(testDataString);
             Map<String, byte[]> fileMap = getFileMap(files);
