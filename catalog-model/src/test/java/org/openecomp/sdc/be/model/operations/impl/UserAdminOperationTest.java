@@ -57,6 +57,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -86,6 +87,14 @@ public class UserAdminOperationTest extends ModelTestBase {
         mockJanusGraphUpdate();
         mockJanusGraphDelete();
 
+    }
+
+    @Test
+    public void getUserDataDoesNotAssumeAnyUserForABlankId() {
+        for (final String blankId : new String[]{null, "", "   "}) {
+            assertEquals(ActionStatus.USER_NOT_FOUND, userAdminOperation.getUserData(blankId, false).right().value());
+        }
+        verify(janusGraphGenericDao, times(0)).getNode(any(), any(), eq(UserData.class));
     }
 
     @Test
