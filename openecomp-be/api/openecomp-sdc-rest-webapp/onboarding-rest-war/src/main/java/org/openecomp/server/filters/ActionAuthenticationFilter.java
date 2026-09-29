@@ -109,8 +109,14 @@ public class ActionAuthenticationFilter implements Filter {
                 log.error("Ignoring incomplete action library user entry in section {}", CONFIG_SECTION);
                 continue;
             }
-            parsed.put(userName.toString(), new ActionLibraryUser(userName.toString(), userPass.toString(),
-                ActionLibraryPrivilege.valueOf(privilege.toString().toUpperCase(Locale.ROOT))));
+            ActionLibraryPrivilege userPrivilege;
+            try {
+                userPrivilege = ActionLibraryPrivilege.valueOf(privilege.toString().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException exception) {
+                log.error("Ignoring action library user {} with unknown privilege {}", userName, privilege);
+                continue;
+            }
+            parsed.put(userName.toString(), new ActionLibraryUser(userName.toString(), userPass.toString(), userPrivilege));
         }
         return Collections.unmodifiableMap(parsed);
     }

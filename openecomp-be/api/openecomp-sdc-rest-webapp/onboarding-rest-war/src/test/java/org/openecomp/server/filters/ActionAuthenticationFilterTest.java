@@ -97,6 +97,20 @@ class ActionAuthenticationFilterTest {
     }
 
     @Test
+    void invalidUserEntriesAreSkippedWithoutDroppingValidUsers() throws Exception {
+        ActionAuthenticationFilter mixed = new ActionAuthenticationFilter(ActionAuthenticationFilter.parseUsers(
+            Map.of(ActionAuthenticationFilter.CONFIG_SECTION, Map.of("users", List.of(
+                Map.of("userName", "broken", "userPass", "brokenPass", "privilege", "SUPERUSER"),
+                Map.of("userName", "incomplete", "userPass", "incompletePass"),
+                Map.of("userName", "admin", "userPass", "adminPass", "privilege", "DELETE"))))));
+        assertRejected(mixed, basic("broken:brokenPass"));
+        assertRejected(mixed, basic("incomplete:incompletePass"));
+        FilterChain chain = mock(FilterChain.class);
+        mixed.doFilter(request("GET", basic("admin:adminPass")), mock(HttpServletResponse.class), chain);
+        verify(chain).doFilter(any(), any());
+    }
+
+    @Test
     void privilegeComesFromConfigurationNotUsername() throws Exception {
         HttpServletRequest reader = authenticate("GET", basic("reader:readerPass"));
         assertEquals("reader", reader.getRemoteUser());
