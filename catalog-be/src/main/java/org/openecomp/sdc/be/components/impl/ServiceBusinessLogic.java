@@ -1510,13 +1510,18 @@ public class ServiceBusinessLogic extends ComponentBusinessLogic {
     }
 
     public void deleteServiceAllVersions(String serviceId, User user) {
-        validateUserExists(user);
+        user = validateUserExists(user);
+        validateUserRole(user, Arrays.asList(Role.ADMIN, Role.DESIGNER));
         Either<Service, StorageOperationStatus> serviceStatus = toscaOperationFacade.getToscaElement(serviceId);
         if (serviceStatus.isRight()) {
             log.debug("Failed to get service {}", serviceId);
             componentException(serviceStatus.right().value());
         }
         Service service = serviceStatus.left().value();
+        if (!isAdmin(user) && !user.getUserId().equals(service.getLastUpdaterUserId())) {
+            log.info("Restricted operation for user: {}, on service: {}", user.getUserId(), serviceId);
+            throw new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION);
+        }
         if (Boolean.FALSE.equals(service.isArchived())) {
             log.debug("The service, {}, requested for delete has not been archived.", serviceId);
             throw new ComponentException(ActionStatus.COMPONENT_NOT_ARCHIVED, serviceId);
@@ -1564,13 +1569,18 @@ public class ServiceBusinessLogic extends ComponentBusinessLogic {
 
     public ResponseFormat markServiceForDeletion(String serviceId, User user) {
         ResponseFormat responseFormat;
-        validateUserExists(user);
+        user = validateUserExists(user);
+        validateUserRole(user, Arrays.asList(Role.ADMIN, Role.DESIGNER));
         Either<Service, StorageOperationStatus> serviceStatus = toscaOperationFacade.getToscaElement(serviceId);
         if (serviceStatus.isRight()) {
             log.debug("failed to get service {}", serviceId);
             return componentsUtils.getResponseFormat(componentsUtils.convertFromStorageResponse(serviceStatus.right().value()), "");
         }
         Service service = serviceStatus.left().value();
+        if (!isAdmin(user) && !ComponentValidationUtils.canWorkOnComponent(service, user.getUserId())) {
+            log.info("Restricted operation for user: {}, on service: {}", user.getUserId(), serviceId);
+            return componentsUtils.getResponseFormat(ActionStatus.RESTRICTED_OPERATION);
+        }
         StorageOperationStatus result = StorageOperationStatus.OK;
         try {
             lockComponent(service, "Mark service to delete");
@@ -1595,6 +1605,10 @@ public class ServiceBusinessLogic extends ComponentBusinessLogic {
             }
             graphLockOperation.unlockComponent(serviceId, NodeTypeEnum.Service);
         }
+    }
+
+    private boolean isAdmin(User user) {
+        return Role.ADMIN.name().equals(user.getRole());
     }
 
     public ResponseFormat deleteServiceByNameAndVersion(String serviceName, String version, User user) {

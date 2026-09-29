@@ -53,6 +53,7 @@ import org.junit.Assert;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.openecomp.sdc.be.components.distribution.engine.INotificationData;
+import org.openecomp.sdc.be.components.impl.exceptions.ByActionStatusComponentException;
 import org.openecomp.sdc.be.components.impl.exceptions.ComponentException;
 import org.openecomp.sdc.be.dao.api.ActionStatus;
 import org.openecomp.sdc.be.datatypes.elements.ArtifactDataDefinition;
@@ -70,11 +71,13 @@ import org.openecomp.sdc.be.model.ComponentInstanceInterface;
 import org.openecomp.sdc.be.model.ComponentInstanceProperty;
 import org.openecomp.sdc.be.model.GroupInstance;
 import org.openecomp.sdc.be.model.InputDefinition;
+import org.openecomp.sdc.be.model.LifecycleStateEnum;
 import org.openecomp.sdc.be.model.Model;
 import org.openecomp.sdc.be.model.Operation;
 import org.openecomp.sdc.be.model.PropertyDefinition;
 import org.openecomp.sdc.be.model.Resource;
 import org.openecomp.sdc.be.model.Service;
+import org.openecomp.sdc.be.model.User;
 import org.openecomp.sdc.be.model.category.CategoryDefinition;
 import org.openecomp.sdc.be.model.jsonjanusgraph.operations.exception.ToscaOperationException;
 import org.openecomp.sdc.be.model.operations.StorageException;
@@ -746,6 +749,82 @@ class ServiceBusinessLogicTest extends ServiceBusinessLogicBaseTestSetup {
                         (Service) Mockito.eq(eitherService.left().value()),
                         Mockito.anyString(),
                         Mockito.eq(user));
+    }
+
+    @Test
+    void testDeleteArchivedService_RoleNotAllowed() {
+        Mockito.doThrow(new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION))
+            .when(userValidations).validateUserRole(user, Arrays.asList(Role.ADMIN, Role.DESIGNER));
+        final ComponentException actualException = assertThrows(ComponentException.class, () -> bl.deleteServiceAllVersions("12345", user));
+        assertEquals(ActionStatus.RESTRICTED_OPERATION, actualException.getActionStatus());
+        Mockito.verify(toscaOperationFacade, Mockito.never()).deleteService(Mockito.anyString(), Mockito.anyBoolean());
+    }
+
+    @Test
+    void testDeleteArchivedService_DesignerIsNotLastUpdater() {
+        final User designer = createDesigner();
+        final Service service = createNewService();
+        service.setArchived(true);
+        service.setLastUpdaterUserId("otherUser");
+        Mockito.when(toscaOperationFacade.getToscaElement(Mockito.anyString())).thenReturn(Either.left(service));
+        final ComponentException actualException = assertThrows(ComponentException.class, () -> bl.deleteServiceAllVersions("12345", designer));
+        assertEquals(ActionStatus.RESTRICTED_OPERATION, actualException.getActionStatus());
+        Mockito.verify(toscaOperationFacade, Mockito.never()).deleteService(Mockito.anyString(), Mockito.anyBoolean());
+    }
+
+    @Test
+    void testDeleteArchivedService_DesignerIsLastUpdater() throws ToscaOperationException {
+        final User designer = createDesigner();
+        final Service service = createNewService();
+        service.setArchived(true);
+        service.setLastUpdaterUserId(designer.getUserId());
+        Mockito.when(toscaOperationFacade.getToscaElement(Mockito.anyString())).thenReturn(Either.left(service));
+        Mockito.when(toscaOperationFacade.deleteService(Mockito.any(), Mockito.eq(true))).thenReturn(new ArrayList<>());
+        Mockito.when(modelOperation.findModelByName(Mockito.any())).thenReturn(Optional.empty());
+        bl.deleteServiceAllVersions("12345", designer);
+        Mockito.verify(toscaOperationFacade, Mockito.times(1)).deleteService(Mockito.any(), Mockito.eq(true));
+    }
+
+    @Test
+    void testMarkServiceForDeletion_RoleNotAllowed() {
+        Mockito.doThrow(new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION))
+            .when(userValidations).validateUserRole(user, Arrays.asList(Role.ADMIN, Role.DESIGNER));
+        final ComponentException actualException = assertThrows(ComponentException.class, () -> bl.markServiceForDeletion("12345", user));
+        assertEquals(ActionStatus.RESTRICTED_OPERATION, actualException.getActionStatus());
+        Mockito.verify(toscaOperationFacade, Mockito.never()).markComponentToDelete(Mockito.any());
+    }
+
+    @Test
+    void testMarkServiceForDeletion_DesignerCannotWorkOnService() {
+        final User designer = createDesigner();
+        final Service service = createNewService();
+        service.setLifecycleState(LifecycleStateEnum.NOT_CERTIFIED_CHECKOUT);
+        service.setLastUpdaterUserId("otherUser");
+        Mockito.when(toscaOperationFacade.getToscaElement(Mockito.anyString())).thenReturn(Either.left(service));
+        final ResponseFormat response = bl.markServiceForDeletion("12345", designer);
+        assertEquals(HttpStatus.FORBIDDEN.value(), response.getStatus());
+        Mockito.verify(toscaOperationFacade, Mockito.never()).markComponentToDelete(Mockito.any());
+    }
+
+    @Test
+    void testMarkServiceForDeletion_DesignerCanWorkOnService() {
+        final User designer = createDesigner();
+        final Service service = createNewService();
+        service.setLifecycleState(LifecycleStateEnum.NOT_CERTIFIED_CHECKOUT);
+        service.setLastUpdaterUserId(designer.getUserId());
+        Mockito.when(toscaOperationFacade.getToscaElement(Mockito.anyString())).thenReturn(Either.left(service));
+        Mockito.when(toscaOperationFacade.markComponentToDelete(service)).thenReturn(StorageOperationStatus.OK);
+        final ResponseFormat response = bl.markServiceForDeletion("12345", designer);
+        assertEquals(HttpStatus.NO_CONTENT.value(), response.getStatus());
+        Mockito.verify(toscaOperationFacade, Mockito.times(1)).markComponentToDelete(service);
+    }
+
+    private User createDesigner() {
+        final User designer = new User();
+        designer.setUserId("cs0008");
+        designer.setRole(Role.DESIGNER.name());
+        Mockito.when(userValidations.validateUserExists(designer)).thenReturn(designer);
+        return designer;
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
