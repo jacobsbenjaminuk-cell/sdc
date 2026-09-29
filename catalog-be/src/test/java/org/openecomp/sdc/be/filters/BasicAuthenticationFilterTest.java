@@ -182,13 +182,44 @@ class BasicAuthenticationFilterTest {
     }
 
     @Test
-    void excludedUrlIsNotAuthenticated() throws Exception {
-        basicAuthConfig.setEnabled(false);
+    void excludedUrlIsNotAuthenticatedOnInternalApi() throws Exception {
+        basicAuthConfig.setEnabled(true);
+        when(sr.getServletPath()).thenReturn(INTERNAL_SERVLET_PATH);
         when(requestContext.getRequestUri()).thenReturn(URI.create("http://localhost:8080/test1"));
 
         filter.filter(requestContext);
 
         verify(requestContext, never()).abortWith(any());
+    }
+
+    @Test
+    void excludedUrlIsStillAuthenticatedOnDistributionApi() throws Exception {
+        basicAuthConfig.setEnabled(false);
+        when(sr.getServletPath()).thenReturn(DISTRIBUTION_SERVLET_PATH);
+        when(requestContext.getRequestUri()).thenReturn(URI.create("http://localhost:8080/test1"));
+
+        filter.filter(requestContext);
+
+        assertEquals(401, abortedResponse().getStatus());
+    }
+
+    @Test
+    void distributionApiIsRejectedWhenCredentialsAreNotConfigured() throws Exception {
+        String originalUserName = basicAuthConfig.getUserName();
+        String originalUserPass = basicAuthConfig.getUserPass();
+        basicAuthConfig.setUserName("");
+        basicAuthConfig.setUserPass("");
+        try {
+            when(sr.getServletPath()).thenReturn(DISTRIBUTION_SERVLET_PATH);
+            lenient().when(requestContext.getHeaderString(Constants.AUTHORIZATION_HEADER)).thenReturn(basic("", ""));
+
+            filter.filter(requestContext);
+
+            assertEquals(401, abortedResponse().getStatus());
+        } finally {
+            basicAuthConfig.setUserName(originalUserName);
+            basicAuthConfig.setUserPass(originalUserPass);
+        }
     }
 
     private Response abortedResponse() {

@@ -70,12 +70,11 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter {
     public void filter(ContainerRequestContext requestContext) throws IOException {
         audit.startLog(requestContext);
         Configuration.BasicAuthConfig basicAuthConf = getBasicAuthConfig();
-        if (isExcludedUrl(basicAuthConf, requestContext)) {
-            return;
-        }
-        boolean isEnabled = basicAuthConf != null && basicAuthConf.isEnabled();
-        if (!isEnabled && !isDistributionApi()) {
-            return;
+        if (!isDistributionApi()) {
+            boolean isEnabled = basicAuthConf != null && basicAuthConf.isEnabled();
+            if (!isEnabled || isExcludedUrl(basicAuthConf, requestContext)) {
+                return;
+            }
         }
         if (basicAuthConf == null || StringUtils.isAnyBlank(basicAuthConf.getUserName(), basicAuthConf.getUserPass())) {
             log.error("Authentication Filter rejected request, basic authentication credentials are not configured");

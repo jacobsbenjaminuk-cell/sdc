@@ -116,8 +116,8 @@ neo4j:
 
 basicAuth:
   enabled: false
-  userName: "testName"
-  userPass: "testPass"
+  userName: ""
+  userPass: ""
   excludedUrls: ""
   apiPublicKeys: []
 
