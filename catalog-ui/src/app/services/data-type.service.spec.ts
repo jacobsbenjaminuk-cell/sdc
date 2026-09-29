@@ -140,24 +140,26 @@ describe('DataTypeService', () => {
     });
 
     describe('createProperty', () => {
-        it('should POST to properties endpoint', () => {
+        it('should POST to properties endpoint with USER_ID header', () => {
             const prop = {name: 'newProp', type: 'string'} as any;
             service.createProperty('dt-123', prop).subscribe();
 
             const req = httpMock.expectOne('/sdc2/rest/v1/catalog/data-types/dt-123/properties');
             expect(req.request.method).toBe('POST');
             expect(req.request.body).toEqual(prop);
+            expect(req.request.headers.get('USER_ID')).toBe('cs0008');
             req.flush(prop);
         });
     });
 
     describe('updateProperty', () => {
-        it('should PUT to properties endpoint', () => {
+        it('should PUT to properties endpoint with USER_ID header', () => {
             const prop = {name: 'existingProp', type: 'integer'} as any;
             service.updateProperty('dt-123', prop).subscribe();
 
             const req = httpMock.expectOne('/sdc2/rest/v1/catalog/data-types/dt-123/properties');
             expect(req.request.method).toBe('PUT');
+            expect(req.request.headers.get('USER_ID')).toBe('cs0008');
             req.flush(prop);
         });
     });
