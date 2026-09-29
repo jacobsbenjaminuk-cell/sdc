@@ -76,9 +76,9 @@ import org.openecomp.sdc.be.tosca.model.ToscaPropertyConstraintPattern;
 import org.openecomp.sdc.be.tosca.model.ToscaPropertyConstraintValidValues;
 import org.openecomp.sdc.be.tosca.model.ToscaSchemaDefinition;
 import org.openecomp.sdc.common.log.wrappers.Logger;
+import org.openecomp.sdc.common.util.SafeYamlFactory;
 import org.openecomp.sdc.tosca.datatypes.ToscaFunctions;
 import org.springframework.stereotype.Service;
-import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.scanner.ScannerException;
 
 @Service
@@ -254,7 +254,7 @@ public class PropertyConvertor {
         }
 
         if (property.isToscaFunction() && property.getToscaFunction().getType() == ToscaFunctionType.YAML) {
-            return new Yaml().load(property.getValue());
+            return SafeYamlFactory.create().load(property.getValue());
         }
         try {
             ToscaMapValueConverter mapConverterInst = ToscaMapValueConverter.getInstance();
@@ -324,7 +324,7 @@ public class PropertyConvertor {
         } catch (JsonParseException e) {
             log.trace("{} not parsable as JSON. Convert as YAML instead", value);
             try {
-                return new Yaml().load(value);
+                return SafeYamlFactory.create().load(value);
             } catch (ScannerException ex) {
                 log.trace("{} not parsable as YAML. Returning as string", value);
                 return value;

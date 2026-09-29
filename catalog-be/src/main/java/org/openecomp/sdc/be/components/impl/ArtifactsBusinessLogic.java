@@ -136,6 +136,7 @@ import org.openecomp.sdc.common.api.Constants;
 import org.openecomp.sdc.common.datastructure.Wrapper;
 import org.openecomp.sdc.common.log.wrappers.Logger;
 import org.openecomp.sdc.common.util.GeneralUtility;
+import org.openecomp.sdc.common.util.SafeYamlFactory;
 import org.openecomp.sdc.common.util.ValidationUtils;
 import org.openecomp.sdc.common.util.YamlToObjectConverter;
 import org.openecomp.sdc.exception.ResponseFormat;
@@ -1859,9 +1860,9 @@ public class ArtifactsBusinessLogic extends BaseBusinessLogic {
 
     private void validateEnvVsHeat(ArtifactDefinition envArtifact, ArtifactDefinition heatArtifact, byte[] heatPayloadData) {
         String envPayload = new String(Base64.decodeBase64(envArtifact.getPayloadData()));
-        Map<String, Object> heatEnvToscaJson = (Map<String, Object>) new Yaml().load(envPayload);
+        Map<String, Object> heatEnvToscaJson = (Map<String, Object>) SafeYamlFactory.create().load(envPayload);
         String heatDecodedPayload = new String(Base64.decodeBase64(heatPayloadData));
-        Map<String, Object> heatToscaJson = (Map<String, Object>) new Yaml().load(heatDecodedPayload);
+        Map<String, Object> heatToscaJson = (Map<String, Object>) SafeYamlFactory.create().load(heatDecodedPayload);
         Either<Map<String, Object>, ResultStatusEnum> eitherHeatEnvProperties = ImportUtils
             .findFirstToscaMapElement(heatEnvToscaJson, TypeUtils.ToscaTagNamesEnum.PARAMETERS);
         if (eitherHeatEnvProperties.isRight()) {

@@ -29,6 +29,7 @@ import org.openecomp.sdc.be.datatypes.elements.ToscaFunctionType;
 import org.openecomp.sdc.be.datatypes.enums.PropertySource;
 import org.openecomp.sdc.be.datatypes.enums.ConstraintType;
 import org.openecomp.sdc.be.ui.model.UIConstraint;
+import org.openecomp.sdc.common.util.SafeYamlFactory;
 import org.openecomp.sdc.tosca.datatypes.ToscaFunctions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,7 +52,7 @@ public class ConstraintConvertor {
     }
 
     public UIConstraint convert(final String inConstraint, final String valueType) {
-        Yaml yamlSource = new Yaml();
+        Yaml yamlSource = SafeYamlFactory.create();
         UIConstraint uiConstraint = new UIConstraint();
         Object content1 = yamlSource.load(inConstraint);
         if (!(content1 instanceof Map)) {
@@ -143,7 +144,7 @@ public class ConstraintConvertor {
                 case STATIC_CONSTRAINT: {
                     Object value = uiConstraint.getValue();
                     if (value instanceof String) {
-                        value = new Yaml().load(value.toString());
+                        value = SafeYamlFactory.create().load(value.toString());
                     }
                     constraintAsMap.put(uiConstraint.getConstraintOperator(), value);
                     break;
@@ -160,7 +161,7 @@ public class ConstraintConvertor {
                     if (ToscaFunctionType.findType(uiConstraint.getSourceType()).isPresent()) {
                         Object value = uiConstraint.getValue();
                         if (value instanceof String) {
-                            value = new Yaml().load((String) value);
+                            value = SafeYamlFactory.create().load((String) value);
                         }
                         constraintAsMap.put(uiConstraint.getConstraintOperator(), value);
                     }
@@ -174,7 +175,7 @@ public class ConstraintConvertor {
     }
 
     public UIConstraint getUiConstraint(final String inConstraint, final UIConstraint uiConstraint) {
-        final Object constraintObject = new Yaml().load(inConstraint);
+        final Object constraintObject = SafeYamlFactory.create().load(inConstraint);
         if (!(constraintObject instanceof Map)) {
             return null;
         }

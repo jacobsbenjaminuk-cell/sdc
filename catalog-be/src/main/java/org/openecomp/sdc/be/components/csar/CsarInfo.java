@@ -54,7 +54,7 @@ import org.openecomp.sdc.be.model.User;
 import org.openecomp.sdc.be.utils.TypeUtils;
 import org.openecomp.sdc.common.api.Constants;
 import org.openecomp.sdc.common.log.wrappers.Logger;
-import org.yaml.snakeyaml.Yaml;
+import org.openecomp.sdc.common.util.SafeYamlFactory;
 
 /**
  * Provides access to the contents of a CSAR
@@ -100,7 +100,7 @@ public abstract class CsarInfo {
         this.csar = csar;
         this.mainTemplateName = mainTemplateName;
         this.mainTemplateContent = mainTemplateContent;
-        this.mappedToscaMainTemplate = new Yaml().load(mainTemplateContent);
+        this.mappedToscaMainTemplate = SafeYamlFactory.create().load(mainTemplateContent);
         this.createdNodesToscaResourceNames = new HashMap<>();
         this.cvfcToCreateQueue = new PriorityQueue<>();
         this.isUpdate = isUpdate;

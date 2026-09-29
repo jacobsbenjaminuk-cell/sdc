@@ -139,6 +139,7 @@ public class YamlToObjectConverter {
     public <T> T convert(byte[] fileContents, Class<T> className) {
         final Yaml yaml = getYamlByClassName(className);
         try (final InputStream in = new ByteArrayInputStream(fileContents)) {
+            SafeYamlFactory.create().load(new ByteArrayInputStream(fileContents));
             return yaml.loadAs(in, className);
         } catch (final IOException e) {
             log.debug("Failed to open or close input stream", e);
@@ -157,7 +158,7 @@ public class YamlToObjectConverter {
     @SuppressWarnings("unchecked")
     public boolean isValidYaml(byte[] fileContents) {
         try {
-            Iterable<Object> mappedToscaTemplateIt = new Yaml().loadAll(new ByteArrayInputStream(fileContents));
+            Iterable<Object> mappedToscaTemplateIt = SafeYamlFactory.create().loadAll(new ByteArrayInputStream(fileContents));
             for (Object o : mappedToscaTemplateIt) {
                 log.debug("Loaded object type:" + o.getClass());
                 Map<String, Object> map = (Map<String, Object>) o;

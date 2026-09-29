@@ -148,10 +148,10 @@ import org.openecomp.sdc.common.jsongraph.util.CommonUtility.LogLevelEnum;
 import org.openecomp.sdc.common.log.elements.ErrorLogOptionalData;
 import org.openecomp.sdc.common.log.enums.EcompLoggerErrorCode;
 import org.openecomp.sdc.common.log.wrappers.Logger;
+import org.openecomp.sdc.common.util.SafeYamlFactory;
 import org.openecomp.sdc.common.util.ValidationUtils;
 import org.openecomp.sdc.exception.ResponseFormat;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.yaml.snakeyaml.Yaml;
 
 @org.springframework.stereotype.Component
 public class ComponentInstanceBusinessLogic extends BaseBusinessLogic {
@@ -2036,7 +2036,7 @@ public class ComponentInstanceBusinessLogic extends BaseBusinessLogic {
         }
 
         if (path.size() == 1) {
-            Object valueAsObject = new Yaml().loadAs(value, Object.class);
+            Object valueAsObject = SafeYamlFactory.create().load(value);
             jsonArray.put(Integer.parseInt(path.get(0)), valueAsObject);
         } else {
             if (objectForPath instanceof JSONObject) {
@@ -2062,7 +2062,7 @@ public class ComponentInstanceBusinessLogic extends BaseBusinessLogic {
         }
 
         if (path.size() == 1) {
-            Object valueAsObject = new Yaml().loadAs(value, Object.class);
+            Object valueAsObject = SafeYamlFactory.create().load(value);
             jsonObject.put(path.get(0), valueAsObject);
         } else {
             if (objectForPath instanceof JSONObject) {

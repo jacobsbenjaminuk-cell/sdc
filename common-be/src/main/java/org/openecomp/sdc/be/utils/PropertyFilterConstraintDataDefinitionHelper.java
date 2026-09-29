@@ -51,14 +51,14 @@ import org.openecomp.sdc.be.datatypes.enums.FilterValueType;
 import org.openecomp.sdc.be.datatypes.enums.PropertyFilterTargetType;
 import org.openecomp.sdc.be.datatypes.enums.PropertySource;
 import org.openecomp.sdc.be.datatypes.tosca.ToscaGetFunctionType;
-import org.yaml.snakeyaml.Yaml;
+import org.openecomp.sdc.common.util.SafeYamlFactory;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class PropertyFilterConstraintDataDefinitionHelper {
 
     public static PropertyFilterConstraintDataDefinition convertLegacyConstraint(final String constraint) {
         final var propertyFilterConstraint = new PropertyFilterConstraintDataDefinition();
-        final Map<String, Object> constraintYaml = new Yaml().load(constraint);
+        final Map<String, Object> constraintYaml = SafeYamlFactory.create().load(constraint);
         final String propertyName = constraintYaml.keySet().iterator().next();
         propertyFilterConstraint.setPropertyName(propertyName);
         final Map<String, Object> operatorYaml = (Map<String, Object>) constraintYaml.get(propertyName);

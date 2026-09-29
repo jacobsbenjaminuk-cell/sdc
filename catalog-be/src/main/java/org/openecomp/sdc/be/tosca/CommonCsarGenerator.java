@@ -106,6 +106,7 @@ import org.openecomp.sdc.common.api.ArtifactTypeEnum;
 import org.openecomp.sdc.common.impl.ExternalConfiguration;
 import org.openecomp.sdc.common.log.enums.EcompLoggerErrorCode;
 import org.openecomp.sdc.common.util.GeneralUtility;
+import org.openecomp.sdc.common.util.SafeYamlFactory;
 import org.openecomp.sdc.common.zip.ZipUtils;
 import org.openecomp.sdc.exception.ResponseFormat;
 import org.slf4j.Logger;
@@ -627,7 +628,7 @@ public class CommonCsarGenerator {
         while ((read = zipInputStream.read(buffer, 0, initSize)) >= 0) {
             zipEntry.append(new String(buffer, 0, read));
         }
-        return (Map<String, Object>) new Yaml().load(zipEntry.toString());
+        return (Map<String, Object>) SafeYamlFactory.create().load(zipEntry.toString());
     }
 
     /**
@@ -778,8 +779,8 @@ public class CommonCsarGenerator {
 
     private byte[] mergeContent(final byte[] first, final byte[] second) {
         byte[] merged = new byte[0];
-        final Map<String, Object> firstMap = new Yaml().load(new String(first));
-        final Map<String, Object> secondMap = new Yaml().load(new String(second));
+        final Map<String, Object> firstMap = SafeYamlFactory.create().load(new String(first));
+        final Map<String, Object> secondMap = SafeYamlFactory.create().load(new String(second));
         if (MapUtils.isNotEmpty(secondMap)) {
             final DumperOptions options = new DumperOptions();
             options.setDefaultFlowStyle(FlowStyle.BLOCK);

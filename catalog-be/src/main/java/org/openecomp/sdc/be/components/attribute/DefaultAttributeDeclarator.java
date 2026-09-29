@@ -48,7 +48,7 @@ import org.openecomp.sdc.be.model.OutputDefinition;
 import org.openecomp.sdc.be.model.operations.api.StorageOperationStatus;
 import org.openecomp.sdc.be.model.operations.impl.UniqueIdBuilder;
 import org.openecomp.sdc.common.log.wrappers.Logger;
-import org.yaml.snakeyaml.Yaml;
+import org.openecomp.sdc.common.util.SafeYamlFactory;
 
 public abstract class DefaultAttributeDeclarator<PROPERTYOWNER extends PropertiesOwner, ATTRIBUTETYPE extends AttributeDataDefinition> implements
     AttributeDeclarator {
@@ -210,7 +210,7 @@ public abstract class DefaultAttributeDeclarator<PROPERTYOWNER extends Propertie
                 output.setValue(jsonObject.toJSONString());
             }
         } else {
-            final Object objValue = new Yaml().load(value);
+            final Object objValue = SafeYamlFactory.create().load(value);
             if (objValue instanceof Map || objValue instanceof List) {
                 if (!complexProperty) {
                     jsonObject.put(GET_ATTRIBUTE,

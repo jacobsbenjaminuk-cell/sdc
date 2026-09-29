@@ -182,6 +182,7 @@ import org.openecomp.sdc.common.log.enums.LoggerSupportabilityActions;
 import org.openecomp.sdc.common.log.enums.StatusCode;
 import org.openecomp.sdc.common.log.wrappers.Logger;
 import org.openecomp.sdc.common.util.GeneralUtility;
+import org.openecomp.sdc.common.util.SafeYamlFactory;
 import org.openecomp.sdc.common.util.ValidationUtils;
 import org.openecomp.sdc.exception.ResponseFormat;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -741,7 +742,7 @@ public class ResourceBusinessLogic extends ComponentBusinessLogic {
                                                final ParsedToscaYamlInfo parsedToscaYamlInfo, final String substitutionMappingNodeType) {
         if (processSubstitutableAsNodeType(resource, parsedToscaYamlInfo)) {
             final Map<String, Object> substitutableAsNodeType = getSubstitutableAsNodeTypeFromTemplate(
-                (Map<String, Object>) new Yaml().load(topologyTemplateYaml), substitutionMappingNodeType);
+                (Map<String, Object>) SafeYamlFactory.create().load(topologyTemplateYaml), substitutionMappingNodeType);
             final Resource genericResource = fetchAndSetDerivedFromGenericType(resource,
                 (String) substitutableAsNodeType.get(TypeUtils.ToscaTagNamesEnum.DERIVED_FROM.getElementName()));
 
@@ -1493,7 +1494,7 @@ public class ResourceBusinessLogic extends ComponentBusinessLogic {
                 "Starting to add inputs from yaml: {}", yamlName);
             if (processSubstitutableAsNodeType(resource, parsedToscaYamlInfo)) {
                 final Map<String, Object> substitutableAsNodeType = getSubstitutableAsNodeTypeFromTemplate(
-                    (Map<String, Object>) new Yaml().load(topologyTemplateYaml), parsedToscaYamlInfo.getSubstitutionMappingNodeType());
+                    (Map<String, Object>) SafeYamlFactory.create().load(topologyTemplateYaml), parsedToscaYamlInfo.getSubstitutionMappingNodeType());
                 resource.setToscaResourceName(parsedToscaYamlInfo.getSubstitutionMappingNodeType());
                 final Resource genericResource = fetchAndSetDerivedFromGenericType(resource,
                     (String) substitutableAsNodeType.get(TypeUtils.ToscaTagNamesEnum.DERIVED_FROM.getElementName()));
@@ -2036,7 +2037,7 @@ public class ResourceBusinessLogic extends ComponentBusinessLogic {
                 mappedToscaTemplate = nodeTypesInfo.get(nodeName).getMappedToscaTemplate();
             }
             if (isEmpty(mappedToscaTemplate)) {
-                mappedToscaTemplate = (Map<String, Object>) new Yaml().load(topologyTemplateYaml);
+                mappedToscaTemplate = (Map<String, Object>) SafeYamlFactory.create().load(topologyTemplateYaml);
             }
             createResourcesFromYamlNodeTypesList(yamlName, resource, mappedToscaTemplate, needLock, nodeTypesArtifactsToHandle,
                 nodeTypesNewCreatedArtifacts, nodeTypesInfo, csarInfo, substitutableAsNodeType);

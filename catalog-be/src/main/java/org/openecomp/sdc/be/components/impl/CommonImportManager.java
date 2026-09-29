@@ -55,10 +55,10 @@ import org.openecomp.sdc.be.model.operations.api.TypeOperations;
 import org.openecomp.sdc.be.model.operations.impl.ModelOperation;
 import org.openecomp.sdc.be.model.operations.impl.PropertyOperation;
 import org.openecomp.sdc.common.log.wrappers.Logger;
+import org.openecomp.sdc.common.util.SafeYamlFactory;
 import org.openecomp.sdc.exception.ResponseFormat;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.yaml.snakeyaml.Yaml;
 
 @Component("commonImportManager")
 public class CommonImportManager {
@@ -127,7 +127,7 @@ public class CommonImportManager {
     private Map<String, Object> convertToFieldMap(String elementTypesYml) {
         Map<String, Object> toscaJson = null;
         try {
-            toscaJson = new Yaml().load(elementTypesYml);
+            toscaJson = SafeYamlFactory.create().load(elementTypesYml);
             if (toscaJson.containsKey("data_types")){
                 toscaJson = (Map<String, Object>) toscaJson.get("data_types");
             }

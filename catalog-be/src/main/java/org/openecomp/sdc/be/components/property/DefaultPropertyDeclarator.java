@@ -58,8 +58,8 @@ import org.openecomp.sdc.be.model.operations.impl.DaoStatusConverter;
 import org.openecomp.sdc.be.model.operations.impl.PropertyOperation;
 import org.openecomp.sdc.be.model.operations.impl.UniqueIdBuilder;
 import org.openecomp.sdc.common.log.wrappers.Logger;
+import org.openecomp.sdc.common.util.SafeYamlFactory;
 import org.openecomp.sdc.exception.ResponseFormat;
-import org.yaml.snakeyaml.Yaml;
 
 public abstract class DefaultPropertyDeclarator<PROPERTYOWNER extends PropertiesOwner, PROPERTYTYPE extends PropertyDataDefinition> implements
     PropertyDeclarator {
@@ -356,7 +356,7 @@ public abstract class DefaultPropertyDeclarator<PROPERTYOWNER extends Properties
                 prop.setValue(jsonObject.toJSONString());
             }
         } else {
-            Object objValue = new Yaml().load(value);
+            Object objValue = SafeYamlFactory.create().load(value);
             if (objValue instanceof Map || objValue instanceof List) {
                 if (!complexProperty) {
                     jsonObject.put(GET_INPUT, input.getName());
@@ -466,7 +466,7 @@ public abstract class DefaultPropertyDeclarator<PROPERTYOWNER extends Properties
     private Either<InputDefinition, ResponseFormat> prepareValueBeforeDelete(InputDefinition inputForDelete, PropertyDataDefinition inputValue) {
         Either<InputDefinition, ResponseFormat> deleteEither = Either.left(inputForDelete);
         String value = inputValue.getValue();
-        Map<String, Object> mappedToscaTemplate = (Map<String, Object>) new Yaml().load(value);
+        Map<String, Object> mappedToscaTemplate = (Map<String, Object>) SafeYamlFactory.create().load(value);
         resetInputName(mappedToscaTemplate, inputForDelete.getName());
         value = "";
         if (!mappedToscaTemplate.isEmpty()) {

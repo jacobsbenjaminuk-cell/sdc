@@ -145,6 +145,7 @@ import org.openecomp.sdc.be.tosca.utils.InputConverter;
 import org.openecomp.sdc.be.tosca.utils.OutputConverter;
 import org.openecomp.sdc.common.log.enums.EcompLoggerErrorCode;
 import org.openecomp.sdc.common.log.wrappers.Logger;
+import org.openecomp.sdc.common.util.SafeYamlFactory;
 import org.openecomp.sdc.tosca.datatypes.ToscaFunctions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.yaml.snakeyaml.DumperOptions;
@@ -2002,12 +2003,12 @@ public class ToscaExportHandler {
             }
 
             public Node representGetAttribute(final String getAttributeFunction) {
-                return represent(new Yaml().load(getAttributeFunction));
+                return represent(SafeYamlFactory.create().load(getAttributeFunction));
             }
 
             public boolean isPropertyOrAttributeFunction(final String value) {
                 try {
-                    final Yaml yaml = new Yaml();
+                    final Yaml yaml = SafeYamlFactory.create();
                     final Object yamlObj = yaml.load(value);
                     if (!(yamlObj instanceof Map)) {
                         return false;
