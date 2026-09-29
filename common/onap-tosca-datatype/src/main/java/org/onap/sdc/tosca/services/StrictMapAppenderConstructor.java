@@ -21,7 +21,9 @@ package org.onap.sdc.tosca.services;
 
 import java.util.Map;
 import org.yaml.snakeyaml.constructor.Constructor;
+import org.yaml.snakeyaml.error.YAMLException;
 import org.yaml.snakeyaml.nodes.MappingNode;
+import org.yaml.snakeyaml.nodes.Node;
 import org.yaml.snakeyaml.parser.ParserException;
 
 public class StrictMapAppenderConstructor extends Constructor {
@@ -38,6 +40,14 @@ public class StrictMapAppenderConstructor extends Constructor {
     @Override
     protected Map<Object, Object> createDefaultMap(int initSize) {
         return new StrictMap(super.createDefaultMap(initSize));
+    }
+
+    @Override
+    protected Class<?> getClassForNode(final Node node) {
+        if (!typeTags.containsKey(node.getTag())) {
+            throw new YAMLException("Global tag is not allowed: " + node.getTag());
+        }
+        return super.getClassForNode(node);
     }
 
     @Override

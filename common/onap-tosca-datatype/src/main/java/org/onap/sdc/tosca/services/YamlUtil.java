@@ -29,6 +29,7 @@ import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
 import org.yaml.snakeyaml.introspector.Property;
 import org.yaml.snakeyaml.introspector.PropertyUtils;
 import org.yaml.snakeyaml.nodes.MappingNode;
@@ -71,7 +72,7 @@ public class YamlUtil {
      * @return The YAML Object
      */
     public static Object read(final InputStream yamlFileInputStream) {
-        return new Yaml().load(yamlFileInputStream);
+        return new Yaml(new SafeConstructor(new LoaderOptions())).load(yamlFileInputStream);
     }
 
     /**
@@ -169,7 +170,7 @@ public class YamlUtil {
      * @return the map
      */
     public Map<String, LinkedHashMap<String, Object>> yamlToMap(InputStream yamlContent) {
-        return new Yaml().load(yamlContent);
+        return new Yaml(new SafeConstructor(new LoaderOptions())).load(yamlContent);
     }
 
     /**
@@ -197,7 +198,7 @@ public class YamlUtil {
      */
     public boolean isYamlFileContentValid(String yamlFullFileName) {
         try {
-            return new Yaml().load(yamlFullFileName) != null;
+            return new Yaml(new SafeConstructor(new LoaderOptions())).load(yamlFullFileName) != null;
         } catch (Exception exception) {
             return false;
         }

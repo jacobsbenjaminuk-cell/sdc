@@ -703,7 +703,7 @@ public class CommonCsarGenerator {
         final DumperOptions options = new DumperOptions();
         options.setDefaultFlowStyle(FlowStyle.BLOCK);
         final Yaml yaml = new Yaml(options);
-        final Map<String, Object> stringObjectMap = (Map<String, Object>) yaml.load(new String(mergingContent));
+        final Map<String, Object> stringObjectMap = SafeYamlFactory.create().load(new String(mergingContent));
         final Map<String, Object> nodeTypes = (Map<String, Object>) stringObjectMap.get("node_types");
         for (final Component dependency : dependencies) {
             final Map<String, Object> dependencyAsMap = yaml.load(yaml.dumpAsMap(dependency));
