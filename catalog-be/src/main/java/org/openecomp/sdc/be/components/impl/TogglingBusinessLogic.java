@@ -22,6 +22,8 @@ package org.openecomp.sdc.be.components.impl;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.openecomp.sdc.be.components.impl.exceptions.ByActionStatusComponentException;
+import org.openecomp.sdc.be.dao.api.ActionStatus;
 import org.openecomp.sdc.be.model.jsonjanusgraph.operations.ArtifactsOperations;
 import org.openecomp.sdc.be.model.jsonjanusgraph.operations.InterfaceOperation;
 import org.openecomp.sdc.be.model.operations.api.IElementOperation;
@@ -35,7 +37,6 @@ import org.springframework.stereotype.Component;
 import org.togglz.core.Feature;
 import org.togglz.core.context.FeatureContext;
 import org.togglz.core.repository.FeatureState;
-import org.togglz.core.util.NamedFeature;
 
 @Component("togglingBusinessLogic")
 public class TogglingBusinessLogic extends BaseBusinessLogic {
@@ -61,7 +62,10 @@ public class TogglingBusinessLogic extends BaseBusinessLogic {
     }
 
     public void updateFeatureState(String featureName, boolean state) {
-        Feature feature = new NamedFeature(featureName);
+        Feature feature = ToggleableFeature.getFeatureByName(featureName);
+        if (feature == null) {
+            throw new ByActionStatusComponentException(ActionStatus.INVALID_CONTENT);
+        }
         FeatureState featureState = new FeatureState(feature, state);
         FeatureContext.getFeatureManager().setFeatureState(featureState);
     }
