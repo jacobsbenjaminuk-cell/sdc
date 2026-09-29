@@ -16,7 +16,9 @@
 package org.openecomp.sdcrests.togglz.rest.services;
 
 import java.util.Arrays;
+import java.util.function.Supplier;
 import javax.inject.Named;
+import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
 import org.openecomp.sdc.be.togglz.ToggleableFeature;
 import org.openecomp.sdcrests.togglz.rest.TogglzFeatures;
@@ -35,6 +37,25 @@ import org.togglz.core.util.NamedFeature;
 @Scope(value = "prototype")
 public class TogglzFeaturesImpl implements TogglzFeatures {
 
+    private static final String BASIC_CHALLENGE = "Basic realm=\"togglz\"";
+    private final Supplier<TogglzAdminAuthorizer> adminAuthorizer;
+
+    public TogglzFeaturesImpl() {
+        this.adminAuthorizer = TogglzAdminAuthorizer::fromConfiguration;
+    }
+
+    public TogglzFeaturesImpl(TogglzAdminAuthorizer adminAuthorizer) {
+        this.adminAuthorizer = () -> adminAuthorizer;
+    }
+
+    private static Response unauthorized() {
+        return Response.status(Response.Status.UNAUTHORIZED).header(HttpHeaders.WWW_AUTHENTICATE, BASIC_CHALLENGE).build();
+    }
+
+    private static boolean isKnownFeature(String featureName) {
+        return Arrays.stream(ToggleableFeature.values()).anyMatch(feature -> feature.name().equals(featureName));
+    }
+
     @Override
     public Response getFeatures() {
         FeatureSetDto featureSetDto = new FeatureSetDto();
@@ -43,7 +64,10 @@ public class TogglzFeaturesImpl implements TogglzFeatures {
     }
 
     @Override
-    public Response setAllFeatures(boolean active) {
+    public Response setAllFeatures(boolean active, String authorization) {
+        if (!adminAuthorizer.get().isAuthorized(authorization)) {
+            return unauthorized();
+        }
         FeatureSetDto featureSetDto = new FeatureSetDto();
         new MapToggleableFeatureToDto().doMapping(Arrays.asList(ToggleableFeature.values()), featureSetDto);
         featureSetDto.getFeatures().forEach(featureDto -> {
@@ -55,7 +79,13 @@ public class TogglzFeaturesImpl implements TogglzFeatures {
     }
 
     @Override
-    public Response setFeatureState(String featureName, boolean active) {
+    public Response setFeatureState(String featureName, boolean active, String authorization) {
+        if (!adminAuthorizer.get().isAuthorized(authorization)) {
+            return unauthorized();
+        }
+        if (!isKnownFeature(featureName)) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
         Feature feature = new NamedFeature(featureName);
         FeatureState featureState = new FeatureState(feature, active);
         FeatureContext.getFeatureManager().setFeatureState(featureState);
