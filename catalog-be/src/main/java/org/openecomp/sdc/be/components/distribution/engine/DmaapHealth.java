@@ -23,8 +23,6 @@ import static org.apache.commons.lang3.StringUtils.countMatches;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 import static org.openecomp.sdc.common.api.Constants.HC_COMPONENT_DMAAP_ENGINE;
 
-import java.io.IOException;
-import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.concurrent.Executors;
@@ -103,7 +101,7 @@ public class DmaapHealth {
             if (healthCheckReadTimeoutConfig != null) {
                 this.healthCheckReadTimeout = healthCheckReadTimeoutConfig;
             }
-            this.healthCheckScheduledTask = new HealthCheckScheduledTask(this.configuration); //what is the representation? csv? delimiter? json or other
+            this.healthCheckScheduledTask = new HealthCheckScheduledTask(); //what is the representation? csv? delimiter? json or other
             startHealthCheckTask(true);
         }
         log.trace("Exit init method of DistributionEngineClusterHealth");
@@ -188,13 +186,6 @@ public class DmaapHealth {
      */
     public class HealthCheckScheduledTask implements Runnable {
 
-        private static final int TIMEOUT = 8192;
-        private final DmaapConsumerConfiguration config;
-
-        HealthCheckScheduledTask(final DmaapConsumerConfiguration config) {
-            this.config = config;
-        }
-
         @Override
         public void run() {
             logHealth.trace("Executing Dmaap Health Check Task - Start");
@@ -217,20 +208,6 @@ public class DmaapHealth {
             if (prevIsReachable != lastHealthState.get()) {
                 logAlarm(lastHealthState.get());
             }
-        }
-
-        /**
-         * @deprecated (health is reported outside from EnvironmentEngine consumer fetch)
-         */
-        @Deprecated
-        public boolean isICMPReachable() throws IOException {
-            try {
-                String hostname = getUrlHost(config.getHosts());
-                return InetAddress.getByName(hostname).isReachable(TIMEOUT);
-            } catch (URISyntaxException e) {
-                log.debug("{} - malformed host configuration -> ", DMAAP_HEALTH_CHECK_STR, e);
-            }
-            return false;
         }
 
         private void logAlarm(boolean lastHealthState) {
