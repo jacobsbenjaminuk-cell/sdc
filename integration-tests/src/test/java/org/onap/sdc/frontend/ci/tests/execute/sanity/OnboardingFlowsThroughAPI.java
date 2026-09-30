@@ -108,14 +108,6 @@ public class OnboardingFlowsThroughAPI extends SetupCDTest {
         assertTrue("Not all VES_EVENTS artifact files are on the resource instance", tempVesArtifacts.isEmpty());
     }
 
-//	741433: Update Old VSP
-//	2.	Updated VSP "JSA AUG 2017" with the attached zip from v3 to v4. Follow normal steps to update the VF
-//	3.     Update the VSP "vHSS-EPC-RDM3-Lab-0830" using the attached zip. Follow the normal steps to update the VF
-//	@Test(dataProviderClass = OnbordingDataProviders.class, dataProvider = "randomVNF_List")
-//	public void create2(String filePath, String vnfFile) throws Exception{
-//		setLog(vnfFile);
-//	}
-
 
     //	741509: E2E flow using old VLM
     @Test
@@ -224,16 +216,6 @@ public class OnboardingFlowsThroughAPI extends SetupCDTest {
         assertTrue("Distribution of service " + service.getName() + " failed", distributeAndValidateService);
     }
 
-
-//	741608: E2E flow using old Service
-//	@Test(dataProviderClass = OnbordingDataProviders.class, dataProvider = "randomVNF_List")
-//	public void create5(String filePath, String vnfFile) throws Exception{
-//		setLog(vnfFile);
-//		// 1. Create Service with old resource -> Certify this Service - > Distribute
-//		// 2. Service is distributed
-//		// 3. Update old Service: fetch few new resources and few old resources -> Certify this Service - > Distribute
-//		// 4. Service is distributed
-//	}
 
     //	741633: Update HEAT parameter value
     @Test()
