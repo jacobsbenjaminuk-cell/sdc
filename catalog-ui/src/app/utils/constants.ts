@@ -271,7 +271,6 @@ export class GraphColors {
     public static NODE_SHADOW_COLOR = 'rgba(198, 230, 228, 0.7)';
     public static NODE_OVERLAPPING_BACKGROUND_COLOR = 'rgba(179, 10, 60, 0.24)';
     public static NODE_OVERLAPPING_SHADOW_COLOR = 'rgba(236, 194, 206, 0.7)';
-    public static NODE_UCPE_CP = '#9063cd';
     public static NODE_UCPE = '#fbfbfb';
     public static NODE_SELECTED_BORDER_COLOR = '#30bdf2';
     public static SERVICE_PATH_LINK = '#70208a';
