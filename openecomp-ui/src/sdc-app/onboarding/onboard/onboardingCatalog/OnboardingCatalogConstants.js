@@ -20,21 +20,10 @@ export const catalogItemTypes = Object.freeze({
     SOFTWARE_PRODUCT: 'software-product'
 });
 
-export const catalogItemTypeClasses = {
-    LICENSE_MODEL: 'license-model-type',
-    SOFTWARE_PRODUCT: 'software-product-type',
-    VENDOR: 'vendor-type'
-};
-
 export const catalogItemStatuses = {
     DRAFT: 'Draft',
     CERTIFIED: 'Certified',
     ARCHIVED: 'ARCHIVED'
-};
-
-export const modalMapper = {
-    'license-model': 'LICENSE_MODEL',
-    'software-product': 'SOFTWARE_PRODUCT'
 };
 
 export const tabsMapping = {
