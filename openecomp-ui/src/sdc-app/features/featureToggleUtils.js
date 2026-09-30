@@ -22,10 +22,3 @@ export const restToggle = ({ featureName, restFunction, mockResult }) => {
         ? restFunction()
         : Promise.resolve(mockResult);
 };
-
-export const functionToggle = (featureName, { onFunction, offFunction }) => {
-    const { features } = store.getState();
-    return !!features.find(el => el.name === featureName && el.active)
-        ? onFunction()
-        : offFunction();
-};
