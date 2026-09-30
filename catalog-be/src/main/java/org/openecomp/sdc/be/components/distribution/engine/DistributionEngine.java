@@ -253,12 +253,6 @@ public class DistributionEngine implements IDistributionEngine {
     }
 
     @Override
-    public void disableEnvironment(String envName) {
-        AtomicBoolean status = envNamePerStatus.get(envName);
-        status.set(false);
-    }
-
-    @Override
     public ActionStatus notifyService(String distributionId, Service service, INotificationData notificationData, String envName, User modifier) {
         return notifyService(distributionId, service, notificationData, envName, envName, modifier);
     }

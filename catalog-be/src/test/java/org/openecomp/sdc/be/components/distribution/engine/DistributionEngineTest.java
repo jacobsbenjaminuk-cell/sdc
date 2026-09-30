@@ -300,16 +300,6 @@ public class DistributionEngineTest {
 	}*/
 
     @Test
-    void testDisableEnvironment() throws Exception {
-        DistributionEngine testSubject;
-        String envName = "";
-
-        // default test
-        testSubject = createTestSubject();
-        assertThrows(NullPointerException.class, () -> testSubject.disableEnvironment(envName));
-    }
-
-    @Test
     void testBuildTopicName() throws Exception {
         DistributionEngine testSubject;
         String envName = "";
