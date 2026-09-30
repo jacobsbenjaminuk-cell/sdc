@@ -113,11 +113,6 @@ public class VendorLicenseManagerImpl implements VendorLicenseManager {
     }
 
     @Override
-    public void deleteVendorLicenseModel(String vlmId, Version version) {
-        throw new UnsupportedOperationException(VendorLicenseConstants.UNSUPPORTED_OPERATION_ERROR);
-    }
-
-    @Override
     public Collection<LicenseAgreementEntity> listLicenseAgreements(String vlmId, Version version) {
         return licenseAgreementDao.list(new LicenseAgreementEntity(vlmId, version, null));
     }
