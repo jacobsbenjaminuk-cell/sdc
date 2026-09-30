@@ -7,8 +7,6 @@
       <class name="org.onap.sdc.backend.ci.tests.execute.category.GroupingTest">
         <methods>
           <exclude name="createProductGroupForNonExistingCategory"/>
-          <exclude name="createProductGroupForNonExistingSunCategory"/>
-          <exclude name="getProductCategoryHierarchySuccessFlow"/>
         </methods>
       </class>
 

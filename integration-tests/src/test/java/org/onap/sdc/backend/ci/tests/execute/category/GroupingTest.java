@@ -38,7 +38,6 @@ import org.onap.sdc.backend.ci.tests.utils.rest.ResponseParser;
 import org.onap.sdc.backend.ci.tests.utils.validation.AuditValidationUtils;
 import org.onap.sdc.backend.ci.tests.utils.validation.CategoryValidationUtils;
 import org.onap.sdc.backend.ci.tests.utils.validation.ErrorValidationUtils;
-import org.testng.SkipException;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
@@ -536,38 +535,6 @@ public class GroupingTest extends CategoriesBaseTest {
 				productSubCategoryDefinition, productGroupingDefinition, sdncProductStrategistUserDetails,
 				ActionStatus.COMPONENT_CATEGORY_NOT_FOUND, STATUS_CODE_NOT_FOUND, AUDIT_PRODUCT_TYPE,
 				PRODUCT_COMPONENT_TYPE, CATEGORY, "");
-	}
-
-	@Test
-	public void createProductGroupForNonExistingSunCategory() throws Exception {
-		throw new SkipException(
-				"Skipping - failed in audit validation expected \"products\" actual result was \"product\" ");
-		// SubCategoryDefinition productSubCategoryDefinition100 = new
-		// SubCategoryDefinition();
-		// productSubCategoryDefinition100.setUniqueId("category.nonexistingSubCategory");
-		// RestResponse createGroupingRest =
-		// CategoryRestUtils.createGrouping(productGroupingDefinition,
-		// productSubCategoryDefinition100, productCategoryDefinition,
-		// sdncProductStrategistUserDetails, PRODUCT_COMPONENT_TYPE);
-		// assertEquals("Check response code after create Sub category",
-		// STATUS_CODE_NOT_FOUND, createGroupingRest.getErrorCode().intValue());
-		// RestResponse getAllCategoriesRest =
-		// CategoryRestUtils.getAllCategories(sdncAdminUserDetails,
-		// PRODUCT_COMPONENT_TYPE);
-		// assertEquals("Check response code after get all categories ",
-		// STATUS_CODE_SUCCESS, getAllCategoriesRest.getErrorCode().intValue());
-		// CategoryValidationUtils.verifyGroupingNotExistInGetResponse(getAllCategoriesRest,
-		// productCategoryDefinition.getUniqueId(),
-		// productSubCategoryDefinition.getUniqueId(),
-		// productGroupingDefinition);
-		// //Audit validation
-		// productSubCategoryDefinition100.setName(productSubCategoryDefinition100.getUniqueId());
-		// AuditValidationUtils.groupingAuditFailure(ADD_GROUPING ,
-		// productCategoryDefinition, productSubCategoryDefinition100,
-		// productGroupingDefinition, sdncProductStrategistUserDetails,
-		// ActionStatus.COMPONENT_CATEGORY_NOT_FOUND,
-		// STATUS_CODE_NOT_FOUND,AUDIT_PRODUCT_TYPE, PRODUCT_COMPONENT_TYPE,
-		// SUB_CATEGORY, "");
 	}
 
 	@Test
@@ -1946,42 +1913,5 @@ public class GroupingTest extends CategoriesBaseTest {
 		expectedCatrgoryAuditJavaObject.setStatus(String.valueOf(STATUS_CODE_MISSING_INFORMATION));
 		expectedCatrgoryAuditJavaObject.setDesc(errorInfo.getAuditDesc());
 		AuditValidationUtils.validateCategoryAudit(expectedCatrgoryAuditJavaObject, ADD_GROUPING);
-	}
-
-	////////////////////////////////////////////////
-	///////////////////////////////////////////////
-	@Test
-	public void getProductCategoryHierarchySuccessFlow() throws Exception {
-		throw new SkipException(
-				"Skipping - failed in audit validation expected \"products\" actual result was \"product\" ");
-		// int numOfGrouping = 3;
-		// List<GroupingDefinition> groupingList = new ArrayList<>();
-		// RestResponse restResponse;
-		// GroupingDefinition grouping;
-		// String groupingName = productGroupingDefinition.getName();
-		// for (int i = 0; i < numOfGrouping; i++) {
-		// productGroupingDefinition.setName(groupingName+i);
-		// restResponse =
-		// CategoryRestUtils.createGrouping(productGroupingDefinition,
-		// productSubCategoryDefinition, productCategoryDefinition,
-		// sdncProductStrategistUserDetails, PRODUCT_COMPONENT_TYPE);
-		// grouping = ResponseParser.parseToObject(restResponse.getResponse(),
-		// GroupingDefinition.class);
-		// groupingList.add(grouping);
-		// }
-		// RestResponse getAllCategoriesRest =
-		// CategoryRestUtils.getAllCategories(sdncProductStrategistUserDetails,
-		// PRODUCT_COMPONENT_TYPE);
-		// assertEquals("Check response code after get all categories ",
-		// STATUS_CODE_SUCCESS, getAllCategoriesRest.getErrorCode().intValue());
-		// AuditValidationUtils.GetCategoryHierarchyAuditSuccess(GET_CATEGORY_HIERARCHY,
-		// AUDIT_PRODUCT_TYPE, sdncProductStrategistUserDetails,
-		// STATUS_CODE_SUCCESS);
-		//
-		// for (GroupingDefinition group : groupingList) {
-		// CategoryValidationUtils.verifyGroupingExistInGetResponse(getAllCategoriesRest,
-		// productCategoryDefinition.getUniqueId(),
-		// productSubCategoryDefinition.getUniqueId(), group);
-		// }
 	}
 }
