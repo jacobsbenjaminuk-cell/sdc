@@ -32,7 +32,6 @@ import {ConfigService} from './services/config.service';
 import {AuthenticationService} from './services/authentication.service';
 import {Cookie2Service} from './services/cookie.service';
 import {ComponentServiceNg2} from './services/component-services/component.service';
-import {ComponentServiceFactoryNg2} from './services/component-services/component.service.factory';
 import {ServiceServiceNg2} from './services/component-services/service.service';
 import {ComponentInstanceServiceNg2} from './services/component-instance-services/component-instance.service';
 import {ModalService} from './services/modal.service';
@@ -239,7 +238,6 @@ export function configServiceFactory(config: ConfigService, authService: Authent
     Cookie2Service,
     ConfigService,
     ComponentServiceNg2,
-    ComponentServiceFactoryNg2,
     ModalService,
     ImportVSPService,
     OnboardingService,
