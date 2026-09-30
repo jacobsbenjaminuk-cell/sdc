@@ -353,8 +353,6 @@ public interface Urls {
 	final String UPDATE_PRODUCT = SDC_HTTP_METHOD + "://%s:%s/sdc2/rest/v1/catalog/products/%s/metadata";
 	final String GET_PRODUCT_BY_NAME_AND_VERSION = SDC_HTTP_METHOD + "://%s:%s/sdc2/rest/v1/catalog/products/productName/%s/productVersion/%s";
 
-	// groups
-	final String GET_GROUP_BY_ID = SDC_HTTP_METHOD + "://%s:%s/sdc2/rest/v1/catalog/%s/%s/groups/%s";
 	//module property
 	final String RESOURCE_GROUP_PROPERTY = SDC_HTTP_METHOD + "://%s:%s/sdc2/rest/v1/catalog/resources/%s/groups/%s/properties";
 	// modules
