@@ -22,8 +22,6 @@ package org.openecomp.sdc.be.model.operations;
 
 import static org.junit.Assert.assertEquals;
 
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,15 +57,6 @@ public class JsonObjectTest {
     public void testStringToUploadResourceInfo() throws IOException {
         final UploadResourceInfo resourceObjectTest = mapper.readValue(INPUT_RESOURCE_STRING, UploadResourceInfo.class);
         assertEquals(inputObjectRef, resourceObjectTest);
-
-    }
-
-    // @Test
-    public void testUploadResourceInfoToString() throws JsonParseException, JsonMappingException, IOException {
-        String refAsString = mapper.writeValueAsString(inputObjectRef);
-        String unFormattedString = refAsString.replace("\n", "").replace("\t", "").replace(" ", "");
-
-        assertEquals(unFormattedString, INPUT_RESOURCE_STRING.replace("\n", "").replace("\t", "").replace(" ", ""));
 
     }
 }
