@@ -74,29 +74,11 @@ public interface Images extends VspEntities {
 
     @GET
     @Path("/schema")
-        //@Operation(description = "Get schema for vendor software product component Image" ,
-
-        // response = QuestionnaireResponseDto.class)
     Response getImageSchema(@Parameter(description = "Vendor software product Id") @PathParam("vspId") String vspId,
                             @Parameter(description = "Version Id") @PathParam("versionId") String versionId,
                             @Parameter(description = "Vendor software product component Id") @PathParam("componentId") String componentId,
                             @NotNull(message = USER_MISSING_ERROR_MSG) @HeaderParam(USER_ID_HEADER_PARAM) String user);
 
-    /*@GET
-    @Path("/{imageId}")
-    @Operation(description = "Get vendor software product component Image",
-        response = ImageDto.class,
-        responseContainer = "ImageEntityResponse")
-    Response get(@Parameter(description = "Vendor software product Id") @PathParam("vspId") String vspId,
-                 @Parameter(description = "Vendor software product component Id") @PathParam("componentId")
-                     String componentId,
-                 @Parameter(description = "Vendor software product image Id") @PathParam("imageId")
-                     String imageId,
-                 @Pattern(regexp = Version.VERSION_REGEX,
-                     message = Version.VERSION_STRING_VIOLATION_MSG) @QueryParam("version")
-                     String version,
-                 @NotNull(message = USER_MISSING_ERROR_MSG) @HeaderParam(USER_ID_HEADER_PARAM)
-                     String user);*/
     @GET
     @Path("/{imageId}")
     @Operation(description = "Get vendor software product component Image", responses = @ApiResponse(content = @Content(schema = @Schema(implementation = ImageDto.class))))
