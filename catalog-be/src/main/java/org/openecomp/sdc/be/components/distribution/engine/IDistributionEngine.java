@@ -49,14 +49,6 @@ public interface IDistributionEngine {
         return null;
     }
 
-    /**
-     * Currently, it used for tests. For real implementation we need cancel the initialization task and the polling task.
-     *
-     * @param envName
-     */
-    default void disableEnvironment(String envName) {
-    }
-
     default StorageOperationStatus isReadyForDistribution(String envName) {
         return null;
     }
