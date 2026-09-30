@@ -40,25 +40,6 @@ import static org.testng.AssertJUnit.assertTrue;
 public class FileUtils {
 	static Logger logger = LoggerFactory.getLogger(Utils.class.getName());
 
-	public static void writeToFile(String filePath, String content) {
-		try {
-			Files.write(Paths.get(filePath), content.getBytes());
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
-
-	public static String getFileName(String fullyQualified) {
-		String fileName = fullyQualified;
-
-		int i = fullyQualified.lastIndexOf('.');
-		if (i > 0) {
-			fileName = fullyQualified.substring(i + 1);
-		}
-		return fileName;
-
-	}
-
 	public static Either<String, Exception> getFileContentUTF8(String filePath) {
 		Either<String, Exception> eitherResult;
 		try {
