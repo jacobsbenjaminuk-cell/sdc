@@ -22,13 +22,10 @@ package org.onap.sdc.frontend.ci.tests.pages;
 
 import com.aventstack.extentreports.Status;
 import org.onap.sdc.frontend.ci.tests.datatypes.DataTestIdEnum;
-import org.onap.sdc.backend.ci.tests.datatypes.ProductReqDetails;
 import org.onap.sdc.frontend.ci.tests.execute.setup.SetupCDTest;
 import org.onap.sdc.frontend.ci.tests.utilities.GeneralUIUtils;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebElement;
-
-import java.util.ArrayList;
 
 /**
  * @author al714h
@@ -72,17 +69,6 @@ public class ProductGeneralPage extends ResourceGeneralPage {
 
     private static WebElement getPmattField() {
         return GeneralUIUtils.getWebElementByTestID(DataTestIdEnum.ProductMetadataEnum.PROJECT_CODE.getValue());
-    }
-
-    public static void deleteOldTags(ProductReqDetails product) {
-        // Delete tag elements
-        int i = GeneralUIUtils.getWebElementsListByTestID("i-sdc-tag-delete").size();
-        while (i > 0) {
-            GeneralUIUtils.getWebElementByTestID("i-sdc-tag-delete").click();
-            i--;
-        }
-
-        product.setTags(new ArrayList<String>());
     }
 
     public static void clickAddWorkflow() {
