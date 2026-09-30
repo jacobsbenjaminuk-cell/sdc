@@ -26,10 +26,6 @@ public class AbstractResourceInfo {
 
     private String abstractResourceUUid;
     private String abstractResourceName;
-    //获得abstractResourceUniqueId
     private String abstractResourceUniqueId;
-    //private String abstractResourceNormalizedName;
-
-    //获得componentInstancesRelations
     private List<RequirementCapabilityRelDef> componentInstancesRelations;
 }
