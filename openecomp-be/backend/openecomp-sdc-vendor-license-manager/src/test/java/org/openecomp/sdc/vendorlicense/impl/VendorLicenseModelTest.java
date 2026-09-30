@@ -153,11 +153,6 @@ public class VendorLicenseModelTest {
     verify(vendorLicenseFacadeMcok).getVendorLicenseModel(vlm1_id, VERSION01);
   }
 
-  @Test(expected = UnsupportedOperationException.class)
-  public void testDeleteVLMUnsupportedOperation() {
-    vendorLicenseManager.deleteVendorLicenseModel(vlm1_id, null); // TODO: 8/13/2017
-  }
-
 
 //  @Test(expectedExceptions = CoreException.class)
 //  public void testGetNonExistingVersion_negative() {

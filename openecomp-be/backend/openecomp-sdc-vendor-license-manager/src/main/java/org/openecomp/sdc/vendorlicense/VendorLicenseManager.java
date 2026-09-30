@@ -41,8 +41,6 @@ public interface VendorLicenseManager {
 
     VendorLicenseModelEntity getVendorLicenseModel(String vlmId, Version version);
 
-    void deleteVendorLicenseModel(String vlmId, Version version);
-
     Collection<LicenseAgreementEntity> listLicenseAgreements(String vlmId, Version version);
 
     LicenseAgreementEntity createLicenseAgreement(LicenseAgreementEntity licenseAgreement);
