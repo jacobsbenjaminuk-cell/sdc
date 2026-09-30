@@ -231,37 +231,4 @@ public class CrudE2E extends ComponentBaseTest {
 
 	}
 
-	// private void updateArtParameterInResource(Resource resource) throws
-	// IOException {
-	//
-	// ArtifactRestUtils.uploadArtifact(artifactDetails, component,
-	// sdncModifierDetails)
-	//
-	// for (String depResArtType : Utils.getListOfDepResArtLabels(true)) {
-	// ArtifactDefinition artifactDefinition =
-	// resource.getDeploymentArtifacts().get(depResArtType);
-	// ArtifactReqDetails artifacJavaObject =
-	// ResponseParser.convertArtifactDefinitionToArtifactReqDetailsObject(artifactDefinition);
-	//
-	// //update parameter
-	// List<HeatParameterDefinition> resourceHeatParameters =
-	// resource.getDeploymentArtifacts().get(depResArtType).getHeatParameters();
-	// for (HeatParameterDefinition heatParameterDefinition :
-	// resourceHeatParameters){
-	// if (heatParameterDefinition.getName().equals("address")){
-	// heatParameterDefinition.setCurrentValue("negev");
-	// break;
-	// }
-	// }
-	// artifacJavaObject.setHeatParameters(resourceHeatParameters);
-	// artifacJavaObject.setPayloadData(null);
-	// RestResponse updateInformationalArtifactToResource =
-	// ArtifactRestUtils.updateDeploymentArtifactToResource(artifacJavaObject,
-	// sdncDesignerDetails, resource.getUniqueId());
-	// assertTrue("response code is not 200, returned: " +
-	// updateInformationalArtifactToResource.getErrorCode(),updateInformationalArtifactToResource.getErrorCode()
-	// == 200);
-	// }
-	// }
-
 }
