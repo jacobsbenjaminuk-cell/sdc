@@ -327,13 +327,7 @@ public class LogFieldsMdcHandler implements ILogFieldsHandler {
     public String getServerIpAddress() {
         return MDC.get(ILogConfiguration.MDC_SERVER_IP_ADDRESS);
     }
-//  @Override
 
-//  public String getSupportablityCsarName() {
-
-//    return MDC.get(ILogConfiguration.MDC_SUPPORTABLITY_CSAR_NAME);
-
-    //  }
     @Override
     public String getSupportablityCsarUUID() {
         return MDC.get(ILogConfiguration.MDC_SUPPORTABLITY_CSAR_UUID);
@@ -414,16 +408,10 @@ public class LogFieldsMdcHandler implements ILogFieldsHandler {
         MDC.remove(ILogConfiguration.MDC_SUPPORTABLITY_COMPONENT_VERSION);
     }
 
-    //  }
     @Override
     public void removeSupportablityCsarUUID() {
         MDC.remove(ILogConfiguration.MDC_SUPPORTABLITY_CSAR_UUID);
     }
-//  @Override
-
-//  public void removeSupportablityCsarName() {
-
-//    MDC.remove(ILogConfiguration.MDC_SUPPORTABLITY_CSAR_NAME);
 
     @Override
     public void removeSupportablityCsarVersion() {
