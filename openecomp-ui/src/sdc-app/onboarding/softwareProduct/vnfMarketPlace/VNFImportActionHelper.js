@@ -167,10 +167,6 @@ const VNFImportActionHelper = {
         });
     },
 
-    getVNFMarketplace(dispatch) {
-        return getVNFMarketplace(dispatch);
-    },
-
     uploadData(currSoftwareProduct, csarId, dispatch) {
         this.resetData(dispatch);
         uploadVNFData(csarId, currSoftwareProduct, dispatch);
