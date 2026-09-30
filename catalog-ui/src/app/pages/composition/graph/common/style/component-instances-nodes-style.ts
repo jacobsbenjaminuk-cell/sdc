@@ -150,24 +150,6 @@ export class ComponentInstanceNodesStyle {
                 }
             },
             {
-                selector: '.ucpe-cp',
-                css: {
-                    'background-color': GraphColors.NODE_UCPE_CP,
-                    'background-width': 15,
-                    'background-height': 15,
-                    'width': 15,
-                    'height': 15,
-                    'text-halign': 'center',
-                    'overlay-opacity': 0,
-                    'label': 'data(displayName)',
-                    'text-valign': 'data(textPosition)',
-                    'text-margin-y': (ele:Cy.Collection) => {
-                        return (ele.data('textPosition') == 'top') ? -5 : 5;
-                    },
-                    'font-size': 12
-                }
-            },
-            {
                 selector: '.ucpe-node',
                 css: {
                     'background-fit': 'cover',

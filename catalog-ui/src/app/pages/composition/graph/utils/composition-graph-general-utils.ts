@@ -22,7 +22,6 @@ import * as _ from "lodash";
 import {ComponentInstance} from 'app/models/componentsInstances/componentInstance';
 import {CompositionCiLinkBase} from 'app/models/graph/graph-links/composition-graph-links/composition-ci-link-base';
 import {Match} from 'app/models/graph/match-relation';
-import {CompositionCiNodeUcpeCp} from 'app/models/graph/nodes/composition-graph-nodes/composition-ci-node-ucpe-cp';
 import {GraphUIObjects} from 'app/utils/constants';
 import {Dictionary} from 'app/utils/dictionary';
 import {MatchCapabilitiesRequirementsUtils} from "./match-capability-requirement-utils";
@@ -211,7 +210,7 @@ export class CompositionGraphGeneralUtils {
                 return false;
             }
 
-            if (!draggedNode.data().isUcpe && !(draggedNode.data() instanceof CompositionCiNodeUcpeCp) && graphNode.data().isUcpe) { //case we are dragging a node into UCPE
+            if (!draggedNode.data().isUcpe && graphNode.data().isUcpe) { //case we are dragging a node into UCPE
                 let isEntirelyInUCPE: boolean = this.commonGraphUtils.isFirstBoxContainsInSecondBox(draggedNode.renderedBoundingBox(), graphNode.renderedBoundingBox());
                 if (isEntirelyInUCPE) {
                     if (this.isValidDropInsideUCPE(cy, draggedNode.data().componentInstance, graphNode.data().componentInstance)) { //if this is valid insert into ucpe, we return false - no illegal overlapping nodes
