@@ -152,16 +152,6 @@ public class ArtifactValidationUtils {
 					actualArtifactJavaObject.getArtifactDisplayName());
 		}
 
-		// assertEquals(validChecksum,
-		// actualArtifactJavaObject.getArtifactChecksum());
-
-		// expected = expectedArtifactDetails.getArtifactDisplayName();
-		// if (expected != "")
-		// {
-		// assertEquals(expected,
-		// actualArtifactJavaObject.getArtifactDisplayName());
-		// }
-
 		boolean actual = actualArtifactJavaObject.getMandatory();
 		assertEquals(expectedArtifactDetails.isMandatory(), actual);
 
