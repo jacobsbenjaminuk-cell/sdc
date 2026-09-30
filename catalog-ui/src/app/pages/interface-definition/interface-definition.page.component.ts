@@ -47,7 +47,6 @@ import {InterfaceOperationHandlerComponent} from "../composition/interface-opera
 import {DropdownValue} from "../../components/ui/form-components/dropdown/ui-element-dropdown.component";
 import {ToscaArtifactModel} from "../../models/toscaArtifact";
 import {ToscaArtifactService} from "../../services/tosca-artifact.service";
-import {InterfaceOperationComponent} from "../interface-operation/interface-operation.page.component";
 import {Observable} from "rxjs/Observable";
 import {PluginsService} from 'app/services/plugins.service';
 import {NavigationService} from 'app/services/navigation.service';
@@ -129,7 +128,7 @@ export class UIInterfaceModel extends InterfaceModel {
     selector: 'interface-definition',
     templateUrl: './interface-definition.page.component.html',
     styleUrls: ['interface-definition.page.component.less'],
-    providers: [ModalService, TranslateService, InterfaceOperationComponent]
+    providers: [ModalService, TranslateService]
 })
 export class InterfaceDefinitionComponent {
 
