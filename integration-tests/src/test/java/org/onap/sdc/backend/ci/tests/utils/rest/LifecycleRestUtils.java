@@ -74,11 +74,6 @@ public class LifecycleRestUtils extends BaseRestUtils {
 		return changeLifeCycleOfAsset(serviceUUID, AssetTypeEnum.SERVICES, LifeCycleStatesEnum.CERTIFICATIONREQUEST, sdncModifierDetails, comment);
 	}
 	
-	/*public static RestResponse certificationRequestResource(String resourceUUID, User sdncModifierDetails) throws IOException {
-		String comment = "Certification request resource: " + resourceUUID;
-		return changeLifeCycleOfAsset(resourceUUID, AssetTypeEnum.RESOURCES, LifeCycleStatesEnum.CERTIFICATIONREQUEST, sdncModifierDetails, comment);
-	}*/
-	
 	public static RestResponse startTestingService(String serviceUUID, User sdncModifierDetails) throws IOException {
 		String comment = "Start testing request service: " + serviceUUID;
 		return changeLifeCycleOfAsset(serviceUUID, AssetTypeEnum.SERVICES, LifeCycleStatesEnum.STARTCERTIFICATION, sdncModifierDetails, comment);
@@ -154,7 +149,6 @@ public class LifecycleRestUtils extends BaseRestUtils {
 		Config config = Utils.getConfig();
 		String url = String.format(Urls.CHANGE_RESOURCE_LIFECYCLE_STATE, config.getCatalogBeHost(),
 				config.getCatalogBePort(), resourceDetails.getUniqueId(), LifeCycleStatesEnum);
-		// System.out.println("url: " + url);
 
 		RestResponse LifeCycleStatesEnumResourceResponse = sendPost(url, LifecycleChangeInfo,
 				sdncModifierDetails.getUserId(), acceptHeaderData);
@@ -202,7 +196,6 @@ public class LifecycleRestUtils extends BaseRestUtils {
 		HttpRequest http = new HttpRequest();
 		String url = String.format(Urls.CHANGE_SERVICE_LIFECYCLE_STATE, config.getCatalogBeHost(),
 				config.getCatalogBePort(), serviceDetails.getUniqueId(), LifeCycleStatesEnum);
-		// System.out.println("url: " + url);
 		RestResponse LifeCycleStatesEnumServiceResponse = http.httpSendPost(url, lifecycleChangeInfo, headersMap);
 		if (LifeCycleStatesEnumServiceResponse.getErrorCode() == STATUS_CODE_SUCCESS) {
 			String serviceUniqueId = ResponseParser
@@ -277,17 +270,6 @@ public class LifecycleRestUtils extends BaseRestUtils {
 		User designer = ElementFactory.getDefaultUser(UserRoleEnum.DESIGNER);
 		RestResponse restResponseResource = LifecycleRestUtils.changeResourceState(resourceDetails,
 				ElementFactory.getDefaultUser(UserRoleEnum.DESIGNER), LifeCycleStatesEnum.CHECKIN);
-		// if (restResponseResource.getErrorCode() == 200){
-/*		restResponseResource = LifecycleRestUtils.changeResourceState(resourceDetails,
-				ElementFactory.getDefaultUser(UserRoleEnum.DESIGNER), LifeCycleStatesEnum.CERTIFICATIONREQUEST);
-		// }else
-		// return restResponseResource;
-		User testerDetails = ElementFactory.getDefaultUser(UserRoleEnum.TESTER);
-		if (restResponseResource.getErrorCode() == 200) {
-			restResponseResource = LifecycleRestUtils.changeResourceState(resourceDetails, testerDetails,
-					LifeCycleStatesEnum.STARTCERTIFICATION);
-		} else
-			return restResponseResource;*/
 		if (restResponseResource.getErrorCode() == 200) {
 			restResponseResource = LifecycleRestUtils.changeResourceState(resourceDetails, designer,
 					LifeCycleStatesEnum.CERTIFY);
@@ -307,11 +289,8 @@ public class LifecycleRestUtils extends BaseRestUtils {
 	public static RestResponse certifyService(ServiceReqDetails serviceDetails) throws Exception {
 		RestResponse restResponseService = LifecycleRestUtils.changeServiceState(serviceDetails,
 				ElementFactory.getDefaultUser(UserRoleEnum.DESIGNER), LifeCycleStatesEnum.CHECKIN);
-		// if (restResponseService.getErrorCode() == 200){
 		restResponseService = LifecycleRestUtils.changeServiceState(serviceDetails,
 				ElementFactory.getDefaultUser(UserRoleEnum.DESIGNER), LifeCycleStatesEnum.CERTIFICATIONREQUEST);
-		// }else
-		// return restResponseService;
 		if (restResponseService.getErrorCode() == 200) {
 			restResponseService = LifecycleRestUtils.changeServiceState(serviceDetails,
 					ElementFactory.getDefaultUser(UserRoleEnum.TESTER), LifeCycleStatesEnum.STARTCERTIFICATION);
@@ -371,7 +350,6 @@ public class LifecycleRestUtils extends BaseRestUtils {
 		String uniqueId = serviceDetails.getUniqueId();
 		Config config = Utils.getConfig();
 		String environmentName = "AUTO";
-//		String environmentName = ConfigurationManager.getConfigurationManager().getDistributionEngineConfiguration().getEnvironments().get(0);
 		DistributionStatusEnum distributionStatusEnum = DistributionStatusEnum.findState(reqDistributionStatus.getValue());
 		switch(distributionStatusEnum){
 			case DISTRIBUTED:
@@ -381,22 +359,6 @@ public class LifecycleRestUtils extends BaseRestUtils {
 				return null;	
 			
 		}
-		
-//		if (reqDistributionStatus == DistributionStatusEnum.DISTRIBUTION_APPROVED) {
-//			return sendApproveDistribution(user, uniqueId, userRemarks);
-//		} else if (reqDistributionStatus == DistributionStatusEnum.DISTRIBUTION_REJECTED) {
-//			return rejectDistribution(user, userRemarks, uniqueId);
-//		} else if (reqDistributionStatus == DistributionStatusEnum.DISTRIBUTED) {
-//			Config config = Utils.getConfig();
-//			// String url =
-//			// String.format("http://%s:%s/sdc2/rest/v1/catalog/services/%s/tempUrlToBeDeleted",
-//			// config.getCatalogBeHost(), config.getCatalogBePort(), uniqueId);
-//			String url = String.format(Urls.ACTIVATE_DISTRIBUTION, config.getCatalogBeHost(), config.getCatalogBePort(),
-//					uniqueId, "PROD");
-//			return sendDistrState(user, userRemarks, url);
-//		} else
-//			return null;
-
 	}
 
 	public static RestResponse sendApproveDistribution(User sdncModifierDetails, String uniqueId, String userRemarks)
