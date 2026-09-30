@@ -639,52 +639,6 @@ public class UpdateResourceMetadataTest extends ComponentBaseTest {
 
     }
 
-    // @Test
-    // public void UpdateResourceModifierNotOwnerStateTest() throws Exception {
-    //
-    //
-    // RestResponse restResponse = createResource(sdncModifierDetails,
-    // resourceDetails);
-    // String resourceName = resourceDetails.getName();
-    //
-    // // new user parameters
-    // String userFirstName = "Kot";
-    // String userLastName = "Matroskin";
-    // String role = "ADMIN";
-    // User sdncUserDetails = new User(userFirstName, userLastName,
-    // httpCspUserId, email, role,null);
-    // RestResponse deleteUserResponse = userUtils.deleteUser(sdncUserDetails,
-    // ElementFactory.getDefaultUser(UserRoleEnum.ADMIN));
-    //
-    // RestResponse createUserResponse = UserUtils.createUser(sdncUserDetails,
-    // ElementFactory.getDefaultUser(UserRoleEnum.ADMIN));
-    //
-    // User updatedSdncModifierDetails = new User(userFirstName, userLastName,
-    // httpCspUserId, email,role,null);
-    // ResourceReqDetails updatedResourceDetails =
-    // defineUpdatedResourse(resourceName);
-    // RestResponse updatedRestResponse =
-    // ResourceRestUtils.updateResource(updatedResourceDetails,
-    // updatedSdncModifierDetails, resourceDetails.getUniqueId(), "");
-    //
-    // // validate response
-    // assertNotNull("check response object is not null after update resource",
-    // updatedRestResponse);
-    // assertNotNull("check error code exists in response after update
-    // resource", updatedRestResponse.getErrorCode());
-    // ErrorValidationUtils.checkBodyResponseOnError(ActionStatus.RESTRICTED_OPERATION.name(),
-    // Empty_List, updatedRestResponse.getResponse());
-    //
-    // RestResponse getRestResponse =
-    // ResourceRestUtils.getResource(sdncModifierDetails,
-    // resourceDetails.getUniqueId());
-    // assertNotNull("check response object is not null after update resource",
-    // getRestResponse);
-    // parseResponseAndValidate(resourceDetails, getRestResponse);
-    //
-    //
-    // }
-
     @Test
     public void UpdateResourceNameSensitiveTest() throws Exception {
         User sdncModifierDetails = ElementFactory.getDefaultUser(UserRoleEnum.ADMIN);
