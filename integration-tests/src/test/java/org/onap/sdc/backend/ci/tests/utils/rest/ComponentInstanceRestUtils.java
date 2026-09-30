@@ -38,7 +38,6 @@ import java.util.Map;
 import static org.testng.Assert.assertTrue;
 
 public class ComponentInstanceRestUtils extends BaseRestUtils {
-//	public static String acceptHeaderDate = "application/json";
 	static Config config = Config.instance();
 	public static Gson gson = new Gson();
 
