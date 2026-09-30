@@ -712,11 +712,6 @@ public class ToscaElementLifecycleOperation extends BaseOperation {
         return result;
     }
 
-    // TODO remove after jsonModelMigration
-    public boolean resolveToscaComponentName(ComponentInstanceDataDefinition vfInst, Map<String, ToscaElement> origCompMap) {
-        return fixToscaComponentName(vfInst, origCompMap);
-    }
-
     private boolean fixToscaComponentName(ComponentInstanceDataDefinition vfInst, Map<String, ToscaElement> origCompMap) {
         if (vfInst.getToscaComponentName() == null || vfInst.getToscaComponentName().isEmpty()) {
             String ciUid = vfInst.getUniqueId();
