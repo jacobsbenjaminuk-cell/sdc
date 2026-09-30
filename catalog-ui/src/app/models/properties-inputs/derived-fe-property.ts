@@ -201,7 +201,4 @@ export class DerivedFEProperty extends PropertyBEModel {
     }
 
 }
-export class DerivedFEPropertyMap {
-    [parentPath: string]: Array<DerivedFEProperty>;
-}
 
