@@ -93,16 +93,6 @@ public class UnifiedCompositionSingleSubstitutionFullTest extends BaseFullTransl
     testTranslationWithInit(BASE_DIRECTORY + "samePortTypeAndOutParamGetAttrIn");
   }
 
-//  @Test
-//  public void testGeneralVf() throws IOException {
-//    inputFilesPath =
-//        "/mock/services/heattotosca/fulltest/singleSubstitution/generalVf/in";
-//    outputFilesPath =
-//        "/mock/services/heattotosca/fulltest/singleSubstitution/generalVf/out";
-//
-//    testTranslationWithInit();
-//  }
-
   @Test
   public void testTwoSetsOfSingle() throws IOException {
     testTranslationWithInit(BASE_DIRECTORY + "twoSetsOfSingle");
