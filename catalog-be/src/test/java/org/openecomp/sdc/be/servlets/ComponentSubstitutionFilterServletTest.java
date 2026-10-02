@@ -27,6 +27,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
@@ -172,7 +173,7 @@ public class ComponentSubstitutionFilterServletTest extends JerseyTest {
 
         assertNotNull(substitutionFilterDataDefinition);
         assertThat(substitutionFilterDataDefinition.getProperties().getListToscaDataDefinition()).hasSize(1);
-        when(componentSubstitutionFilterBusinessLogic.addSubstitutionFilter(componentId, filterConstraintDto, true, ComponentTypeEnum.SERVICE))
+        when(componentSubstitutionFilterBusinessLogic.addSubstitutionFilter(componentId, filterConstraintDto, true, ComponentTypeEnum.SERVICE, USER_ID))
             .thenReturn(Optional.of(substitutionFilterDataDefinition));
 
         final Response response = target()
@@ -184,7 +185,7 @@ public class ComponentSubstitutionFilterServletTest extends JerseyTest {
         assertThat(response.getStatus()).isEqualTo(HttpStatus.OK_200);
 
         verify(componentSubstitutionFilterBusinessLogic, times(1))
-                .addSubstitutionFilter(componentId, filterConstraintDto, true, ComponentTypeEnum.SERVICE);
+                .addSubstitutionFilter(componentId, filterConstraintDto, true, ComponentTypeEnum.SERVICE, USER_ID);
     }
 
     @Test
@@ -243,7 +244,7 @@ public class ComponentSubstitutionFilterServletTest extends JerseyTest {
             any(User.class))).thenReturn(Collections.singletonList(uiConstraint));
 
         when(componentSubstitutionFilterBusinessLogic.updateSubstitutionFilter(componentId.toLowerCase(),
-            List.of(filterConstraintDto), true, ComponentTypeEnum.SERVICE))
+            List.of(filterConstraintDto), true, ComponentTypeEnum.SERVICE, USER_ID))
             .thenReturn(Optional.ofNullable(substitutionFilterDataDefinition));
 
         final Response response = target()
@@ -255,7 +256,7 @@ public class ComponentSubstitutionFilterServletTest extends JerseyTest {
         assertThat(response.getStatus()).isEqualTo(HttpStatus.OK_200);
 
         verify(componentSubstitutionFilterBusinessLogic, times(1))
-                .updateSubstitutionFilter(anyString(), anyList(), anyBoolean(), any(ComponentTypeEnum.class));
+                .updateSubstitutionFilter(anyString(), anyList(), anyBoolean(), any(ComponentTypeEnum.class), anyString());
     }
 
     @Test
@@ -311,7 +312,7 @@ public class ComponentSubstitutionFilterServletTest extends JerseyTest {
         when(componentsUtils.getResponseFormat(ActionStatus.OK)).thenReturn(responseFormat);
 
         when(componentSubstitutionFilterBusinessLogic.deleteSubstitutionFilter(componentId, 0,
-                true, ComponentTypeEnum.SERVICE))
+                true, ComponentTypeEnum.SERVICE, USER_ID))
             .thenReturn(Optional.ofNullable(substitutionFilterDataDefinition));
 
         final Response response = target()
@@ -323,7 +324,7 @@ public class ComponentSubstitutionFilterServletTest extends JerseyTest {
         assertThat(response.getStatus()).isEqualTo(HttpStatus.OK_200);
 
         verify(componentSubstitutionFilterBusinessLogic, times(1))
-                .deleteSubstitutionFilter(anyString(), anyInt(), anyBoolean(), any(ComponentTypeEnum.class));
+                .deleteSubstitutionFilter(anyString(), anyInt(), anyBoolean(), any(ComponentTypeEnum.class), anyString());
     }
 
     @Test
@@ -342,6 +343,50 @@ public class ComponentSubstitutionFilterServletTest extends JerseyTest {
             .delete(Response.class);
 
         assertThat(response.getStatus()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR_500);
+    }
+
+    @Test
+    void substitutionFilterMutationsRejectUnsupportedComponentTypeTest() throws BusinessLogicException {
+        final String productsBase = String.format("/v1/catalog/products/%s/substitutionFilter/%s", componentId, constraintType);
+        final ResponseFormat invalidType = new ResponseFormat(HttpStatus.BAD_REQUEST_400);
+        when(componentSubstitutionFilterBusinessLogic.validateUser(USER_ID)).thenReturn(user);
+        when(componentsUtils.getResponseFormat(ActionStatus.INVALID_COMPONENT_TYPE, "products", "services, resources"))
+            .thenReturn(invalidType);
+
+        final Response addResponse = target().path(productsBase).request(MediaType.APPLICATION_JSON)
+            .header(USER_ID_HEADER, USER_ID).post(Entity.entity(inputJson, MediaType.APPLICATION_JSON));
+        final Response updateResponse = target().path(productsBase).request(MediaType.APPLICATION_JSON)
+            .header(USER_ID_HEADER, USER_ID).put(Entity.entity(inputJson, MediaType.APPLICATION_JSON));
+        final Response updateByIndexResponse = target().path(productsBase + "/0").request(MediaType.APPLICATION_JSON)
+            .header(USER_ID_HEADER, USER_ID).put(Entity.entity(inputJson, MediaType.APPLICATION_JSON));
+        final Response deleteResponse = target().path(productsBase + "/0").request(MediaType.APPLICATION_JSON)
+            .header(USER_ID_HEADER, USER_ID).delete(Response.class);
+
+        assertThat(addResponse.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST_400);
+        assertThat(updateResponse.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST_400);
+        assertThat(updateByIndexResponse.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST_400);
+        assertThat(deleteResponse.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST_400);
+        verify(componentSubstitutionFilterBusinessLogic, never())
+            .addSubstitutionFilter(anyString(), any(FilterConstraintDto.class), anyBoolean(), any(), anyString());
+        verify(componentSubstitutionFilterBusinessLogic, never())
+            .updateSubstitutionFilter(anyString(), anyList(), anyBoolean(), any(), anyString());
+        verify(componentSubstitutionFilterBusinessLogic, never())
+            .updateSubstitutionFilter(anyString(), any(FilterConstraintDto.class), anyInt(), anyBoolean(), any(), anyString());
+        verify(componentSubstitutionFilterBusinessLogic, never())
+            .deleteSubstitutionFilter(anyString(), anyInt(), anyBoolean(), any(), anyString());
+    }
+
+    @Test
+    void deleteSubstitutionFilterConstraintRestrictedTest() throws BusinessLogicException {
+        final String path = String.format("/v1/catalog/%s/%s/substitutionFilter/%s/0", componentType, componentId, constraintType);
+        when(componentSubstitutionFilterBusinessLogic.validateUser(USER_ID)).thenReturn(user);
+        when(componentSubstitutionFilterBusinessLogic.deleteSubstitutionFilter(componentId, 0, true, ComponentTypeEnum.SERVICE, USER_ID))
+            .thenThrow(new BusinessLogicException(new ResponseFormat(HttpStatus.FORBIDDEN_403)));
+
+        final Response response = target().path(path).request(MediaType.APPLICATION_JSON)
+            .header(USER_ID_HEADER, USER_ID).delete(Response.class);
+
+        assertThat(response.getStatus()).isEqualTo(HttpStatus.FORBIDDEN_403);
     }
 
     private static void createMocks() {

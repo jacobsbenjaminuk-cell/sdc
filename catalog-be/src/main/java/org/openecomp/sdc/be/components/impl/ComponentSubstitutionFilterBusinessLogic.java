@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.openecomp.sdc.be.components.impl.exceptions.BusinessLogicException;
+import org.openecomp.sdc.be.components.impl.exceptions.ComponentException;
 import org.openecomp.sdc.be.components.validation.NodeFilterValidator;
 import org.openecomp.sdc.be.dao.api.ActionStatus;
 import org.openecomp.sdc.be.datatypes.elements.ListDataDefinition;
@@ -113,8 +114,10 @@ public class ComponentSubstitutionFilterBusinessLogic extends BaseBusinessLogic 
 
     public Optional<SubstitutionFilterDataDefinition> addSubstitutionFilter(final String componentId,
                                                                             final FilterConstraintDto filterConstraint, final boolean shouldLock,
-                                                                            final ComponentTypeEnum componentTypeEnum) throws BusinessLogicException {
+                                                                            final ComponentTypeEnum componentTypeEnum, final String userId)
+        throws BusinessLogicException {
         final Component component = getComponent(componentId);
+        validateCanModifyComponent(component, componentTypeEnum, userId);
         final Either<Boolean, ResponseFormat> response = nodeFilterValidator.validateSubstitutionFilter(component, filterConstraint);
         if (response.isRight()) {
             throw new BusinessLogicException(
@@ -154,8 +157,10 @@ public class ComponentSubstitutionFilterBusinessLogic extends BaseBusinessLogic 
 
     public Optional<SubstitutionFilterDataDefinition> updateSubstitutionFilter(final String componentId, final List<FilterConstraintDto> constraints,
                                                                                final boolean shouldLock,
-                                                                               final ComponentTypeEnum componentTypeEnum) throws BusinessLogicException {
+                                                                               final ComponentTypeEnum componentTypeEnum, final String userId)
+        throws BusinessLogicException {
         final Component component = getComponent(componentId);
+        validateCanModifyComponent(component, componentTypeEnum, userId);
         final Either<Boolean, ResponseFormat> response = nodeFilterValidator.validateSubstitutionFilter(component, constraints);
         if (response.isRight()) {
             throw new BusinessLogicException(
@@ -199,8 +204,10 @@ public class ComponentSubstitutionFilterBusinessLogic extends BaseBusinessLogic 
 
     public Optional<SubstitutionFilterDataDefinition> updateSubstitutionFilter(final String componentId, final FilterConstraintDto filterConstraint,
                                                                                final int index,
-                                                                               final boolean shouldLock) throws BusinessLogicException {
+                                                                               final boolean shouldLock, final ComponentTypeEnum componentTypeEnum,
+                                                                               final String userId) throws BusinessLogicException {
         final Component component = getComponent(componentId);
+        validateCanModifyComponent(component, componentTypeEnum, userId);
         final Either<Boolean, ResponseFormat> validationResponse = nodeFilterValidator.validateSubstitutionFilter(component, filterConstraint);
         if (validationResponse.isRight()) {
             throw new BusinessLogicException(validationResponse.right().value());
@@ -243,9 +250,10 @@ public class ComponentSubstitutionFilterBusinessLogic extends BaseBusinessLogic 
     }
 
     public Optional<SubstitutionFilterDataDefinition> deleteSubstitutionFilter(final String componentId, final int position, final boolean shouldLock,
-                                                                               final ComponentTypeEnum componentTypeEnum)
+                                                                               final ComponentTypeEnum componentTypeEnum, final String userId)
         throws BusinessLogicException {
         final Component component = getComponent(componentId);
+        validateCanModifyComponent(component, componentTypeEnum, userId);
         SubstitutionFilterDataDefinition substitutionFilterDataDefinition = component.getSubstitutionFilter();
         boolean wasLocked = false;
         try {
@@ -275,6 +283,19 @@ public class ComponentSubstitutionFilterBusinessLogic extends BaseBusinessLogic 
             }
         }
         return Optional.ofNullable(substitutionFilterDataDefinition);
+    }
+
+    private void validateCanModifyComponent(final Component component, final ComponentTypeEnum componentTypeEnum, final String userId)
+        throws BusinessLogicException {
+        if (componentTypeEnum == null || component.getComponentType() != componentTypeEnum) {
+            throw new BusinessLogicException(componentsUtils.getResponseFormat(ActionStatus.INVALID_COMPONENT_TYPE,
+                componentTypeEnum == null ? null : componentTypeEnum.getValue(), component.getComponentType().getValue()));
+        }
+        try {
+            validateCanWorkOnComponent(component, userId);
+        } catch (final ComponentException e) {
+            throw new BusinessLogicException(componentsUtils.getResponseFormat(e));
+        }
     }
 
     private void unlockComponent(final String componentUniqueId, final ComponentTypeEnum componentType) {

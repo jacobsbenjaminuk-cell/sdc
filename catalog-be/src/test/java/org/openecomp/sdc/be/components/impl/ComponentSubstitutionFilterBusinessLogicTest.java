@@ -26,6 +26,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -44,8 +46,10 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.openecomp.sdc.be.components.impl.exceptions.BusinessLogicException;
+import org.openecomp.sdc.be.components.impl.exceptions.ComponentException;
 import org.openecomp.sdc.be.components.validation.NodeFilterValidator;
 import org.openecomp.sdc.be.components.validation.UserValidations;
+import org.openecomp.sdc.be.dao.api.ActionStatus;
 import org.openecomp.sdc.be.dao.janusgraph.JanusGraphDao;
 import org.openecomp.sdc.be.dao.janusgraph.JanusGraphGenericDao;
 import org.openecomp.sdc.be.datamodel.utils.ConstraintConvertor;
@@ -56,6 +60,7 @@ import org.openecomp.sdc.be.datatypes.enums.ComponentTypeEnum;
 import org.openecomp.sdc.be.datatypes.enums.NodeTypeEnum;
 import org.openecomp.sdc.be.impl.ComponentsUtils;
 import org.openecomp.sdc.be.model.Component;
+import org.openecomp.sdc.be.model.LifecycleStateEnum;
 import org.openecomp.sdc.be.model.PropertyDefinition;
 import org.openecomp.sdc.be.model.Service;
 import org.openecomp.sdc.be.model.dto.FilterConstraintDto;
@@ -65,6 +70,7 @@ import org.openecomp.sdc.be.model.operations.api.StorageOperationStatus;
 import org.openecomp.sdc.be.model.operations.impl.GraphLockOperation;
 import org.openecomp.sdc.be.ui.mapper.FilterConstraintMapper;
 import org.openecomp.sdc.be.ui.model.UIConstraint;
+import org.openecomp.sdc.exception.ResponseFormat;
 
 @ExtendWith(MockitoExtension.class)
 class ComponentSubstitutionFilterBusinessLogicTest extends BaseBusinessLogicMock {
@@ -75,6 +81,8 @@ class ComponentSubstitutionFilterBusinessLogicTest extends BaseBusinessLogicMock
     private static final String sourceName = sourceType;
     private static final String propertyValue = "constraintValue";
     private static final String componentId = "dac65869-dfb4-40d2-aa20-084324659ec1";
+    private static final String USER_ID = "cs0008";
+    private static final String OTHER_USER_ID = "jm0007";
 
     @InjectMocks
     private ComponentSubstitutionFilterBusinessLogic componentSubstitutionFilterBusinessLogic;
@@ -116,6 +124,7 @@ class ComponentSubstitutionFilterBusinessLogicTest extends BaseBusinessLogicMock
         componentSubstitutionFilterBusinessLogic.setJanusGraphDao(janusGraphDao);
 
         initResource();
+        lenient().when(userValidations.isSameUser(USER_ID, USER_ID)).thenReturn(true);
     }
 
     @Test
@@ -186,7 +195,7 @@ class ComponentSubstitutionFilterBusinessLogicTest extends BaseBusinessLogicMock
             .thenReturn(StorageOperationStatus.OK);
 
         final Optional<SubstitutionFilterDataDefinition> result = componentSubstitutionFilterBusinessLogic
-                .addSubstitutionFilter(componentId, filterConstraintDto, true, ComponentTypeEnum.SERVICE);
+                .addSubstitutionFilter(componentId, filterConstraintDto, true, ComponentTypeEnum.SERVICE, USER_ID);
 
         assertThat(result).isPresent();
         assertThat(result.get().getProperties().getListToscaDataDefinition()).hasSize(1);
@@ -217,7 +226,7 @@ class ComponentSubstitutionFilterBusinessLogicTest extends BaseBusinessLogicMock
             .thenReturn(StorageOperationStatus.OK);
 
         assertThrows(BusinessLogicException.class, () -> componentSubstitutionFilterBusinessLogic
-                .addSubstitutionFilter(componentId, filterConstraintDto, true, ComponentTypeEnum.SERVICE));
+                .addSubstitutionFilter(componentId, filterConstraintDto, true, ComponentTypeEnum.SERVICE, USER_ID));
 
         verify(toscaOperationFacade, times(1)).getToscaElement(componentId);
         verify(graphLockOperation, times(1)).lockComponent(componentId, NodeTypeEnum.Service);
@@ -242,7 +251,7 @@ class ComponentSubstitutionFilterBusinessLogicTest extends BaseBusinessLogicMock
             .thenReturn(StorageOperationStatus.OK);
 
         final Optional<SubstitutionFilterDataDefinition> result = componentSubstitutionFilterBusinessLogic
-            .updateSubstitutionFilter(componentId, List.of(filterConstraintDto), true, ComponentTypeEnum.SERVICE);
+            .updateSubstitutionFilter(componentId, List.of(filterConstraintDto), true, ComponentTypeEnum.SERVICE, USER_ID);
 
         assertThat(result).isPresent();
         assertThat(result.get().getProperties().getListToscaDataDefinition()).hasSize(1);
@@ -266,7 +275,7 @@ class ComponentSubstitutionFilterBusinessLogicTest extends BaseBusinessLogicMock
             .thenReturn(StorageOperationStatus.OK);
 
         assertThrows(BusinessLogicException.class, () -> componentSubstitutionFilterBusinessLogic
-            .updateSubstitutionFilter(componentId, List.of(filterConstraintDto), true, ComponentTypeEnum.SERVICE));
+            .updateSubstitutionFilter(componentId, List.of(filterConstraintDto), true, ComponentTypeEnum.SERVICE, USER_ID));
 
         verify(toscaOperationFacade, times(1)).getToscaElement(componentId);
         verify(graphLockOperation, times(1)).lockComponent(componentId, NodeTypeEnum.Service);
@@ -288,7 +297,7 @@ class ComponentSubstitutionFilterBusinessLogicTest extends BaseBusinessLogicMock
             .thenReturn(StorageOperationStatus.OK);
 
         final Optional<SubstitutionFilterDataDefinition> result = componentSubstitutionFilterBusinessLogic
-                .deleteSubstitutionFilter(componentId, anyInt(), true, ComponentTypeEnum.SERVICE);
+                .deleteSubstitutionFilter(componentId, anyInt(), true, ComponentTypeEnum.SERVICE, USER_ID);
 
         verify(toscaOperationFacade, times(1)).getToscaElement(componentId);
         verify(graphLockOperation, times(1)).lockComponent(componentId, NodeTypeEnum.Service);
@@ -311,7 +320,7 @@ class ComponentSubstitutionFilterBusinessLogicTest extends BaseBusinessLogicMock
             .thenReturn(StorageOperationStatus.OK);
 
         assertThrows(BusinessLogicException.class, () -> componentSubstitutionFilterBusinessLogic
-                .deleteSubstitutionFilter(componentId, anyInt(),true, ComponentTypeEnum.SERVICE));
+                .deleteSubstitutionFilter(componentId, anyInt(),true, ComponentTypeEnum.SERVICE, USER_ID));
 
         verify(toscaOperationFacade, times(1)).getToscaElement(componentId);
         verify(graphLockOperation, times(1)).lockComponent(componentId, NodeTypeEnum.Service);
@@ -320,11 +329,83 @@ class ComponentSubstitutionFilterBusinessLogicTest extends BaseBusinessLogicMock
         verify(graphLockOperation, times(1)).unlockComponent(componentId, NodeTypeEnum.Service);
     }
 
+    @Test
+    void addSubstitutionFilterRejectsCertifiedComponentTest() {
+        component.setSubstitutionFilter(substitutionFilterDataDefinition);
+        component.setLifecycleState(LifecycleStateEnum.CERTIFIED);
+        final ResponseFormat restricted = new ResponseFormat(403);
+        when(toscaOperationFacade.getToscaElement(componentId)).thenReturn(Either.left(component));
+        when(componentsUtils.getResponseFormat(any(ComponentException.class))).thenReturn(restricted);
+
+        final BusinessLogicException exception = assertThrows(BusinessLogicException.class, () -> componentSubstitutionFilterBusinessLogic
+            .addSubstitutionFilter(componentId, filterConstraintDto, true, ComponentTypeEnum.SERVICE, USER_ID));
+
+        assertThat(exception.getResponseFormat()).isSameAs(restricted);
+        verifyNoWriteAttempted();
+    }
+
+    @Test
+    void updateSubstitutionFilterRejectsOtherUsersCheckoutTest() {
+        component.setSubstitutionFilter(substitutionFilterDataDefinition);
+        component.setLastUpdaterUserId(OTHER_USER_ID);
+        final ResponseFormat restricted = new ResponseFormat(403);
+        when(toscaOperationFacade.getToscaElement(componentId)).thenReturn(Either.left(component));
+        when(userValidations.isSameUser(USER_ID, OTHER_USER_ID)).thenReturn(false);
+        when(componentsUtils.getResponseFormat(any(ComponentException.class))).thenReturn(restricted);
+
+        final BusinessLogicException exception = assertThrows(BusinessLogicException.class, () -> componentSubstitutionFilterBusinessLogic
+            .updateSubstitutionFilter(componentId, List.of(filterConstraintDto), true, ComponentTypeEnum.SERVICE, USER_ID));
+
+        assertThat(exception.getResponseFormat()).isSameAs(restricted);
+        verifyNoWriteAttempted();
+    }
+
+    @Test
+    void updateSubstitutionFilterByIndexRejectsArchivedComponentTest() {
+        component.setSubstitutionFilter(substitutionFilterDataDefinition);
+        component.setArchived(true);
+        final ResponseFormat archived = new ResponseFormat(409);
+        when(toscaOperationFacade.getToscaElement(componentId)).thenReturn(Either.left(component));
+        when(componentsUtils.getResponseFormat(any(ComponentException.class))).thenReturn(archived);
+
+        final BusinessLogicException exception = assertThrows(BusinessLogicException.class, () -> componentSubstitutionFilterBusinessLogic
+            .updateSubstitutionFilter(componentId, filterConstraintDto, 0, true, ComponentTypeEnum.SERVICE, USER_ID));
+
+        assertThat(exception.getResponseFormat()).isSameAs(archived);
+        verifyNoWriteAttempted();
+    }
+
+    @Test
+    void deleteSubstitutionFilterRejectsMismatchedComponentTypeTest() {
+        component.setSubstitutionFilter(substitutionFilterDataDefinition);
+        final ResponseFormat invalidType = new ResponseFormat(400);
+        when(toscaOperationFacade.getToscaElement(componentId)).thenReturn(Either.left(component));
+        when(componentsUtils.getResponseFormat(ActionStatus.INVALID_COMPONENT_TYPE, ComponentTypeEnum.RESOURCE.getValue(),
+            ComponentTypeEnum.SERVICE.getValue())).thenReturn(invalidType);
+
+        final BusinessLogicException exception = assertThrows(BusinessLogicException.class, () -> componentSubstitutionFilterBusinessLogic
+            .deleteSubstitutionFilter(componentId, 0, true, ComponentTypeEnum.RESOURCE, USER_ID));
+
+        assertThat(exception.getResponseFormat()).isSameAs(invalidType);
+        verifyNoWriteAttempted();
+    }
+
+    private void verifyNoWriteAttempted() {
+        verify(graphLockOperation, never()).lockComponent(anyString(), any(NodeTypeEnum.class));
+        verify(nodeFilterValidator, never()).validateSubstitutionFilter(any(Component.class), any(FilterConstraintDto.class));
+        verify(substitutionFilterOperation, never()).addPropertyFilter(anyString(), any(), any());
+        verify(substitutionFilterOperation, never()).updatePropertyFilters(anyString(), any(), anyList());
+        verify(substitutionFilterOperation, never()).updatePropertyFilter(anyString(), any(), any(), anyInt());
+        verify(substitutionFilterOperation, never()).deleteConstraint(anyString(), any(), anyInt());
+    }
+
     public void initResource() {
         try {
             component = new Service();
             component.setName("MyTestService");
             component.setUniqueId(componentId);
+            component.setLifecycleState(LifecycleStateEnum.NOT_CERTIFIED_CHECKOUT);
+            component.setLastUpdaterUserId(USER_ID);
 
             final UIConstraint uiConstraint =
                 new UIConstraint(servicePropertyName, constraintOperator, sourceType, sourceName, propertyValue);

@@ -122,6 +122,10 @@ public class ComponentSubstitutionFilterServlet extends AbstractValidationsServl
         final User userModifier = componentSubstitutionFilterBusinessLogic.validateUser(userId);
         final ComponentTypeEnum componentTypeEnum = ComponentTypeEnum.findByParamName(componentType);
         try {
+            if (componentTypeEnum == null || !EXPECTED_COMPONENT_TYPES.contains(componentTypeEnum)) {
+                return buildErrorResponse(
+                    getComponentsUtils().getResponseFormat(ActionStatus.INVALID_COMPONENT_TYPE, componentType, EXPECTED_COMPONENT_TYPES_AS_STRING));
+            }
             final Optional<UIConstraint> convertResponse = componentsUtils.parseToConstraint(constraintData, userModifier, componentTypeEnum);
             if (convertResponse.isEmpty()) {
                 LOGGER.error(FAILED_TO_PARSE_COMPONENT);
@@ -134,7 +138,7 @@ public class ComponentSubstitutionFilterServlet extends AbstractValidationsServl
                     getComponentsUtils().getResponseFormat(ActionStatus.INVALID_CONTENT_PARAM, INVALID_CONSTRAINTYPE_ENUM, constraintType));
             }
             final Optional<SubstitutionFilterDataDefinition> actionResponse = componentSubstitutionFilterBusinessLogic
-                .addSubstitutionFilter(componentId.toLowerCase(), filterConstraintDto, true, componentTypeEnum);
+                .addSubstitutionFilter(componentId.toLowerCase(), filterConstraintDto, true, componentTypeEnum, userId);
             if (actionResponse.isEmpty()) {
                 LOGGER.error(FAILED_TO_ADD_SUBSTITUTION_FILTER);
                 return buildErrorResponse(getComponentsUtils().getResponseFormat(ActionStatus.GENERAL_ERROR));
@@ -173,6 +177,10 @@ public class ComponentSubstitutionFilterServlet extends AbstractValidationsServl
         final User userModifier = componentSubstitutionFilterBusinessLogic.validateUser(userId);
         try {
             final ComponentTypeEnum componentTypeEnum = ComponentTypeEnum.findByParamName(componentType);
+            if (componentTypeEnum == null || !EXPECTED_COMPONENT_TYPES.contains(componentTypeEnum)) {
+                return buildErrorResponse(
+                    getComponentsUtils().getResponseFormat(ActionStatus.INVALID_COMPONENT_TYPE, componentType, EXPECTED_COMPONENT_TYPES_AS_STRING));
+            }
             final List<UIConstraint> uiConstraints = componentsUtils.validateAndParseConstraint(componentTypeEnum, constraintData, userModifier);
             if (CollectionUtils.isEmpty(uiConstraints)) {
                 LOGGER.error("Failed to Parse Constraint data {} when executing {} ", constraintData, SUBSTITUTION_FILTER_UPDATE);
@@ -187,7 +195,7 @@ public class ComponentSubstitutionFilterServlet extends AbstractValidationsServl
                     getComponentsUtils().getResponseFormat(ActionStatus.INVALID_CONTENT_PARAM, INVALID_CONSTRAINTYPE_ENUM, constraintType));
             }
             final Optional<SubstitutionFilterDataDefinition> actionResponse = componentSubstitutionFilterBusinessLogic
-                .updateSubstitutionFilter(componentId.toLowerCase(), filterConstraintList, true, componentTypeEnum);
+                .updateSubstitutionFilter(componentId.toLowerCase(), filterConstraintList, true, componentTypeEnum, userId);
             if (actionResponse.isEmpty()) {
                 LOGGER.error(FAILED_TO_UPDATE_SUBSTITUTION_FILTER);
                 return buildErrorResponse(getComponentsUtils().getResponseFormat(ActionStatus.GENERAL_ERROR));
@@ -240,7 +248,7 @@ public class ComponentSubstitutionFilterServlet extends AbstractValidationsServl
             final FilterConstraintDto filterConstraintDto = new FilterConstraintMapper().mapFrom(uiConstraint);
 
             final Optional<SubstitutionFilterDataDefinition> actionResponse = componentSubstitutionFilterBusinessLogic
-                .updateSubstitutionFilter(componentId.toLowerCase(), filterConstraintDto, index, true);
+                .updateSubstitutionFilter(componentId.toLowerCase(), filterConstraintDto, index, true, componentTypeEnum, userId);
             if (actionResponse.isEmpty()) {
                 LOGGER.error(FAILED_TO_UPDATE_SUBSTITUTION_FILTER);
                 return buildErrorResponse(getComponentsUtils().getResponseFormat(ActionStatus.GENERAL_ERROR));
@@ -280,6 +288,11 @@ public class ComponentSubstitutionFilterServlet extends AbstractValidationsServl
         LOGGER.debug(START_HANDLE_REQUEST_OF, request.getMethod(), request.getRequestURI());
         LOGGER.debug(MODIFIER_ID_IS, userId);
         componentSubstitutionFilterBusinessLogic.validateUser(userId);
+        final ComponentTypeEnum componentTypeEnum = ComponentTypeEnum.findByParamName(componentType);
+        if (componentTypeEnum == null || !EXPECTED_COMPONENT_TYPES.contains(componentTypeEnum)) {
+            return buildErrorResponse(
+                getComponentsUtils().getResponseFormat(ActionStatus.INVALID_COMPONENT_TYPE, componentType, EXPECTED_COMPONENT_TYPES_AS_STRING));
+        }
         final Optional<NodeFilterConstraintType> nodeFilterConstraintType = NodeFilterConstraintType.parse(constraintType);
         if (!nodeFilterConstraintType.isPresent()) {
             return buildErrorResponse(
@@ -287,13 +300,15 @@ public class ComponentSubstitutionFilterServlet extends AbstractValidationsServl
         }
         try {
             final Optional<SubstitutionFilterDataDefinition> actionResponse = componentSubstitutionFilterBusinessLogic
-                .deleteSubstitutionFilter(componentId.toLowerCase(), index, true, ComponentTypeEnum.findByParamName(componentType));
+                .deleteSubstitutionFilter(componentId.toLowerCase(), index, true, componentTypeEnum, userId);
             if (!actionResponse.isPresent()) {
                 LOGGER.debug(FAILED_TO_DELETE_SUBSTITUTION_FILTER);
                 return buildErrorResponse(getComponentsUtils().getResponseFormat(ActionStatus.GENERAL_ERROR));
             }
             return buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.OK),
                 new SubstitutionFilterConverter().convertToUi(actionResponse.get()));
+        } catch (final BusinessLogicException e) {
+            return buildErrorResponse(e.getResponseFormat());
         } catch (final Exception e) {
             BeEcompErrorManager.getInstance().logBeRestApiGeneralError(SUBSTITUTION_FILTER_DELETE);
             LOGGER.debug(DELETE_SUBSTITUTION_FILTER_WITH_AN_ERROR, e);
