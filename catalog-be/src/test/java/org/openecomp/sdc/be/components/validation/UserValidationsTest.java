@@ -31,14 +31,20 @@ import org.openecomp.sdc.be.components.impl.exceptions.ComponentException;
 import org.openecomp.sdc.be.config.ConfigurationManager;
 import org.openecomp.sdc.be.dao.api.ActionStatus;
 import org.openecomp.sdc.be.dao.utils.UserStatusEnum;
+import org.openecomp.sdc.be.facade.operations.UserOperation;
+import org.openecomp.sdc.be.impl.ComponentsUtils;
 import org.openecomp.sdc.be.model.User;
+import org.openecomp.sdc.be.model.operations.impl.UserAdminOperation;
 import org.openecomp.sdc.be.user.Role;
 import org.openecomp.sdc.be.user.UserBusinessLogic;
 
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import org.openecomp.sdc.common.impl.ExternalConfiguration;
+import org.openecomp.sdc.common.datastructure.UserContext;
 import org.openecomp.sdc.common.impl.FSConfigurationSource;
+import org.openecomp.sdc.common.util.ThreadLocalsHolder;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -172,7 +178,24 @@ public class UserValidationsTest {
         
         Mockito.when(userAdmin.getUser(userId)).thenReturn(user);
         Mockito.when(userAdmin.getUser(encryptedSameUser)).thenReturn(user);
+        Mockito.when(userAdmin.decryptUserId(userId)).thenReturn(userId);
+        Mockito.when(userAdmin.decryptUserId(encryptedSameUser)).thenReturn(userId);
         
         assertTrue(testSubject.isSameUser(userId, encryptedSameUser));
+    }
+
+    @Test
+    public void testIsSameUserWithRealUserBusinessLogic() {
+        final UserValidations validations = new UserValidations(
+            new UserBusinessLogic(Mockito.mock(UserAdminOperation.class), Mockito.mock(ComponentsUtils.class), Mockito.mock(UserOperation.class)));
+        ThreadLocalsHolder.setUserContext(new UserContext("jh0003", Set.of(Role.DESIGNER.name()), "Jimmy", "Hendrix"));
+        try {
+            assertFalse(validations.isSameUser("jh0003", "cs0008"));
+            assertFalse(validations.isSameUser("jh0003", null));
+            assertTrue(validations.isSameUser("jh0003", "jh0003"));
+            assertTrue(validations.isSameUser("jh0003", "JH0003"));
+        } finally {
+            ThreadLocalsHolder.setUserContext(null);
+        }
     }
 }

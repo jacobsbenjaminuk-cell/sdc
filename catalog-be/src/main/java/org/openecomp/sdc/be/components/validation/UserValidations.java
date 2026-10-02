@@ -84,6 +84,9 @@ public class UserValidations {
     }
     
     public boolean isSameUser(final String userId1, final String userId2) {
-        return validateUserExists(userId1).getUserId().equals(validateUserExists(userId2).getUserId());
+        validateUserExists(userId1);
+        final String decryptedUserId1 = userAdmin.decryptUserId(userId1);
+        final String decryptedUserId2 = userAdmin.decryptUserId(userId2);
+        return decryptedUserId1 != null && decryptedUserId1.equalsIgnoreCase(decryptedUserId2);
     }
 }
