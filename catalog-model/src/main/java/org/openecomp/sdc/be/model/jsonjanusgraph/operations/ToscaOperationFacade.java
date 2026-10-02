@@ -532,7 +532,7 @@ public class ToscaOperationFacade {
             if (vendorReleaseElements.length > 0) {
                 String regex = ".*\"vendorRelease\":\"";
                 for (int i = 0; i < vendorReleaseElements.length; i++) {
-                    regex += vendorReleaseElements[i];
+                    regex += Pattern.quote(vendorReleaseElements[i]);
                     regex += i < vendorReleaseElements.length - 1 ? "\\." : "\".*";
                 }
                 predicateCriteria.put("metadata", new HashMap.SimpleEntry<>(REGEX, regex));
