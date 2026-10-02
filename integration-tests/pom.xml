@@ -1150,6 +1150,7 @@ limitations under the License.
                                 <volumes>
                                     <bind>
                                         <volume>${it.shared.volume}:/app/jetty/logs</volume>
+                                        <volume>${it.catalog.resource}/resource/key.properties:/app/jetty/resources/key.properties</volume>
                                         <volume>
                                             ${it.chef.config}/plugins-configuration.yaml:/app/jetty/config/catalog-fe/plugins-configuration.yaml
                                         </volume>

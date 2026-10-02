@@ -47,7 +47,6 @@ environment.json
             "ECompP": {
                 "ecomp_rest_url": "http://portal.api.simpledemo.onap.org:8989/ONAPPORTAL/auxapi",
                 "ecomp_redirect_url": "http://portal.api.simpledemo.openecomp.org:8989/ECOMPPORTAL/login.htm",
-                "cipher_key": "AGLDdG4D04BKm2IxIWEr8o==",
                 "portal_user": "Ipwxi2oLvDxctMA1royaRw1W0jhucLx+grHzci3ePIA=",
                 "portal_pass": "j85yNhyIs7zKYbR1VlwEfNhS6b7Om4l0Gx5O8931sCI="
             },
@@ -1180,6 +1179,26 @@ BE-janusgraph.properties
     # Number of milliseconds the system waits for a lock application to be acknowledged by the storage backend
     storage.lock.wait-time=500
 
+
+Cipher key
+----------
+
+The frontend and backend use a Portal SDK cipher key to encrypt the user cookie
+and to decrypt the Portal credentials in portal.properties. SDC no longer ships
+a key. Each deployment must supply its own.
+
+Provide it in one of two ways:
+
+- Mount a key.properties file at /app/jetty/resources/key.properties, for
+  example from a Kubernetes Secret. The file holds one line:
+  ``cipher.enc.key=<base64 key>``.
+- Set the SDC_CIPHER_ENC_KEY environment variable, for example from a
+  Kubernetes Secret. The startup script writes key.properties from it.
+
+Generate a key with ``openssl rand -base64 16``. The key must decode to 16, 24
+or 32 bytes. The frontend and backend must use the same key, and the encrypted
+values in portal.properties must be encrypted with it. The application will not
+start if the key is missing, malformed or is the old public ONAP key.
 
 Onboarding configuration
 ------------------------

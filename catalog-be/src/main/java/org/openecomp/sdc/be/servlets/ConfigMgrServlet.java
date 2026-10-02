@@ -40,6 +40,7 @@ import org.openecomp.sdc.be.config.ConfigurationManager;
 import org.openecomp.sdc.common.api.Constants;
 import org.openecomp.sdc.common.log.wrappers.Logger;
 import org.openecomp.sdc.common.servlets.BasicServlet;
+import org.openecomp.sdc.common.util.SecretRedactor;
 
 /**
  * Root resource (exposed at "/" path)
@@ -64,8 +65,7 @@ public class ConfigMgrServlet extends BasicServlet {
             if (configuration == null) {
                 log.warn("Configuration of type {} was not found", Configuration.class);
             } else {
-                log.info("The value returned from getConfig is {}", configuration);
-                result = gson.toJson(configuration);
+                result = gson.toJson(SecretRedactor.redact(gson.toJsonTree(configuration)));
             }
         }
         return result;
