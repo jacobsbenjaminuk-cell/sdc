@@ -30,6 +30,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
+import org.openecomp.core.utilities.file.FileUtils;
 import org.openecomp.sdc.activitylog.dao.type.ActivityLogEntity;
 import org.openecomp.sdc.common.errors.CoreException;
 import org.openecomp.sdc.common.errors.ErrorCategory;
@@ -37,6 +38,7 @@ import org.openecomp.sdc.common.errors.ErrorCode;
 import org.openecomp.sdc.vendorsoftwareproduct.dao.ProcessDao;
 import org.openecomp.sdc.vendorsoftwareproduct.dao.type.ProcessEntity;
 import org.openecomp.sdc.vendorsoftwareproduct.dao.type.ProcessType;
+import org.openecomp.sdc.vendorsoftwareproduct.errors.VendorSoftwareProductErrorCodes;
 import org.openecomp.sdc.versioning.dao.types.Version;
 import org.openecomp.sdc.versioning.errors.VersioningErrorCodes;
 
@@ -258,6 +260,25 @@ public class ProcessManagerImplTest {
         .uploadProcessArtifact(new ByteArrayInputStream(artifactBytes), ARTIFACT_NAME,
             VSP_ID, VERSION, COMPONENT_ID, PROCESS1_ID);
     verify(processDaoMock).uploadArtifact(any(ProcessEntity.class));
+  }
+
+  @Test
+  public void testUploadArtifactTooLarge_negative() {
+    ProcessEntity process = createProcess(VSP_ID, VERSION, COMPONENT_ID, PROCESS1_ID);
+    doReturn(process).when(processDaoMock).get(any(ProcessEntity.class));
+
+    System.setProperty(FileUtils.MAX_UPLOAD_SIZE_PROPERTY, "3");
+    try {
+      processManager
+          .uploadProcessArtifact(new ByteArrayInputStream("bla bla".getBytes()), ARTIFACT_NAME,
+              VSP_ID, VERSION, COMPONENT_ID, PROCESS1_ID);
+      Assert.fail();
+    } catch (CoreException exception) {
+      Assert.assertEquals(VendorSoftwareProductErrorCodes.UPLOAD_TOO_LARGE, exception.code().id());
+    } finally {
+      System.clearProperty(FileUtils.MAX_UPLOAD_SIZE_PROPERTY);
+    }
+    verify(processDaoMock, never()).uploadArtifact(any(ProcessEntity.class));
   }
 
   @Test

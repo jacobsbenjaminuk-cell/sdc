@@ -34,6 +34,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.input.BoundedInputStream;
 import org.onap.sdc.tosca.services.YamlUtil;
 import org.openecomp.core.utilities.json.JsonUtil;
 
@@ -41,6 +42,19 @@ import org.openecomp.core.utilities.json.JsonUtil;
  * The type File utils.
  */
 public class FileUtils {
+
+    public static final String MAX_UPLOAD_SIZE_PROPERTY = "onboarding.upload.maxSize";
+    public static final long DEFAULT_MAX_UPLOAD_SIZE = 100L * 1024 * 1024;
+
+    /**
+     * Gets the maximum size in bytes accepted for an uploaded file, configurable with the
+     * {@value #MAX_UPLOAD_SIZE_PROPERTY} system property.
+     *
+     * @return the maximum upload size in bytes
+     */
+    public static long getMaxUploadSize() {
+        return Long.getLong(MAX_UPLOAD_SIZE_PROPERTY, DEFAULT_MAX_UPLOAD_SIZE);
+    }
 
     /**
      * Allows to consume an input stream open against a resource with a given file name.
@@ -175,6 +189,30 @@ public class FileUtils {
         } catch (IOException exception) {
             throw new RuntimeException("error while converting input stream to byte array", exception);
         }
+    }
+
+    /**
+     * Reads an input stream into a byte array, reading at most {@code maxSize + 1} bytes.
+     *
+     * @param input   the input stream
+     * @param maxSize the maximum number of bytes allowed
+     * @return the byte array
+     * @throws FileSizeLimitExceededException if the stream holds more than {@code maxSize} bytes
+     */
+    public static byte[] toByteArray(InputStream input, long maxSize) {
+        if (input == null) {
+            return new byte[0];
+        }
+        final byte[] bytes;
+        try {
+            bytes = IOUtils.toByteArray(new BoundedInputStream(input, maxSize == Long.MAX_VALUE ? maxSize : maxSize + 1));
+        } catch (IOException exception) {
+            throw new RuntimeException("error while converting input stream to byte array", exception);
+        }
+        if (bytes.length > maxSize) {
+            throw new FileSizeLimitExceededException(maxSize);
+        }
+        return bytes;
     }
 
     /**

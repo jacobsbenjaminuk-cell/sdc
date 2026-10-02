@@ -24,6 +24,7 @@ import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -191,5 +192,36 @@ public class FileUtilsTest {
 
         Assert.assertNotNull(inputStream);
         Assert.assertEquals("hello-test", builder.toString());
+    }
+
+    @Test
+    public void testToByteArrayWithinLimit() {
+        final byte[] bytes = FileUtils.toByteArray(new ByteArrayInputStream("hello".getBytes()), 5);
+        Assert.assertEquals("hello", new String(bytes));
+    }
+
+    @Test
+    public void testToByteArrayOverLimit() {
+        final FileSizeLimitExceededException exception = Assert.assertThrows(FileSizeLimitExceededException.class,
+            () -> FileUtils.toByteArray(new ByteArrayInputStream("hello!".getBytes()), 5));
+        Assert.assertEquals(5, exception.getMaxSize());
+    }
+
+    @Test
+    public void testToByteArrayStopsReadingPastLimit() throws IOException {
+        final InputStream input = new ByteArrayInputStream(new byte[100]);
+        Assert.assertThrows(FileSizeLimitExceededException.class, () -> FileUtils.toByteArray(input, 10));
+        Assert.assertEquals(89, input.available());
+    }
+
+    @Test
+    public void testGetMaxUploadSize() {
+        Assert.assertEquals(FileUtils.DEFAULT_MAX_UPLOAD_SIZE, FileUtils.getMaxUploadSize());
+        System.setProperty(FileUtils.MAX_UPLOAD_SIZE_PROPERTY, "1024");
+        try {
+            Assert.assertEquals(1024, FileUtils.getMaxUploadSize());
+        } finally {
+            System.clearProperty(FileUtils.MAX_UPLOAD_SIZE_PROPERTY);
+        }
     }
 }

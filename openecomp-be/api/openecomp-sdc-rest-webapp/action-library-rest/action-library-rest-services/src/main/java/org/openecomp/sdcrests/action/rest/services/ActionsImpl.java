@@ -109,6 +109,7 @@ import javax.ws.rs.core.Response;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.cxf.jaxrs.ext.multipart.Attachment;
+import org.openecomp.core.utilities.file.FileSizeLimitExceededException;
 import org.openecomp.core.utilities.file.FileUtils;
 import org.openecomp.core.utilities.json.JsonUtil;
 import org.openecomp.sdc.action.ActionConstants;
@@ -566,14 +567,12 @@ public class ActionsImpl implements Actions {
             throw new ActionException(ACTION_REQUEST_INVALID_GENERIC_CODE, ACTION_REQUEST_MISSING_MANDATORY_PARAM + ARTIFACT_FILE);
         }
         try (InputStream artifactInputStream = artifactToUpload.getDataHandler().getInputStream()) {
-            payload = FileUtils.toByteArray(artifactInputStream);
+            payload = FileUtils.toByteArray(artifactInputStream, MAX_ACTION_ARTIFACT_SIZE);
+        } catch (FileSizeLimitExceededException exception) {
+            throw new ActionException(ACTION_ARTIFACT_TOO_BIG_ERROR_CODE, ACTION_ARTIFACT_TOO_BIG_ERROR);
         } catch (IOException exception) {
             LOGGER.error(ACTION_ARTIFACT_READ_FILE_ERROR, exception);
             throw new ActionException(ACTION_INTERNAL_SERVER_ERR_CODE, ACTION_ARTIFACT_READ_FILE_ERROR);
-        }
-        //Validate Artifact size
-        if (payload != null && payload.length > MAX_ACTION_ARTIFACT_SIZE) {
-            throw new ActionException(ACTION_ARTIFACT_TOO_BIG_ERROR_CODE, ACTION_ARTIFACT_TOO_BIG_ERROR);
         }
         //Validate Checksum
         if (StringUtils.isEmpty(checksum) || !checksum.equalsIgnoreCase(calculateCheckSum(payload))) {
@@ -725,14 +724,12 @@ public class ActionsImpl implements Actions {
         }
         if (artifactToUpdate != null) {
             try (InputStream artifactInputStream = artifactToUpdate.getDataHandler().getInputStream()) {
-                payload = FileUtils.toByteArray(artifactInputStream);
+                payload = FileUtils.toByteArray(artifactInputStream, MAX_ACTION_ARTIFACT_SIZE);
+            } catch (FileSizeLimitExceededException exception) {
+                throw new ActionException(ACTION_ARTIFACT_TOO_BIG_ERROR_CODE, ACTION_ARTIFACT_TOO_BIG_ERROR);
             } catch (IOException exception) {
                 LOGGER.error(ACTION_ARTIFACT_READ_FILE_ERROR, exception);
                 throw new ActionException(ACTION_INTERNAL_SERVER_ERR_CODE, ACTION_ARTIFACT_READ_FILE_ERROR);
-            }
-            //Validate Artifact size
-            if (payload != null && payload.length > MAX_ACTION_ARTIFACT_SIZE) {
-                throw new ActionException(ACTION_ARTIFACT_TOO_BIG_ERROR_CODE, ACTION_ARTIFACT_TOO_BIG_ERROR);
             }
             //Validate Checksum
             if (StringUtils.isEmpty(checksum) || !checksum.equalsIgnoreCase(calculateCheckSum(payload))) {

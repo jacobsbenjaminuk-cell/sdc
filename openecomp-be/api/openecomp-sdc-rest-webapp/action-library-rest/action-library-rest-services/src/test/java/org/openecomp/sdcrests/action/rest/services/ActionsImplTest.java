@@ -28,6 +28,7 @@ import static org.openecomp.sdc.action.ActionConstants.X_OPEN_ECOMP_REQUEST_ID_H
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -45,6 +46,7 @@ import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.openecomp.sdc.action.ActionManager;
+import org.openecomp.sdc.action.errors.ActionErrorConstants;
 import org.openecomp.sdc.action.errors.ActionException;
 import org.openecomp.sdc.action.types.Action;
 import org.openecomp.sdc.action.types.ActionArtifact;
@@ -281,6 +283,23 @@ public class ActionsImplTest {
         Assert.assertEquals(200, response.getStatus());
     }
 
+    @Test
+    public void testUploadArtifactShouldStopReadingWhenArtifactIsTooBig() throws IOException {
+        Attachment artifactToUpload = new Attachment("id", "mediaType", new Object());
+        DataSource dataSource = Mockito.mock(DataSource.class);
+        when(dataSource.getInputStream()).thenReturn(new EndlessInputStream());
+        artifactToUpload.setDataHandler(new DataHandler(dataSource));
+
+        when(request.getContentType()).thenReturn("contentType");
+        ActionException exception = Assert.assertThrows(ActionException.class,
+                () -> action.uploadArtifact("actionInvariantUUID", "artifactName", "artifactLabel",
+                        "artifactCategory", "artifactDescription", "readOnly",
+                        "d41d8cd98f00b204e9800998ecf8427e",
+                        artifactToUpload, request));
+        Assert.assertEquals(ActionErrorConstants.ACTION_ARTIFACT_TOO_BIG_ERROR_CODE, exception.getErrorCode());
+        Mockito.verify(actionManager, Mockito.never()).uploadArtifact(any(ActionArtifact.class), anyString(), anyString());
+    }
+
     @Test(expected = ActionException.class)
     public void testUploadArtifactShouldThrowActionExceptionWhenArtifactToUploadIsNull() throws IOException {
         when(request.getContentType()).thenReturn("contentType");
@@ -377,4 +396,17 @@ public class ActionsImplTest {
         return action;
     }
 
+
+    private static class EndlessInputStream extends InputStream {
+
+        @Override
+        public int read() {
+            return 0;
+        }
+
+        @Override
+        public int read(byte[] buffer, int offset, int length) {
+            return length;
+        }
+    }
 }

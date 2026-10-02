@@ -99,6 +99,11 @@
             <bean class="org.openecomp.sdc.logging.servlet.jaxrs.LoggingResponseFilter"/>
         </jaxrs:providers>
 
+        <jaxrs:properties>
+            <entry key="attachment-max-size"
+                   value="#{T(org.openecomp.core.utilities.file.FileUtils).getMaxUploadSize()}"/>
+        </jaxrs:properties>
+
         <jaxrs:outInterceptors>
             <ref bean="outEmptyResponseInterceptor"/>
         </jaxrs:outInterceptors>

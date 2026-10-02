@@ -34,6 +34,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.openecomp.sdcrests.vsp.rest.exception.OrchestrationTemplateCandidateUploadManagerExceptionSupplier.vspUploadAlreadyInProgress;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -61,6 +62,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
+import org.openecomp.core.utilities.file.FileUtils;
 import org.openecomp.core.utilities.orchestration.OnboardingTypesEnum;
 import org.openecomp.sdc.activitylog.ActivityLogManager;
 import org.openecomp.sdc.be.csar.storage.ArtifactStorageManager;
@@ -76,6 +78,7 @@ import org.openecomp.sdc.logging.api.LoggerFactory;
 import org.openecomp.sdc.vendorsoftwareproduct.OrchestrationTemplateCandidateManager;
 import org.openecomp.sdc.vendorsoftwareproduct.VendorSoftwareProductManager;
 import org.openecomp.sdc.vendorsoftwareproduct.dao.type.VspUploadStatus;
+import org.openecomp.sdc.vendorsoftwareproduct.errors.VendorSoftwareProductErrorCodes;
 import org.openecomp.sdc.vendorsoftwareproduct.types.OrchestrationTemplateActionResponse;
 import org.openecomp.sdc.vendorsoftwareproduct.types.UploadFileResponse;
 import org.openecomp.sdc.vendorsoftwareproduct.types.UploadFileStatus;
@@ -270,13 +273,6 @@ class OrchestrationTemplateCandidateImplTest {
 
     private Attachment mockAttachment(final String fileName, final URL fileToUpload) throws IOException {
         final Attachment attachment = Mockito.mock(Attachment.class);
-        final InputStream inputStream = Mockito.mock(InputStream.class);
-        when(attachment.getContentDisposition()).thenReturn(new ContentDisposition("test"));
-        final DataHandler dataHandler = Mockito.mock(DataHandler.class);
-        when(dataHandler.getName()).thenReturn(fileName);
-        when(attachment.getDataHandler()).thenReturn(dataHandler);
-        when(dataHandler.getInputStream()).thenReturn(inputStream);
-        when(inputStream.transferTo(any(OutputStream.class))).thenReturn(0L);
         byte[] bytes = "upload package Test".getBytes();
         if (Objects.nonNull(fileToUpload)) {
             try {
@@ -286,8 +282,34 @@ class OrchestrationTemplateCandidateImplTest {
                 fail("Not able to convert file to byte array");
             }
         }
+        final InputStream inputStream = Mockito.spy(new ByteArrayInputStream(bytes));
+        when(attachment.getContentDisposition()).thenReturn(new ContentDisposition("test"));
+        final DataHandler dataHandler = Mockito.mock(DataHandler.class);
+        when(dataHandler.getName()).thenReturn(fileName);
+        when(attachment.getDataHandler()).thenReturn(dataHandler);
+        when(dataHandler.getInputStream()).thenReturn(inputStream);
+        Mockito.doReturn(0L).when(inputStream).transferTo(any(OutputStream.class));
         when(attachment.getObject(ArgumentMatchers.any())).thenReturn(bytes);
         return attachment;
+    }
+
+    @Test
+    void uploadTooLargeTest() throws IOException {
+        final UUID lockId = UUID.randomUUID();
+        when(orchestrationTemplateCandidateUploadManager.findLatestStatus(candidateId, versionId, user)).thenReturn(Optional.empty());
+        when(orchestrationTemplateCandidateUploadManager.putUploadInProgress(candidateId, versionId, user))
+            .thenReturn(createVspUploadStatus(lockId, VspUploadStatus.UPLOADING));
+        final Attachment attachment = mockAttachment("filename.csar", this.getClass().getResource("/files/sample-not-signed.csar"));
+        System.setProperty(FileUtils.MAX_UPLOAD_SIZE_PROPERTY, "10");
+        try {
+            final CoreException actualException = assertThrows(CoreException.class,
+                () -> orchestrationTemplateCandidate.upload(candidateId, versionId, attachment, user));
+            assertEquals(VendorSoftwareProductErrorCodes.UPLOAD_TOO_LARGE, actualException.code().id());
+        } finally {
+            System.clearProperty(FileUtils.MAX_UPLOAD_SIZE_PROPERTY);
+        }
+        verify(orchestrationTemplateCandidateUploadManager)
+            .putUploadAsFinished(candidateId, versionId, lockId, VspUploadStatus.ERROR, user);
     }
 
     @Test
