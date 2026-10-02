@@ -26,6 +26,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -276,7 +277,6 @@ class ComponentSubstitutionFilterBusinessLogicTest extends BaseBusinessLogicMock
 
     @Test
     void deleteSubstitutionFilterTest() throws BusinessLogicException {
-        substitutionFilterDataDefinition.setProperties(new ListDataDefinition<>());
         component.setSubstitutionFilter(substitutionFilterDataDefinition);
 
         when(toscaOperationFacade.getToscaElement(componentId)).thenReturn(Either.left(component));
@@ -318,6 +318,82 @@ class ComponentSubstitutionFilterBusinessLogicTest extends BaseBusinessLogicMock
         verify(substitutionFilterOperation, times(1)).deleteConstraint(componentId,
                 substitutionFilterDataDefinition, 0);
         verify(graphLockOperation, times(1)).unlockComponent(componentId, NodeTypeEnum.Service);
+    }
+
+    @Test
+    void createSubstitutionFilterIfNotExistUnlocksWithComponentTypeTest() throws BusinessLogicException {
+        when(toscaOperationFacade.getToscaElement(componentId)).thenReturn(Either.left(component));
+        when(graphLockOperation.lockComponent(componentId, NodeTypeEnum.Service))
+                .thenReturn(StorageOperationStatus.OK);
+        when(substitutionFilterOperation.createSubstitutionFilter(componentId))
+                .thenReturn(Either.right(StorageOperationStatus.GENERAL_ERROR));
+
+        assertThrows(BusinessLogicException.class, () -> componentSubstitutionFilterBusinessLogic
+                .createSubstitutionFilterIfNotExist(componentId, true, ComponentTypeEnum.RESOURCE));
+
+        verify(graphLockOperation, times(1)).lockComponent(componentId, NodeTypeEnum.Service);
+        verify(graphLockOperation, times(1)).unlockComponent(componentId, NodeTypeEnum.Service);
+        verify(graphLockOperation, never()).unlockComponent(componentId, NodeTypeEnum.Resource);
+    }
+
+    @Test
+    void addSubstitutionFilterWithMismatchedComponentTypeTest() {
+        component.setSubstitutionFilter(substitutionFilterDataDefinition);
+        when(toscaOperationFacade.getToscaElement(componentId)).thenReturn(Either.left(component));
+
+        assertThrows(BusinessLogicException.class, () -> componentSubstitutionFilterBusinessLogic
+                .addSubstitutionFilter(componentId, filterConstraintDto, true, ComponentTypeEnum.PRODUCT));
+
+        verify(graphLockOperation, never()).lockComponent(anyString(), any(NodeTypeEnum.class));
+        verify(substitutionFilterOperation, never()).addPropertyFilter(anyString(), any(), any());
+    }
+
+    @Test
+    void updateSubstitutionFilterWithMismatchedComponentTypeTest() {
+        component.setSubstitutionFilter(substitutionFilterDataDefinition);
+        when(toscaOperationFacade.getToscaElement(componentId)).thenReturn(Either.left(component));
+
+        assertThrows(BusinessLogicException.class, () -> componentSubstitutionFilterBusinessLogic
+                .updateSubstitutionFilter(componentId, List.of(filterConstraintDto), true, ComponentTypeEnum.RESOURCE));
+
+        verify(graphLockOperation, never()).lockComponent(anyString(), any(NodeTypeEnum.class));
+        verify(substitutionFilterOperation, never()).updatePropertyFilters(anyString(), any(), anyList());
+    }
+
+    @Test
+    void deleteSubstitutionFilterWithMismatchedComponentTypeTest() {
+        component.setSubstitutionFilter(substitutionFilterDataDefinition);
+        when(toscaOperationFacade.getToscaElement(componentId)).thenReturn(Either.left(component));
+
+        assertThrows(BusinessLogicException.class, () -> componentSubstitutionFilterBusinessLogic
+                .deleteSubstitutionFilter(componentId, 0, true, ComponentTypeEnum.PRODUCT));
+
+        verify(graphLockOperation, never()).lockComponent(anyString(), any(NodeTypeEnum.class));
+        verify(substitutionFilterOperation, never()).deleteConstraint(anyString(), any(), anyInt());
+    }
+
+    @Test
+    void deleteSubstitutionFilterWithOutOfRangePositionTest() {
+        component.setSubstitutionFilter(substitutionFilterDataDefinition);
+        when(toscaOperationFacade.getToscaElement(componentId)).thenReturn(Either.left(component));
+
+        assertThrows(BusinessLogicException.class, () -> componentSubstitutionFilterBusinessLogic
+                .deleteSubstitutionFilter(componentId, 9999, true, ComponentTypeEnum.SERVICE));
+        assertThrows(BusinessLogicException.class, () -> componentSubstitutionFilterBusinessLogic
+                .deleteSubstitutionFilter(componentId, -1, true, ComponentTypeEnum.SERVICE));
+
+        verify(graphLockOperation, never()).lockComponent(anyString(), any(NodeTypeEnum.class));
+        verify(substitutionFilterOperation, never()).deleteConstraint(anyString(), any(), anyInt());
+    }
+
+    @Test
+    void deleteSubstitutionFilterWithoutFilterTest() {
+        when(toscaOperationFacade.getToscaElement(componentId)).thenReturn(Either.left(component));
+
+        assertThrows(BusinessLogicException.class, () -> componentSubstitutionFilterBusinessLogic
+                .deleteSubstitutionFilter(componentId, 0, true, ComponentTypeEnum.SERVICE));
+
+        verify(graphLockOperation, never()).lockComponent(anyString(), any(NodeTypeEnum.class));
     }
 
     public void initResource() {
