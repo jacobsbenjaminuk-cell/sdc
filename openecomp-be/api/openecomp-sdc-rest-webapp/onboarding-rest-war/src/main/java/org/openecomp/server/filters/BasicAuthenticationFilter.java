@@ -23,6 +23,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
@@ -49,15 +51,23 @@ public class BasicAuthenticationFilter implements Filter {
     private static final String CONFIG_FILE_PROPERTY = "configuration.yaml";
     private static final String CONFIG_SECTION = "basicAuth";
 
-    private static Object getAuthenticationConfiguration(String file) throws IOException {
-        InputStream fileInput = new FileInputStream(file);
-        YamlUtil yamlUtil = new YamlUtil();
-        Map<?, ?> configuration = Objects.requireNonNull(yamlUtil.yamlToMap(fileInput), "Configuration cannot be empty");
-        Object authenticationConfig = configuration.get(CONFIG_SECTION);
-        if (authenticationConfig == null) {
-            throw new EntryNotConfiguredException(CONFIG_SECTION + " section");
+    private static final String AUTHENTICATED_ATTRIBUTE = BasicAuthenticationFilter.class.getName() + ".authenticated";
+    private static final String BASIC_PREFIX = "Basic ";
+
+    static boolean isAuthenticated(ServletRequest request) {
+        return Boolean.TRUE.equals(request.getAttribute(AUTHENTICATED_ATTRIBUTE));
+    }
+
+    private static BasicAuthConfig getAuthenticationConfiguration(String file) throws IOException {
+        try (InputStream fileInput = new FileInputStream(file)) {
+            YamlUtil yamlUtil = new YamlUtil();
+            Map<?, ?> configuration = Objects.requireNonNull(yamlUtil.yamlToMap(fileInput), "Configuration cannot be empty");
+            Object authenticationConfig = configuration.get(CONFIG_SECTION);
+            if (authenticationConfig == null) {
+                throw new EntryNotConfiguredException(CONFIG_SECTION + " section");
+            }
+            return new ObjectMapper().convertValue(authenticationConfig, BasicAuthConfig.class);
         }
-        return authenticationConfig;
     }
 
     @Override
@@ -69,9 +79,7 @@ public class BasicAuthenticationFilter implements Filter {
     public void doFilter(ServletRequest arg0, ServletResponse arg1, FilterChain arg2) throws IOException, ServletException {
         String file = Objects.requireNonNull(System.getProperty(CONFIG_FILE_PROPERTY),
             "Config file location must be specified via system property " + CONFIG_FILE_PROPERTY);
-        Object config = getAuthenticationConfiguration(file);
-        ObjectMapper mapper = new ObjectMapper();
-        BasicAuthConfig basicAuthConfig = mapper.convertValue(config, BasicAuthConfig.class);
+        BasicAuthConfig basicAuthConfig = getAuthenticationConfiguration(file);
         HttpServletRequest httpRequest = (HttpServletRequest) arg0;
         HttpServletRequestWrapper servletRequest = new HttpServletRequestWrapper(httpRequest);
         // BasicAuth is disabled
@@ -79,7 +87,8 @@ public class BasicAuthenticationFilter implements Filter {
             arg2.doFilter(servletRequest, arg1);
             return;
         }
-        List<String> excludedUrls = Arrays.asList(basicAuthConfig.getExcludedUrls().split(","));
+        String excludedUrlsConfig = basicAuthConfig.getExcludedUrls();
+        List<String> excludedUrls = excludedUrlsConfig == null ? List.of() : Arrays.asList(excludedUrlsConfig.split(","));
         if (excludedUrls.contains(httpRequest.getServletPath() + httpRequest.getPathInfo())) {
             // this url is included in the excludeUrls list, no need for authentication
             arg2.doFilter(servletRequest, arg1);
@@ -87,12 +96,13 @@ public class BasicAuthenticationFilter implements Filter {
         }
         // Get the basicAuth info from the header
         String authorizationHeader = httpRequest.getHeader("Authorization");
-        if (authorizationHeader == null || authorizationHeader.isEmpty()) {
+        if (authorizationHeader == null || !authorizationHeader.startsWith(BASIC_PREFIX)) {
             ((HttpServletResponse) arg1).setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             return;
         }
-        String base64Credentials = httpRequest.getHeader("Authorization").replace("Basic", "").trim();
+        String base64Credentials = authorizationHeader.substring(BASIC_PREFIX.length()).trim();
         if (verifyCredentials(basicAuthConfig, base64Credentials)) {
+            servletRequest.setAttribute(AUTHENTICATED_ATTRIBUTE, Boolean.TRUE);
             arg2.doFilter(servletRequest, arg1);
         } else {
             ((HttpServletResponse) arg1).setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -104,12 +114,18 @@ public class BasicAuthenticationFilter implements Filter {
     }
 
     private boolean verifyCredentials(BasicAuthConfig basicAuthConfig, String credential) {
-        String decodedCredentials = new String(Base64.getDecoder().decode(credential));
+        String decodedCredentials;
+        try {
+            decodedCredentials = new String(Base64.getDecoder().decode(credential), StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException e) {
+            log.error("Failed to decode credentials");
+            return false;
+        }
         int p = decodedCredentials.indexOf(':');
         if (p != -1) {
             String userName = decodedCredentials.substring(0, p).trim();
             String password = decodedCredentials.substring(p + 1).trim();
-            if (!userName.equals(basicAuthConfig.getUserName()) || !password.equals(basicAuthConfig.getUserPass())) {
+            if (!constantTimeEquals(userName, basicAuthConfig.getUserName()) | !constantTimeEquals(password, basicAuthConfig.getUserPass())) {
                 log.error("Authentication failed. Invalid user name or password");
                 return false;
             }
@@ -118,5 +134,12 @@ public class BasicAuthenticationFilter implements Filter {
             log.error("Failed to decode credentials");
             return false;
         }
+    }
+
+    private static boolean constantTimeEquals(String actual, String expected) {
+        if (expected == null || expected.isEmpty()) {
+            return false;
+        }
+        return MessageDigest.isEqual(actual.getBytes(StandardCharsets.UTF_8), expected.getBytes(StandardCharsets.UTF_8));
     }
 }

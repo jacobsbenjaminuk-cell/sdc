@@ -22,11 +22,14 @@
 package org.openecomp.sdc.be.client.onboarding.impl;
 
 import static javax.ws.rs.core.HttpHeaders.ACCEPT;
+import static javax.ws.rs.core.HttpHeaders.AUTHORIZATION;
 import static javax.ws.rs.core.MediaType.APPLICATION_JSON;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import fj.data.Either;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
@@ -34,6 +37,7 @@ import javax.ws.rs.core.MediaType;
 import org.apache.http.HttpStatus;
 import org.openecomp.sdc.be.client.onboarding.api.OnboardingClient;
 import org.openecomp.sdc.be.client.onboarding.exception.OnboardingClientException;
+import org.openecomp.sdc.be.config.Configuration.BasicAuthConfig;
 import org.openecomp.sdc.be.config.Configuration.OnboardingConfig;
 import org.openecomp.sdc.be.config.ConfigurationManager;
 import org.openecomp.sdc.be.model.VendorSoftwareProduct;
@@ -194,6 +198,11 @@ public class OnboardingClientImpl implements OnboardingClient {
         final var headers = new Properties();
         if (userId != null) {
             headers.put(Constants.USER_ID_HEADER, userId);
+        }
+        final BasicAuthConfig basicAuth = getOnboardingConfig().getBasicAuth();
+        if (basicAuth != null && basicAuth.isEnabled()) {
+            final String credentials = basicAuth.getUserName() + ":" + basicAuth.getUserPass();
+            headers.put(AUTHORIZATION, "Basic " + Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8)));
         }
         return headers;
     }

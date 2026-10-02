@@ -24,6 +24,7 @@ package org.onap.sdc.backend.ci.tests.utils.general;
 import static org.onap.sdc.backend.ci.tests.utils.general.FileHandling.filterFileNamesListFromFolder;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 import org.onap.sdc.backend.ci.tests.datatypes.enums.PackageTypeEnum;
 import org.onap.sdc.backend.ci.tests.datatypes.http.HttpHeaderEnum;
 import org.onap.sdc.backend.ci.tests.datatypes.http.HttpRequest;
@@ -111,6 +112,8 @@ public class OnboardingUtils {
 
 	public static final String INVALID_XNFS_SUBPATH = "invalid";
 	public static final String WITH_WARNINGS_XNFS_SUBPATH = "with_warnings";
+	static final String ONBOARDING_BASIC_AUTHENTICATION =
+		"Basic " + Base64.getEncoder().encodeToString("testName:testPass".getBytes(StandardCharsets.UTF_8));
 
 	public static String handleFilename(String heatFileName) {
 		final String namePrefix = String.format("%sVF%s", ElementFactory.getResourcePrefix(), "Onboarded-");
@@ -182,6 +185,7 @@ public class OnboardingUtils {
 		headersMap.put(HttpHeaderEnum.CONTENT_TYPE.getValue(), "application/json");
 		headersMap.put(HttpHeaderEnum.ACCEPT.getValue(), "application/json");
 		headersMap.put(HttpHeaderEnum.USER_ID.getValue(), userId);
+		headersMap.put(HttpHeaderEnum.AUTHORIZATION.getValue(), ONBOARDING_BASIC_AUTHENTICATION);
 		return headersMap;
 	}
 
