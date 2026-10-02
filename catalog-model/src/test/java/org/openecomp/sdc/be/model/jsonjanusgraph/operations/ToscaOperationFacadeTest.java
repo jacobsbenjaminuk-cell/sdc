@@ -42,11 +42,14 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.commons.collections.map.HashedMap;
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.janusgraph.core.attribute.Text;
+import org.janusgraph.graphdb.query.JanusGraphPredicate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -189,6 +192,26 @@ class ToscaOperationFacadeTest {
             .fetchMetaDataByResourceType(ResourceTypeEnum.VF.getValue(), new ComponentParametersView());
         assertTrue(fetchedComponents.isRight());
         assertEquals(StorageOperationStatus.GENERAL_ERROR, fetchedComponents.right().value());
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void getComponentByNameAndVendorRelease_quotesVendorReleaseInRegex() {
+        final ArgumentCaptor<Map> predicatesCapture = ArgumentCaptor.forClass(Map.class);
+        when(janusGraphDaoMock.getByCriteria(eq(null), anyMap(), anyMap(), predicatesCapture.capture(), eq(JsonParseFlagEnum.ParseMetadata),
+            eq(null))).thenReturn(Either.right(JanusGraphOperationStatus.NOT_FOUND));
+
+        final Either<Component, StorageOperationStatus> result = testInstance
+            .getComponentByNameAndVendorRelease(ComponentTypeEnum.RESOURCE, "name", "((a+)+)+.2", JsonParseFlagEnum.ParseMetadata, null);
+
+        assertTrue(result.isRight());
+        final Entry<JanusGraphPredicate, Object> predicate =
+            ((Map<String, Entry<JanusGraphPredicate, Object>>) predicatesCapture.getValue()).get("metadata");
+        assertEquals(Text.REGEX, predicate.getKey());
+        final String regex = (String) predicate.getValue();
+        assertTrue("{\"vendorRelease\":\"((a+)+)+.2\"}".matches(regex));
+        assertFalse("{\"vendorRelease\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa!.2\"}".matches(regex));
+        assertFalse("{\"vendorRelease\":\"((a+)+)+x2\"}".matches(regex));
     }
 
     @Test
