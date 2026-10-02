@@ -25,7 +25,9 @@ package org.openecomp.sdc.be.servlets;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import fj.data.Either;
@@ -61,11 +63,13 @@ import org.openecomp.sdc.be.components.impl.ResourceImportManager;
 import org.openecomp.sdc.be.components.impl.exceptions.ByResponseFormatComponentException;
 import org.openecomp.sdc.be.components.impl.exceptions.ComponentException;
 import org.openecomp.sdc.be.components.scheduledtasks.ComponentsCleanBusinessLogic;
+import org.openecomp.sdc.be.components.validation.UserValidations;
 import org.openecomp.sdc.be.config.Configuration;
 import org.openecomp.sdc.be.config.ConfigurationManager;
 import org.openecomp.sdc.be.config.SpringConfig;
 import org.openecomp.sdc.be.dao.api.ActionStatus;
 import org.openecomp.sdc.be.datatypes.enums.ComponentTypeEnum;
+import org.openecomp.sdc.be.datatypes.enums.NodeTypeEnum;
 import org.openecomp.sdc.be.impl.ComponentsUtils;
 import org.openecomp.sdc.be.impl.ServletUtils;
 import org.openecomp.sdc.be.impl.WebAppContextWrapper;
@@ -79,6 +83,7 @@ import org.openecomp.sdc.be.model.catalog.CatalogComponent;
 import org.openecomp.sdc.be.model.category.CategoryDefinition;
 import org.openecomp.sdc.be.model.category.GroupingDefinition;
 import org.openecomp.sdc.be.model.category.SubCategoryDefinition;
+import org.openecomp.sdc.be.servlets.exception.ComponentExceptionMapper;
 import org.openecomp.sdc.be.ui.model.UiCategories;
 import org.openecomp.sdc.be.user.Role;
 import org.openecomp.sdc.be.user.UserBusinessLogic;
@@ -132,6 +137,8 @@ class ElementServletTest extends JerseyTest {
     /* Users */
     private static User designerUser = new User("designer", "designer", "designer", "designer@email.com",
         Role.DESIGNER.name(), System.currentTimeMillis());
+    private static User adminUser = new User("admin", "admin", "admin", "admin@email.com",
+        Role.ADMIN.name(), System.currentTimeMillis());
 
     private static ConfigurationManager configurationManager;
 
@@ -180,6 +187,8 @@ class ElementServletTest extends JerseyTest {
         Either<User, ActionStatus> designerEither = Either.left(designerUser);
 
         when(userAdmin.getUser(designerUser.getUserId(), false)).thenReturn(designerUser);
+        when(userBusinessLogic.getUser(designerUser.getUserId())).thenReturn(designerUser);
+        when(userBusinessLogic.getUser(adminUser.getUserId())).thenReturn(adminUser);
 
         String appConfigDir = "src/test/resources/config/catalog-be";
         ConfigurationSource configurationSource = new FSConfigurationSource(ExternalConfiguration.getChangeListener(),
@@ -202,6 +211,7 @@ class ElementServletTest extends JerseyTest {
     public void before() throws Exception {
         super.setUp();
         reset(elementBusinessLogic);
+        reset(componentsCleanBusinessLogic);
         when(request.getHeader("If-None-Match")).thenReturn(null);
     }
 
@@ -1169,8 +1179,10 @@ class ElementServletTest extends JerseyTest {
                     bind(elementBusinessLogic).to(ElementBusinessLogic.class);
                     bind(artifactsBusinessLogic).to(ArtifactsBusinessLogic.class);
                     bind(modelBusinessLogic).to(ModelBusinessLogic.class);
+                    bind(new UserValidations(userBusinessLogic)).to(UserValidations.class);
                 }
             })
+            .register(new ComponentExceptionMapper(componentUtils))
             .property("contextConfig", context);
     }
 
@@ -1205,6 +1217,50 @@ class ElementServletTest extends JerseyTest {
             .get();
 
         assertThat(response.getStatus()).isEqualTo(HttpStatus.SC_NO_CONTENT);
+    }
+
+    @Test
+    void deleteMarkedResourcesAsAdminTest() {
+        Map<NodeTypeEnum, Either<List<String>, ResponseFormat>> cleanResult = new HashMap<>();
+        cleanResult.put(NodeTypeEnum.Resource, Either.left(new ArrayList<>()));
+        when(componentsCleanBusinessLogic.cleanComponents(any())).thenReturn(cleanResult);
+
+        Response response = target()
+            .path("/v1/inactiveComponents/resource")
+            .request()
+            .accept(MediaType.APPLICATION_JSON)
+            .header(Constants.USER_ID_HEADER, adminUser.getUserId())
+            .delete();
+
+        assertThat(response.getStatus()).isEqualTo(HttpStatus.SC_OK);
+        verify(componentsCleanBusinessLogic).cleanComponents(List.of(NodeTypeEnum.Resource));
+    }
+
+    @Test
+    void deleteMarkedResourcesAsDesignerIsRestrictedTest() {
+        Response response = target()
+            .path("/v1/inactiveComponents/resource")
+            .request()
+            .accept(MediaType.APPLICATION_JSON)
+            .header(Constants.USER_ID_HEADER, designerUser.getUserId())
+            .delete();
+
+        assertThat(response.getStatus()).isEqualTo(HttpStatus.SC_FORBIDDEN);
+        verify(componentsCleanBusinessLogic, never()).cleanComponents(any());
+    }
+
+    @Test
+    void deleteMarkedResourcesWithoutUserIdIsRejectedTest() {
+        when(componentUtils.getResponseFormat(ActionStatus.MISSING_USER_ID)).thenReturn(badRequestResponseFormat);
+
+        Response response = target()
+            .path("/v1/inactiveComponents/resource")
+            .request()
+            .accept(MediaType.APPLICATION_JSON)
+            .delete();
+
+        assertThat(response.getStatus()).isEqualTo(HttpStatus.SC_BAD_REQUEST);
+        verify(componentsCleanBusinessLogic, never()).cleanComponents(any());
     }
 
 }

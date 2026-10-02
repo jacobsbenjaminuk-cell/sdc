@@ -54,6 +54,7 @@ import org.openecomp.sdc.be.components.impl.ArtifactsBusinessLogic;
 import org.openecomp.sdc.be.components.impl.ElementBusinessLogic;
 import org.openecomp.sdc.be.components.impl.ModelBusinessLogic;
 import org.openecomp.sdc.be.components.scheduledtasks.ComponentsCleanBusinessLogic;
+import org.openecomp.sdc.be.components.validation.UserValidations;
 import org.openecomp.sdc.be.config.BeEcompErrorManager;
 import org.openecomp.sdc.be.config.Configuration;
 import org.openecomp.sdc.be.config.ConfigurationManager;
@@ -76,6 +77,7 @@ import org.openecomp.sdc.be.model.category.CategoryDefinition;
 import org.openecomp.sdc.be.model.category.GroupingDefinition;
 import org.openecomp.sdc.be.model.category.SubCategoryDefinition;
 import org.openecomp.sdc.be.ui.model.UiCategories;
+import org.openecomp.sdc.be.user.Role;
 import org.openecomp.sdc.be.user.UserBusinessLogic;
 import org.openecomp.sdc.common.api.Constants;
 import org.openecomp.sdc.common.log.wrappers.Logger;
@@ -102,16 +104,19 @@ public class ElementServlet extends BeGenericServlet {
     private final ElementBusinessLogic elementBusinessLogic;
     private final ArtifactsBusinessLogic artifactsBusinessLogic;
     private final ModelBusinessLogic modelBusinessLogic;
+    private final UserValidations userValidations;
 
     @Inject
     public ElementServlet(final ComponentsUtils componentsUtils,
                           final ComponentsCleanBusinessLogic componentsCleanBusinessLogic, final ElementBusinessLogic elementBusinessLogic,
-                          final ArtifactsBusinessLogic artifactsBusinessLogic, final ModelBusinessLogic modelBusinessLogic) {
+                          final ArtifactsBusinessLogic artifactsBusinessLogic, final ModelBusinessLogic modelBusinessLogic,
+                          final UserValidations userValidations) {
         super(componentsUtils);
         this.componentsCleanBusinessLogic = componentsCleanBusinessLogic;
         this.elementBusinessLogic = elementBusinessLogic;
         this.artifactsBusinessLogic = artifactsBusinessLogic;
         this.modelBusinessLogic = modelBusinessLogic;
+        this.userValidations = userValidations;
     }
     /*
      ******************************************************************************
@@ -570,14 +575,16 @@ public class ElementServlet extends BeGenericServlet {
 
     @DELETE
     @Path("/inactiveComponents/{componentType}")
-    public Response deleteMarkedResources(@PathParam("componentType") final String componentType, @Context final HttpServletRequest request) {
+    public Response deleteMarkedResources(@PathParam("componentType") final String componentType, @Context final HttpServletRequest request,
+                                          @HeaderParam(value = Constants.USER_ID_HEADER) final String userId) {
         String url = request.getMethod() + " " + request.getRequestURI();
         log.debug(START_HANDLE_REQUEST_OF, url);
-        // get modifier id
-        String userId = request.getHeader(Constants.USER_ID_HEADER);
         User modifier = new User();
         modifier.setUserId(userId);
         log.debug("modifier id is {}", userId);
+        final User user = userValidations.validateUserExists(userValidations.validateUserNotEmpty(modifier, "Delete Marked Components"));
+        userValidations.validateUserRole(user, List.of(Role.ADMIN));
+        log.info("User {} requested deletion of marked components of type {}", userId, componentType);
         NodeTypeEnum nodeType = NodeTypeEnum.getByNameIgnoreCase(componentType);
         if (nodeType == null) {
             log.info("componentType is not valid: {}", componentType);
