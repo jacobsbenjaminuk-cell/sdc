@@ -285,6 +285,13 @@ public class ServiceBusinessLogic extends ComponentBusinessLogic {
             return Either.right(componentsUtils.getResponseFormat(serviceEither.right().value()));
         }
         Service service = serviceEither.left().value();
+        try {
+            User user = validateUserExists(userId);
+            validateUserRole(user, service, new ArrayList<>(), null, null);
+            validateCanWorkOnComponent(service, userId);
+        } catch (ComponentException e) {
+            return Either.right(componentsUtils.getResponseFormat(e));
+        }
         StorageOperationStatus storageOperationStatus = graphLockOperation.lockComponent(service.getUniqueId(), NodeTypeEnum.Service);
         if (storageOperationStatus != StorageOperationStatus.OK) {
             return Either.right(componentsUtils.getResponseFormat(storageOperationStatus));
