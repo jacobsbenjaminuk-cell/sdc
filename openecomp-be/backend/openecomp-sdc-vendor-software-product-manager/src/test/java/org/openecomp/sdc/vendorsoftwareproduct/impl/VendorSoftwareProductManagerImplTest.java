@@ -21,11 +21,13 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.nullable;
@@ -40,6 +42,11 @@ import static org.openecomp.sdc.tosca.csar.ToscaMetadataFileInfo.TOSCA_META_PATH
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -49,6 +56,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.Optional;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Assert;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -632,6 +640,39 @@ class VendorSoftwareProductManagerImplTest {
 
         Assert.assertEquals(expectedItems.size(), 0);
         Assert.assertNotEquals(expectedItems.containsAll(actualItems), actualItems.containsAll(expectedItems));
+    }
+
+    @Test
+    void getTranslatedFileReturnsPackageBytesWithoutWritingToDisk() throws IOException {
+        final Path sharedFile = Paths.get(VendorSoftwareProductConstants.VSP_PACKAGE_ZIP);
+        Files.deleteIfExists(sharedFile);
+        final byte[] packageBytes = "vsp package".getBytes(StandardCharsets.UTF_8);
+        final PackageInfo packageInfo = new PackageInfo(VSP_ID, VERSION01);
+        packageInfo.setTranslatedFile(ByteBuffer.wrap(packageBytes));
+        when(packageInfoDao.get(any())).thenReturn(packageInfo);
+
+        assertArrayEquals(packageBytes, vendorSoftwareProductManager.getTranslatedFile(VSP_ID, VERSION01));
+        assertFalse(Files.exists(sharedFile));
+    }
+
+    @Test
+    void getInformationArtifactReturnsNameAndContent() throws IOException {
+        final VspDetails vspDetails = new VspDetails(VSP_ID, VERSION01);
+        vspDetails.setName("vspName");
+        when(vspInfoDaoMock.get(any())).thenReturn(vspDetails);
+        when(informationArtifactGeneratorMock.generate(VSP_ID, VERSION01)).thenReturn("info");
+
+        final Optional<Pair<String, byte[]>> artifact = vendorSoftwareProductManager.getInformationArtifact(VSP_ID, VERSION01);
+
+        assertTrue(artifact.isPresent());
+        assertEquals("VSP_vspName_Information.txt", artifact.get().getLeft());
+        assertArrayEquals("info".getBytes(), artifact.get().getRight());
+    }
+
+    @Test
+    void getInformationArtifactReturnsEmptyWhenVspMissing() {
+        when(vspInfoDaoMock.get(any())).thenReturn(null);
+        assertFalse(vendorSoftwareProductManager.getInformationArtifact(VSP_ID, VERSION01).isPresent());
     }
 
     private List<Item> getVSPItems(){

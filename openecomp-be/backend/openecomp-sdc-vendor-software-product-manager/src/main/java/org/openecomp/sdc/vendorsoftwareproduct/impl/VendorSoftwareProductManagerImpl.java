@@ -19,15 +19,12 @@ import static org.openecomp.sdc.vendorsoftwareproduct.errors.VendorSoftwareProdu
 import static org.openecomp.sdc.vendorsoftwareproduct.errors.VendorSoftwareProductInvalidErrorBuilder.invalidProcessedCandidate;
 import static org.openecomp.sdc.vendorsoftwareproduct.errors.VendorSoftwareProductInvalidErrorBuilder.vspMissingDeploymentFlavorErrorBuilder;
 
-import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -114,7 +111,6 @@ import org.openecomp.sdc.vendorsoftwareproduct.errors.InformationArtifactCreatio
 import org.openecomp.sdc.vendorsoftwareproduct.errors.NicInternalNetworkErrorBuilder;
 import org.openecomp.sdc.vendorsoftwareproduct.errors.PackageInvalidErrorBuilder;
 import org.openecomp.sdc.vendorsoftwareproduct.errors.PackageNotFoundErrorBuilder;
-import org.openecomp.sdc.vendorsoftwareproduct.errors.TranslationFileCreationErrorBuilder;
 import org.openecomp.sdc.vendorsoftwareproduct.errors.VendorSoftwareProductInvalidErrorBuilder;
 import org.openecomp.sdc.vendorsoftwareproduct.informationArtifact.InformationArtifactGenerator;
 import org.openecomp.sdc.vendorsoftwareproduct.services.filedatastructuremodule.CandidateService;
@@ -489,7 +485,7 @@ public class VendorSoftwareProductManagerImpl implements VendorSoftwareProductMa
     }
 
     @Override
-    public File getTranslatedFile(String vspId, Version version) {
+    public byte[] getTranslatedFile(String vspId, Version version) {
         PackageInfo packageInfo = packageInfoDao.get(new PackageInfo(vspId, version));
         if (packageInfo == null) {
             throw new CoreException(new PackageNotFoundErrorBuilder(vspId, version).build());
@@ -498,13 +494,7 @@ public class VendorSoftwareProductManagerImpl implements VendorSoftwareProductMa
         if (translatedFileBuffer == null) {
             throw new CoreException(new PackageInvalidErrorBuilder(vspId, version).build());
         }
-        File translatedFile = new File(VendorSoftwareProductConstants.VSP_PACKAGE_ZIP);
-        try (FileOutputStream fos = new FileOutputStream(translatedFile)) {
-            fos.write(translatedFileBuffer.array());
-        } catch (IOException exception) {
-            throw new CoreException(new TranslationFileCreationErrorBuilder(vspId, version).build(), exception);
-        }
-        return translatedFile;
+        return translatedFileBuffer.array();
     }
 
     @Override
@@ -688,24 +678,18 @@ public class VendorSoftwareProductManagerImpl implements VendorSoftwareProductMa
     }
 
     @Override
-    public File getInformationArtifact(String vspId, Version version) {
+    public Optional<Pair<String, byte[]>> getInformationArtifact(String vspId, Version version) {
         VspDetails vspDetails = vspInfoDao.get(new VspDetails(vspId, version));
         if (vspDetails == null) {
-            return null;
+            return Optional.empty();
         }
-        String vspName = vspDetails.getName();
-        ByteBuffer infoArtifactAsByteBuffer;
-        File infoArtifactFile;
+        String fileName = String.format(VendorSoftwareProductConstants.INFORMATION_ARTIFACT_NAME, vspDetails.getName());
         try {
-            infoArtifactAsByteBuffer = ByteBuffer.wrap(informationArtifactGenerator.generate(vspId, version).getBytes());
-            infoArtifactFile = new File(String.format(VendorSoftwareProductConstants.INFORMATION_ARTIFACT_NAME, vspName));
-            try (OutputStream out = new BufferedOutputStream(new FileOutputStream(infoArtifactFile))) {
-                out.write(infoArtifactAsByteBuffer.array());
-            }
+            byte[] content = informationArtifactGenerator.generate(vspId, version).getBytes();
+            return Optional.of(new ImmutablePair<>(fileName, content));
         } catch (IOException ex) {
             throw new CoreException(new InformationArtifactCreationErrorBuilder(vspId).build(), ex);
         }
-        return infoArtifactFile;
     }
 
     String getVspQuestionnaireSchema(SchemaTemplateInput schemaInput) {

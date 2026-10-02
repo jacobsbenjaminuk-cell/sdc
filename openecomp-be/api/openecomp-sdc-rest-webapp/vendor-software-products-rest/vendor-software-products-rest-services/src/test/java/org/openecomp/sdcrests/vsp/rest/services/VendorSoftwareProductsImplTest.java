@@ -22,6 +22,7 @@
 package org.openecomp.sdcrests.vsp.rest.services;
 
 import static ch.qos.logback.classic.util.ContextInitializer.CONFIG_FILE_PROPERTY;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -43,7 +44,9 @@ import java.nio.file.Paths;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.Response;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.http.HttpStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -300,6 +303,41 @@ class VendorSoftwareProductsImplTest {
         Response rsp = vendorSoftwareProducts.deleteVsp(vspId, user);
         assertEquals(HttpStatus.SC_OK, rsp.getStatus());
         assertNull(rsp.getEntity());
+    }
+
+    @Test
+    void getTranslatedFileReturnsPackageBytes() {
+        final Version version = new Version("versionId");
+        version.setName("1.0");
+        version.setStatus(VersionStatus.Certified);
+        when(versioningManager.list(vspId)).thenReturn(List.of(version));
+        final byte[] packageBytes = "vsp package".getBytes();
+        when(vendorSoftwareProductManager.getTranslatedFile(vspId, version)).thenReturn(packageBytes);
+
+        final Response rsp = vendorSoftwareProducts.getTranslatedFile(vspId, null, user);
+
+        assertEquals(HttpStatus.SC_OK, rsp.getStatus());
+        assertArrayEquals(packageBytes, (byte[]) rsp.getEntity());
+        assertEquals("attachment; filename=VSPPackage.zip", rsp.getHeaderString(HttpHeaders.CONTENT_DISPOSITION));
+    }
+
+    @Test
+    void getVspInformationArtifactReturnsBytesWithName() {
+        final byte[] content = "info".getBytes();
+        when(vendorSoftwareProductManager.getInformationArtifact(any(), any()))
+            .thenReturn(Optional.of(Pair.of("VSP_name_Information.txt", content)));
+
+        final Response rsp = vendorSoftwareProducts.getVspInformationArtifact(vspId, "1.0", user);
+
+        assertEquals(HttpStatus.SC_OK, rsp.getStatus());
+        assertArrayEquals(content, (byte[]) rsp.getEntity());
+        assertEquals("attachment; filename=VSP_name_Information.txt", rsp.getHeaderString(HttpHeaders.CONTENT_DISPOSITION));
+    }
+
+    @Test
+    void getVspInformationArtifactNotFound() {
+        when(vendorSoftwareProductManager.getInformationArtifact(any(), any())).thenReturn(Optional.empty());
+        assertEquals(HttpStatus.SC_NOT_FOUND, vendorSoftwareProducts.getVspInformationArtifact(vspId, "1.0", user).getStatus());
     }
 
     private String getConfigPath(String classpathFile) throws FileNotFoundException {
