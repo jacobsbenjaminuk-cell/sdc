@@ -25,20 +25,27 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -160,6 +167,30 @@ class ModelBusinessLogicTest {
         final OperationException expectedOperationException = ModelOperationExceptionSupplier.emptyModelImports().get();
         assertEquals(actualOperationException.getActionStatus(), expectedOperationException.getActionStatus());
         assertEquals(actualOperationException.getParams().length, expectedOperationException.getParams().length);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/opt/app/anImport.yaml", "C:/anImport.yaml"})
+    void createModelImportsTest_unsafeImportPath(final String importPath) throws IOException {
+        final var modelId = "modelId";
+        final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        try (final ZipOutputStream zipOutputStream = new ZipOutputStream(byteArrayOutputStream)) {
+            zipOutputStream.putNextEntry(new ZipEntry("anImport.yaml"));
+            zipOutputStream.write("content".getBytes(StandardCharsets.UTF_8));
+            zipOutputStream.closeEntry();
+            zipOutputStream.putNextEntry(new ZipEntry(importPath));
+            zipOutputStream.write("content".getBytes(StandardCharsets.UTF_8));
+            zipOutputStream.closeEntry();
+        }
+        final ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(byteArrayOutputStream.toByteArray());
+
+        when(modelOperation.findModelByName(modelId)).thenReturn(Optional.of(new Model(modelId)));
+
+        final OperationException actualOperationException = assertThrows(OperationException.class,
+            () -> modelBusinessLogic.createModelImports(modelId, byteArrayInputStream));
+
+        assertEquals(ModelOperationExceptionSupplier.couldNotReadImports().get().getActionStatus(), actualOperationException.getActionStatus());
+        verify(modelOperation, never()).createModelImports(anyString(), anyMap());
     }
 
     @Test

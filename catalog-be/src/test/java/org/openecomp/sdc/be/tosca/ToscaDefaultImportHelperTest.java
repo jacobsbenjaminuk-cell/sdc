@@ -22,9 +22,14 @@
 package org.openecomp.sdc.be.tosca;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Path;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ToscaDefaultImportHelperTest {
 
@@ -49,5 +54,35 @@ class ToscaDefaultImportHelperTest {
         final Path originalPath = Path.of("parent/anImport");
         assertEquals(originalPath, ToscaDefaultImportHelper.addModelAsFilePrefix(originalPath, null));
         assertEquals(originalPath, ToscaDefaultImportHelper.addModelAsFilePrefix(originalPath, ""));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"anImport.yaml", "parent/anImport.yaml", "parent/./anImport.yaml", "parent..name/anImport.yaml"})
+    void isSafeImportPath_relativePath(final String importPath) {
+        assertTrue(ToscaDefaultImportHelper.isSafeImportPath(importPath));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", " ", "/opt/app/anImport.yaml", "\\opt\\anImport.yaml", "C:/anImport.yaml", "c:anImport.yaml",
+        "C:\\anImport.yaml", "../anImport.yaml", "parent/../../anImport.yaml", "parent\\..\\..\\anImport.yaml", "parent/.."})
+    void isSafeImportPath_unsafePath(final String importPath) {
+        assertFalse(ToscaDefaultImportHelper.isSafeImportPath(importPath));
+    }
+
+    @Test
+    void resolveImportEntryPath_relativePath() {
+        final Path definitionsPath = Path.of("Definitions/");
+        assertEquals(Optional.of(Path.of("Definitions/parent/anImport.yaml")),
+            ToscaDefaultImportHelper.resolveImportEntryPath(definitionsPath, Path.of("parent/anImport.yaml")));
+        assertEquals(Optional.of(Path.of("parent/anImport.yaml")),
+            ToscaDefaultImportHelper.resolveImportEntryPath(Path.of(""), Path.of("parent/anImport.yaml")));
+    }
+
+    @Test
+    void resolveImportEntryPath_absoluteOrEscapingPath() {
+        final Path definitionsPath = Path.of("Definitions/");
+        assertEquals(Optional.empty(), ToscaDefaultImportHelper.resolveImportEntryPath(definitionsPath, Path.of("/opt/app/anImport.yaml")));
+        assertEquals(Optional.empty(), ToscaDefaultImportHelper.resolveImportEntryPath(definitionsPath, Path.of("../anImport.yaml")));
+        assertEquals(Optional.empty(), ToscaDefaultImportHelper.resolveImportEntryPath(Path.of(""), Path.of("/opt/app/anImport.yaml")));
     }
 }

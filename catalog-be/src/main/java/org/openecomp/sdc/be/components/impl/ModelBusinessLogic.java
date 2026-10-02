@@ -24,11 +24,13 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.apache.commons.lang3.StringUtils;
 import org.openecomp.sdc.be.datatypes.enums.ModelTypeEnum;
 import org.openecomp.sdc.be.model.Model;
 import org.openecomp.sdc.be.model.jsonjanusgraph.operations.exception.ModelOperationExceptionSupplier;
 import org.openecomp.sdc.be.model.operations.impl.ModelOperation;
+import org.openecomp.sdc.be.tosca.ToscaDefaultImportHelper;
 import org.openecomp.sdc.common.zip.ZipUtils;
 import org.openecomp.sdc.common.zip.exception.ZipException;
 import org.slf4j.Logger;
@@ -91,8 +93,17 @@ public class ModelBusinessLogic {
         if (zipFilesPathContentMap.isEmpty()) {
             throw ModelOperationExceptionSupplier.emptyModelImports().get();
         }
+        validateImportPaths(zipFilesPathContentMap.keySet());
 
         modelOperation.createModelImports(modelName, zipFilesPathContentMap);
+    }
+
+    private void validateImportPaths(final Set<String> importPaths) {
+        importPaths.stream().filter(importPath -> !ToscaDefaultImportHelper.isSafeImportPath(importPath)).findFirst()
+            .ifPresent(importPath -> {
+                LOGGER.debug("Invalid model import path '{}': it must be a relative path", importPath);
+                throw ModelOperationExceptionSupplier.couldNotReadImports().get();
+            });
     }
 
     private Map<String, byte[]> unzipInMemory(final byte[] fileBytes) {
