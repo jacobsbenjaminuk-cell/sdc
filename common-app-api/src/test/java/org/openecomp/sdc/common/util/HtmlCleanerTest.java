@@ -61,4 +61,38 @@ public class HtmlCleanerTest {
 
         assertEquals(result, "  testing element &amp;value ");
     }
+
+    @Test
+    public void validateStripHtmlRemovesTagsContainingRegexMetacharacters() {
+        final String testInput = "a<img src=x onerror=alert(1)>b<script src=x.js?>c</script>";
+
+        String result = HtmlCleaner.stripHtml(testInput);
+
+        assertEquals("abc", result);
+    }
+
+    @Test
+    public void validateStripHtmlRemovesTagWithInvalidRegexSyntax() {
+        final String testInput = "a<b [>b";
+
+        String result = HtmlCleaner.stripHtml(testInput);
+
+        assertEquals("ab", result);
+    }
+
+    @Test(timeout = 5000)
+    public void validateStripHtmlDoesNotTreatTagTextAsRegex() {
+        final StringBuilder testInput = new StringBuilder("<b ");
+        for (int i = 0; i < 20; i++) {
+            testInput.append(".*");
+        }
+        testInput.append("x>");
+        for (int i = 0; i < 200; i++) {
+            testInput.append("<b a");
+        }
+
+        String result = HtmlCleaner.stripHtml(testInput.toString());
+
+        assertEquals(testInput.substring(testInput.indexOf("x>") + 2), result);
+    }
 }
