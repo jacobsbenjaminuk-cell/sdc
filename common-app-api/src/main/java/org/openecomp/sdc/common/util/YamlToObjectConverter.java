@@ -46,9 +46,12 @@ import org.openecomp.sdc.common.log.enums.EcompLoggerErrorCode;
 import org.openecomp.sdc.common.log.wrappers.Logger;
 import org.openecomp.sdc.exception.YamlConversionException;
 import org.openecomp.sdc.fe.config.Configuration.FeMonitoringConfig;
+import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
+import org.yaml.snakeyaml.error.YAMLException;
 import org.yaml.snakeyaml.introspector.PropertyUtils;
 
 public class YamlToObjectConverter {
@@ -57,7 +60,7 @@ public class YamlToObjectConverter {
     private static HashMap<String, Constructor> yamlConstructors = new HashMap<>();
 
     static {
-        Constructor deConstructor = new Constructor(DistributionEngineConfiguration.class);
+        Constructor deConstructor = new GlobalTagRejectingConstructor(DistributionEngineConfiguration.class);
         TypeDescription deDescription = new TypeDescription(DistributionEngineConfiguration.class);
         deDescription.putListPropertyType("distributionStatusTopic", DistributionStatusTopicConfig.class);
         deDescription.putListPropertyType("distribNotifServiceArtifactTypes", ComponentArtifactTypesConfig.class);
@@ -68,13 +71,13 @@ public class YamlToObjectConverter {
         deConstructor.addTypeDescription(deDescription);
         yamlConstructors.put(DistributionEngineConfiguration.class.getName(), deConstructor);
         // FE conf
-        Constructor feConfConstructor = new Constructor(org.openecomp.sdc.fe.config.Configuration.class);
+        Constructor feConfConstructor = new GlobalTagRejectingConstructor(org.openecomp.sdc.fe.config.Configuration.class);
         TypeDescription feConfDescription = new TypeDescription(org.openecomp.sdc.fe.config.Configuration.class);
         feConfDescription.putListPropertyType("systemMonitoring", FeMonitoringConfig.class);
         feConfConstructor.addTypeDescription(feConfDescription);
         yamlConstructors.put(org.openecomp.sdc.fe.config.Configuration.class.getName(), feConfConstructor);
         // BE conf
-        Constructor beConfConstructor = new Constructor(org.openecomp.sdc.be.config.Configuration.class);
+        Constructor beConfConstructor = new GlobalTagRejectingConstructor(org.openecomp.sdc.be.config.Configuration.class);
         TypeDescription beConfDescription = new TypeDescription(org.openecomp.sdc.be.config.Configuration.class);
         beConfConstructor.addTypeDescription(beConfDescription);
         // systemMonitoring
@@ -96,7 +99,7 @@ public class YamlToObjectConverter {
         beConfDescription.putListPropertyType("toscaValidators", ToscaValidatorsConfig.class);
         yamlConstructors.put(org.openecomp.sdc.be.config.Configuration.class.getName(), beConfConstructor);
         // HEAT deployment artifact
-        Constructor depArtHeatConstructor = new Constructor(DeploymentArtifactHeatConfiguration.class);
+        Constructor depArtHeatConstructor = new GlobalTagRejectingConstructor(DeploymentArtifactHeatConfiguration.class);
         PropertyUtils propertyUtils = new PropertyUtils();
         // Skip properties which are found in YAML but not found in POJO
         propertyUtils.setSkipMissingProperties(true);
@@ -106,7 +109,24 @@ public class YamlToObjectConverter {
 
     private static <T> Yaml getYamlByClassName(Class<T> className) {
         Constructor yamlConstructor = yamlConstructors.get(className.getName());
-        return yamlConstructor == null ? new Yaml() : new Yaml(yamlConstructor);
+        return new Yaml(yamlConstructor == null ? new GlobalTagRejectingConstructor(className) : yamlConstructor);
+    }
+
+    /**
+     * Binds YAML to the registered root type and its declared property types only. Global tags
+     * (e.g. {@code !!java.net.URL}) that do not match a registered type description are rejected,
+     * so untrusted YAML cannot instantiate arbitrary classes.
+     */
+    private static final class GlobalTagRejectingConstructor extends Constructor {
+
+        GlobalTagRejectingConstructor(final Class<?> rootType) {
+            super(rootType, new LoaderOptions());
+        }
+
+        @Override
+        protected Class<?> getClassForName(final String name) {
+            throw new YAMLException("Global tag not allowed: " + name);
+        }
     }
 
     public <T> T convert(final String dirPath, final Class<T> className, final String configFileName) throws YamlConversionException {
@@ -157,7 +177,7 @@ public class YamlToObjectConverter {
     @SuppressWarnings("unchecked")
     public boolean isValidYaml(byte[] fileContents) {
         try {
-            Iterable<Object> mappedToscaTemplateIt = new Yaml().loadAll(new ByteArrayInputStream(fileContents));
+            Iterable<Object> mappedToscaTemplateIt = new Yaml(new SafeConstructor(new LoaderOptions())).loadAll(new ByteArrayInputStream(fileContents));
             for (Object o : mappedToscaTemplateIt) {
                 log.debug("Loaded object type:" + o.getClass());
                 Map<String, Object> map = (Map<String, Object>) o;
