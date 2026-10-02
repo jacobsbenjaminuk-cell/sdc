@@ -78,8 +78,7 @@ public class VnfPackageRepositoryImpl implements VnfPackageRepository {
     private static Client trustSSLClient() {
         try {
             SSLContext sslcontext = JettySSLUtils.getSslContext();
-            return ClientBuilder.newBuilder().sslContext(sslcontext).hostnameVerifier((requestedHost, remoteServerSession)
-                    -> requestedHost.equalsIgnoreCase(remoteServerSession.getPeerHost())).build();
+            return ClientBuilder.newBuilder().sslContext(sslcontext).build();
 
         } catch (IOException | GeneralSecurityException e) {
             LOGGER.error("Failed to initialize SSL context", e);
