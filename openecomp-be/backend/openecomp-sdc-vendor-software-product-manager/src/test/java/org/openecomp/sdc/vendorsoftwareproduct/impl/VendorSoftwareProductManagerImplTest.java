@@ -354,6 +354,27 @@ class VendorSoftwareProductManagerImplTest {
     }
 
     @Test
+    void testUpdateKeepsStoredTenant() {
+        VspDetails existingVsp =
+            createVspDetails(VSP_ID, VERSION01, "VSP1", null, "vendorName", "vlm1Id", "icon",
+                "category", "subCategory", "456", null);
+        existingVsp.setTenant("tenantA");
+        VspDetails updatedVsp =
+            createVspDetails(VSP_ID, VERSION01, "VSP1", null, "vendorName", "vlm1Id", "icon",
+                "category", "subCategory", "456", null);
+        updatedVsp.setTenant("tenantB");
+        doReturn(existingVsp).when(vspInfoDaoMock).get(any(VspDetails.class));
+        doNothing().when(vendorSoftwareProductManager)
+            .updateUniqueName(existingVsp.getName(), updatedVsp.getName());
+
+        vendorSoftwareProductManager.updateVsp(updatedVsp);
+
+        ArgumentCaptor<VspDetails> updated = ArgumentCaptor.forClass(VspDetails.class);
+        verify(vspInfoDaoMock).update(updated.capture());
+        assertEquals("tenantA", updated.getValue().getTenant());
+    }
+
+    @Test
     void testUpdateRemoveFG() {
         VersionInfo versionInfo = new VersionInfo();
         versionInfo.setActiveVersion(VERSION01);
