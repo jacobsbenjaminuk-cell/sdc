@@ -17,6 +17,7 @@ package org.openecomp.sdcrests.itempermissions.rest.services;
 
 import javax.inject.Named;
 import javax.ws.rs.core.Response;
+import org.openecomp.sdc.common.errors.Messages;
 import org.openecomp.sdc.itempermissions.PermissionsManager;
 import org.openecomp.sdc.itempermissions.PermissionsManagerFactory;
 import org.openecomp.sdcrests.itempermissions.rest.ItemPermissions;
@@ -39,6 +40,9 @@ public class ItemPermissionsImpl implements ItemPermissions {
 
     @Override
     public Response list(String itemId, String user) {
+        if (!permissionsManager.getUserItemPermission(itemId, user).isPresent()) {
+            return Response.status(Response.Status.FORBIDDEN).entity(new Exception(Messages.PERMISSIONS_ERROR.getErrorMessage())).build();
+        }
         GenericCollectionWrapper<ItemPermissionsDto> results = new GenericCollectionWrapper<>();
         MapItemPermissionsToItemPermissionsDto mapper = new MapItemPermissionsToItemPermissionsDto();
         permissionsManager.listItemPermissions(itemId)
