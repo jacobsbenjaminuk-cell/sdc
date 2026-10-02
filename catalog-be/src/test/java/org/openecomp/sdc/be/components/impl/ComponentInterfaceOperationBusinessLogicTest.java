@@ -20,9 +20,14 @@
 package org.openecomp.sdc.be.components.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import fj.data.Either;
@@ -37,13 +42,17 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.openecomp.sdc.be.components.impl.exceptions.BusinessLogicException;
+import org.openecomp.sdc.be.components.impl.exceptions.ByActionStatusComponentException;
 import org.openecomp.sdc.be.components.validation.ComponentValidations;
 import org.openecomp.sdc.be.components.validation.UserValidations;
+import org.openecomp.sdc.be.dao.api.ActionStatus;
 import org.openecomp.sdc.be.dao.janusgraph.JanusGraphDao;
 import org.openecomp.sdc.be.dao.janusgraph.JanusGraphGenericDao;
 import org.openecomp.sdc.be.dao.janusgraph.JanusGraphOperationStatus;
@@ -63,8 +72,10 @@ import org.openecomp.sdc.be.model.ComponentInstanceInterface;
 import org.openecomp.sdc.be.model.ComponentParametersView;
 import org.openecomp.sdc.be.model.DataTypeDefinition;
 import org.openecomp.sdc.be.model.InterfaceDefinition;
+import org.openecomp.sdc.be.model.LifecycleStateEnum;
 import org.openecomp.sdc.be.model.PropertyConstraint;
 import org.openecomp.sdc.be.model.PropertyDefinition;
+import org.openecomp.sdc.be.model.Resource;
 import org.openecomp.sdc.be.model.Service;
 import org.openecomp.sdc.be.model.cache.ApplicationDataTypeCache;
 import org.openecomp.sdc.be.model.jsonjanusgraph.operations.ToscaOperationFacade;
@@ -77,6 +88,8 @@ import org.openecomp.sdc.exception.ResponseFormat;
 
 @ExtendWith(MockitoExtension.class)
 class ComponentInterfaceOperationBusinessLogicTest extends BaseBusinessLogicMock {
+
+    private static final String USER_ID = "cs0008";
 
     @InjectMocks
     private ComponentInterfaceOperationBusinessLogic componentInterfaceOperationBusinessLogic;
@@ -121,6 +134,7 @@ class ComponentInterfaceOperationBusinessLogicTest extends BaseBusinessLogicMock
         componentInterfaceOperationBusinessLogic.setJanusGraphDao(janusGraphDao);
         componentInterfaceOperationBusinessLogic.setApplicationDataTypeCache(applicationDataTypeCache);
         initComponentData();
+        lenient().when(userValidations.isSameUser(USER_ID, USER_ID)).thenReturn(true);
     }
 
     @Test
@@ -165,7 +179,7 @@ class ComponentInterfaceOperationBusinessLogicTest extends BaseBusinessLogicMock
         when(applicationDataTypeCache.getAll(null)).thenReturn(Either.left(new HashMap<>()));
 
         final Optional<ComponentInstance> result = componentInterfaceOperationBusinessLogic
-            .updateComponentInstanceInterfaceOperation(componentId, componentInstanceId, interfaceDefinition,
+            .updateComponentInstanceInterfaceOperation(componentId, USER_ID, componentInstanceId, interfaceDefinition,
                 ComponentTypeEnum.SERVICE, new Wrapper<>(), true);
         assertThat(result).isPresent();
     }
@@ -221,7 +235,7 @@ class ComponentInterfaceOperationBusinessLogicTest extends BaseBusinessLogicMock
         when(applicationDataTypeCache.getAll(null)).thenReturn(Either.left(dataTypes));
 
         final Optional<ComponentInstance> result = componentInterfaceOperationBusinessLogic
-            .updateComponentInstanceInterfaceOperation(componentId, componentInstanceId, interfaceDefinition,
+            .updateComponentInstanceInterfaceOperation(componentId, USER_ID, componentInstanceId, interfaceDefinition,
                 ComponentTypeEnum.SERVICE, errorWrapper, false);
         assertThat(result).isNotPresent();
         assertTrue(errorWrapper.getInnerElement().getStatus() == 400);
@@ -285,7 +299,7 @@ class ComponentInterfaceOperationBusinessLogicTest extends BaseBusinessLogicMock
         when(applicationDataTypeCache.getAll(null)).thenReturn(Either.left(dataTypes));
 
         final Optional<ComponentInstance> result = componentInterfaceOperationBusinessLogic
-            .updateComponentInstanceInterfaceOperation(componentId, componentInstanceId, interfaceDefinition,
+            .updateComponentInstanceInterfaceOperation(componentId, USER_ID, componentInstanceId, interfaceDefinition,
                 ComponentTypeEnum.SERVICE, errorWrapper, false);
         assertThat(result).isPresent();
     }
@@ -348,7 +362,7 @@ class ComponentInterfaceOperationBusinessLogicTest extends BaseBusinessLogicMock
             null, artifactType))).thenReturn(artifactTypeDefinitionFromCache);
 
         final Optional<ComponentInstance> result = componentInterfaceOperationBusinessLogic
-            .updateComponentInstanceInterfaceOperation(componentId, componentInstanceId, interfaceDefinition,
+            .updateComponentInstanceInterfaceOperation(componentId, USER_ID, componentInstanceId, interfaceDefinition,
                 ComponentTypeEnum.SERVICE, errorWrapper, false);
         assertThat(result).isNotPresent();
         assertTrue(errorWrapper.getInnerElement().getStatus() == 400);
@@ -419,7 +433,7 @@ class ComponentInterfaceOperationBusinessLogicTest extends BaseBusinessLogicMock
             null, artifactType))).thenReturn(artifactTypeDefinitionFromCache);
 
         final Optional<ComponentInstance> result = componentInterfaceOperationBusinessLogic
-            .updateComponentInstanceInterfaceOperation(componentId, componentInstanceId, interfaceDefinition,
+            .updateComponentInstanceInterfaceOperation(componentId, USER_ID, componentInstanceId, interfaceDefinition,
                 ComponentTypeEnum.SERVICE, errorWrapper, false);
         assertThat(result).isPresent();
     }
@@ -459,7 +473,7 @@ class ComponentInterfaceOperationBusinessLogicTest extends BaseBusinessLogicMock
             .thenReturn(StorageOperationStatus.OK);
 
         final Optional<ComponentInstance> result = componentInterfaceOperationBusinessLogic
-            .createComponentInstanceInterfaceOperation(componentId, componentInstanceId, interfaceDefinition,
+            .createComponentInstanceInterfaceOperation(componentId, USER_ID, componentInstanceId, interfaceDefinition,
                 ComponentTypeEnum.SERVICE, new Wrapper<>(), true);
         assertThat(result).isPresent();
     }
@@ -499,7 +513,7 @@ class ComponentInterfaceOperationBusinessLogicTest extends BaseBusinessLogicMock
             .thenReturn(StorageOperationStatus.OK);
 
         final Optional<ComponentInstance> result = componentInterfaceOperationBusinessLogic
-            .createComponentInstanceInterfaceOperation(componentId, componentInstanceId, interfaceDefinition,
+            .createComponentInstanceInterfaceOperation(componentId, USER_ID, componentInstanceId, interfaceDefinition,
                 ComponentTypeEnum.SERVICE, new Wrapper<>(), true);
         assertThat(result).isEmpty();
     }
@@ -517,7 +531,7 @@ class ComponentInterfaceOperationBusinessLogicTest extends BaseBusinessLogicMock
         when(toscaOperationFacade.getToscaElement(componentId)).thenReturn(Either.left(component));
 
         final Optional<ComponentInstance> result = componentInterfaceOperationBusinessLogic
-            .createComponentInstanceInterfaceOperation(componentId, componentInstanceId, interfaceDefinition,
+            .createComponentInstanceInterfaceOperation(componentId, USER_ID, componentInstanceId, interfaceDefinition,
                 ComponentTypeEnum.SERVICE, new Wrapper<>(), true);
         assertThat(result).isEmpty();
     }
@@ -541,9 +555,118 @@ class ComponentInterfaceOperationBusinessLogicTest extends BaseBusinessLogicMock
             .thenReturn(Optional.of(componentInstance));
 
         final Optional<ComponentInstance> result = componentInterfaceOperationBusinessLogic
-            .createComponentInstanceInterfaceOperation(componentId, componentInstanceId, interfaceDefinition,
+            .createComponentInstanceInterfaceOperation(componentId, USER_ID, componentInstanceId, interfaceDefinition,
                 ComponentTypeEnum.SERVICE, new Wrapper<>(), true);
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    void createsResourceInterfaceOperationForCheckoutOwner() throws BusinessLogicException {
+        final Resource resource = new Resource();
+        resource.setUniqueId(component.getUniqueId());
+        resource.setLifecycleState(LifecycleStateEnum.NOT_CERTIFIED_CHECKOUT);
+        resource.setLastUpdaterUserId(USER_ID);
+        final InterfaceDefinition definition = new InterfaceDefinition();
+        definition.setType("tosca.interfaces.node.lifecycle.Standard");
+        final OperationDataDefinition operation = new OperationDataDefinition();
+        operation.setName("configure");
+        final ArtifactDataDefinition artifact = new ArtifactDataDefinition();
+        artifact.setArtifactName("implementation");
+        operation.setImplementation(artifact);
+        final Map<String, OperationDataDefinition> operations = new HashMap<>();
+        operations.put(operation.getName(), operation);
+        definition.setOperations(operations);
+        when(toscaOperationFacade.getToscaElement(resource.getUniqueId())).thenReturn(Either.left(resource));
+        when(graphLockOperation.lockComponent(resource.getUniqueId(), NodeTypeEnum.Resource)).thenReturn(StorageOperationStatus.OK);
+        when(toscaOperationFacade.addInterfaceToComponent(definition.getType(), definition, resource)).thenReturn(Either.left(definition));
+        when(janusGraphDao.commit()).thenReturn(JanusGraphOperationStatus.OK);
+        when(graphLockOperation.unlockComponent(resource.getUniqueId(), NodeTypeEnum.Resource)).thenReturn(StorageOperationStatus.OK);
+
+        final Optional<Component> result = componentInterfaceOperationBusinessLogic.createInterfaceOperationInResource(
+            resource.getUniqueId(), USER_ID, definition, ComponentTypeEnum.RESOURCE, new Wrapper<>(), true);
+
+        assertThat(result).contains(resource);
+        assertThat(resource.getInterfaces()).containsEntry(definition.getType(), definition);
+        verify(janusGraphDao).commit();
+    }
+
+    @ParameterizedTest
+    @EnumSource(InterfaceMutation.class)
+    void rejectsCertifiedComponent(InterfaceMutation mutation) {
+        component.setLifecycleState(LifecycleStateEnum.CERTIFIED);
+        assertMutationRejected(mutation, USER_ID, ActionStatus.RESTRICTED_OPERATION);
+    }
+
+    @ParameterizedTest
+    @EnumSource(InterfaceMutation.class)
+    void rejectsComponentCheckedOutByAnotherUser(InterfaceMutation mutation) {
+        component.setLastUpdaterUserId("other-designer");
+        assertMutationRejected(mutation, USER_ID, ActionStatus.RESTRICTED_OPERATION);
+    }
+
+    @ParameterizedTest
+    @EnumSource(InterfaceMutation.class)
+    void rejectsArchivedComponent(InterfaceMutation mutation) {
+        component.setArchived(true);
+        assertMutationRejected(mutation, USER_ID, ActionStatus.COMPONENT_IS_ARCHIVED);
+    }
+
+    @ParameterizedTest
+    @EnumSource(InterfaceMutation.class)
+    void rejectsDeletedComponent(InterfaceMutation mutation) {
+        component.setIsDeleted(true);
+        assertMutationRejected(mutation, USER_ID, ActionStatus.RESTRICTED_OPERATION);
+    }
+
+    @ParameterizedTest
+    @EnumSource(InterfaceMutation.class)
+    void rejectsMissingUser(InterfaceMutation mutation) {
+        assertMutationRejected(mutation, null, ActionStatus.RESTRICTED_OPERATION);
+    }
+
+    private void assertMutationRejected(InterfaceMutation mutation, String userId, ActionStatus expectedStatus) {
+        when(toscaOperationFacade.getToscaElement(component.getUniqueId())).thenReturn(Either.left(component));
+        final Map<String, InterfaceDefinition> interfaces = new HashMap<>();
+        final Map<String, List<ComponentInstanceInterface>> instanceInterfaces = new HashMap<>();
+        component.setInterfaces(interfaces);
+        component.setComponentInstancesInterfaces(instanceInterfaces);
+        final InterfaceDefinition definition = new InterfaceDefinition();
+        definition.setType("tosca.interfaces.node.lifecycle.Standard");
+        definition.setOperations(new HashMap<>());
+
+        final ByActionStatusComponentException exception = assertThrows(ByActionStatusComponentException.class,
+            () -> mutateInterface(mutation, userId, definition));
+
+        assertThat(exception.getActionStatus()).isEqualTo(expectedStatus);
+        assertThat(interfaces).isEmpty();
+        assertThat(instanceInterfaces).isEmpty();
+        assertThat(definition.getUniqueId()).isNull();
+        verify(toscaOperationFacade).getToscaElement(component.getUniqueId());
+        verifyNoMoreInteractions(toscaOperationFacade);
+        verifyNoInteractions(componentValidations, graphLockOperation, janusGraphDao, propertyBusinessLogic, artifactTypeBusinessLogic);
+    }
+
+    private void mutateInterface(InterfaceMutation mutation, String userId, InterfaceDefinition definition) throws BusinessLogicException {
+        switch (mutation) {
+            case UPDATE_INSTANCE:
+                componentInterfaceOperationBusinessLogic.updateComponentInstanceInterfaceOperation(component.getUniqueId(), userId,
+                    componentInstance.getUniqueId(), definition, ComponentTypeEnum.SERVICE, new Wrapper<>(), true);
+                break;
+            case CREATE_INSTANCE:
+                componentInterfaceOperationBusinessLogic.createComponentInstanceInterfaceOperation(component.getUniqueId(), userId,
+                    componentInstance.getUniqueId(), definition, ComponentTypeEnum.SERVICE, new Wrapper<>(), true);
+                break;
+            case CREATE_RESOURCE:
+                componentInterfaceOperationBusinessLogic.createInterfaceOperationInResource(component.getUniqueId(), userId,
+                    definition, ComponentTypeEnum.RESOURCE, new Wrapper<>(), true);
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported mutation: " + mutation);
+        }
+    }
+
+    private enum InterfaceMutation {
+        UPDATE_INSTANCE, CREATE_INSTANCE, CREATE_RESOURCE
     }
 
     private void initComponentData() {
@@ -551,6 +674,8 @@ class ComponentInterfaceOperationBusinessLogicTest extends BaseBusinessLogicMock
             component = new Service();
             component.setName("MyTestService");
             component.setUniqueId("dac65869-dfb4-40d2-aa20-084324659ec1");
+            component.setLifecycleState(LifecycleStateEnum.NOT_CERTIFIED_CHECKOUT);
+            component.setLastUpdaterUserId(USER_ID);
 
             componentInstance = new ComponentInstance();
             componentInstance.setUniqueId("dac65869-dfb4-40d2-aa20-084324659ec1.resource0");
