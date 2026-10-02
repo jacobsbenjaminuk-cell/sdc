@@ -114,7 +114,6 @@ public final class PortalRestApiCentralServiceImpl implements IPortalRestCentral
             log.debug("User authentication failed - Decryption failed", e);
             throw new PortalAPIException("Failed to decrypt" + e.getMessage());
         }
-        log.debug("the credentials map for portal is {}", credMap);
         return credMap;
     }
 
