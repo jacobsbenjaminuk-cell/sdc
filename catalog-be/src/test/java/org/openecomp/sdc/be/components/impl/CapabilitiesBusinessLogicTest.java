@@ -152,6 +152,8 @@ public class CapabilitiesBusinessLogicTest extends BaseBusinessLogicMock {
         Assert.assertTrue(capabilities.isLeft());
         Assert.assertTrue(capabilities.left().value().stream().anyMatch(capabilityDefinition ->
                 capabilityDefinition.getName().equals("capName")));
+        Mockito.verify(toscaOperationFacade).getToscaElement(anyString(),
+                Mockito.argThat((ComponentParametersView view) -> !view.isIgnoreUsers()));
     }
 
     @Test
@@ -399,6 +401,95 @@ public class CapabilitiesBusinessLogicTest extends BaseBusinessLogicMock {
                 capabilityDefinition.getProperties().size() == 1));
     }
 
+    @Test
+    public void shouldFailCreateCapabilitiesWhenComponentIsCertified() {
+        Resource resource = createComponent(false);
+        resource.setComponentType(ComponentTypeEnum.RESOURCE);
+        resource.setLifecycleState(LifecycleStateEnum.CERTIFIED);
+        when(toscaOperationFacade.getToscaElement(anyString(), any(ComponentParametersView.class)))
+                .thenReturn(Either.left(resource));
+        Either<List<CapabilityDefinition>, ResponseFormat> capabilities = capabilitiesBusinessLogicMock
+                .createCapabilities(componentId, createMockCapabilityListToReturn(
+                        createCapability("capName", "capDesc", "capType", "source1", "0", "10")),
+                        user, "createCapabilities", true);
+        assertRestrictedOperation(capabilities);
+    }
+
+    @Test
+    public void shouldFailCreateCapabilitiesWhenComponentIsCheckedOutByAnotherUser() {
+        Resource resource = createComponent(false);
+        resource.setComponentType(ComponentTypeEnum.RESOURCE);
+        resource.setLastUpdaterUserId("cs0008");
+        when(toscaOperationFacade.getToscaElement(anyString(), any(ComponentParametersView.class)))
+                .thenReturn(Either.left(resource));
+        Either<List<CapabilityDefinition>, ResponseFormat> capabilities = capabilitiesBusinessLogicMock
+                .createCapabilities(componentId, createMockCapabilityListToReturn(
+                        createCapability("capName", "capDesc", "capType", "source1", "0", "10")),
+                        user, "createCapabilities", true);
+        assertRestrictedOperation(capabilities);
+    }
+
+    @Test
+    public void shouldFailUpdateCapabilitiesWhenComponentIsCheckedOutByAnotherUser() {
+        Resource resource = createComponent(true);
+        resource.setComponentType(ComponentTypeEnum.RESOURCE);
+        resource.setLastUpdaterUserId("cs0008");
+        when(toscaOperationFacade.getToscaElement(anyString(), any(ComponentParametersView.class)))
+                .thenReturn(Either.left(resource));
+        Either<List<CapabilityDefinition>, ResponseFormat> capabilities = capabilitiesBusinessLogicMock
+                .updateCapabilities(componentId, createMockCapabilityListToReturn(
+                        createCapability("capName", "capDesc updated", "capType", "source1", "0", "10")),
+                        user, "updateCapabilities", true);
+        assertRestrictedOperation(capabilities);
+    }
+
+    @Test
+    public void shouldFailUpdateCapabilitiesWhenComponentIsCheckedIn() {
+        Resource resource = createComponent(true);
+        resource.setComponentType(ComponentTypeEnum.RESOURCE);
+        resource.setLifecycleState(LifecycleStateEnum.NOT_CERTIFIED_CHECKIN);
+        when(toscaOperationFacade.getToscaElement(anyString(), any(ComponentParametersView.class)))
+                .thenReturn(Either.left(resource));
+        Either<List<CapabilityDefinition>, ResponseFormat> capabilities = capabilitiesBusinessLogicMock
+                .updateCapabilities(componentId, createMockCapabilityListToReturn(
+                        createCapability("capName", "capDesc updated", "capType", "source1", "0", "10")),
+                        user, "updateCapabilities", true);
+        assertRestrictedOperation(capabilities);
+    }
+
+    @Test
+    public void shouldFailDeleteCapabilitiesWhenComponentIsCertified() {
+        Resource resource = createComponent(true);
+        resource.setComponentType(ComponentTypeEnum.RESOURCE);
+        resource.setLifecycleState(LifecycleStateEnum.CERTIFIED);
+        when(toscaOperationFacade.getToscaElement(anyString(), any(ComponentParametersView.class)))
+                .thenReturn(Either.left(resource));
+        Either<CapabilityDefinition, ResponseFormat> deleteCapabilityEither = capabilitiesBusinessLogicMock
+                .deleteCapability(componentId, capabilityId, user, true);
+        assertRestrictedOperation(deleteCapabilityEither);
+    }
+
+    @Test
+    public void shouldFailDeleteCapabilitiesWhenComponentIsCheckedOutByAnotherUser() {
+        Resource resource = createComponent(true);
+        resource.setComponentType(ComponentTypeEnum.RESOURCE);
+        resource.setLastUpdaterUserId("cs0008");
+        when(toscaOperationFacade.getToscaElement(anyString(), any(ComponentParametersView.class)))
+                .thenReturn(Either.left(resource));
+        Either<CapabilityDefinition, ResponseFormat> deleteCapabilityEither = capabilitiesBusinessLogicMock
+                .deleteCapability(componentId, capabilityId, user, true);
+        assertRestrictedOperation(deleteCapabilityEither);
+    }
+
+    private void assertRestrictedOperation(Either<?, ResponseFormat> result) {
+        Assert.assertTrue(result.isRight());
+        Assert.assertEquals(403, result.right().value().getStatus().intValue());
+        Mockito.verify(graphLockOperation, Mockito.never()).lockComponent(anyString(), any());
+        Mockito.verify(capabilitiesOperation, Mockito.never()).addCapabilities(anyString(), any());
+        Mockito.verify(capabilitiesOperation, Mockito.never()).updateCapabilities(anyString(), any());
+        Mockito.verify(capabilitiesOperation, Mockito.never()).deleteCapabilities(any(), anyString());
+    }
+
     private Resource createComponent(boolean needCapability) {
         Resource resource = new Resource();
         resource.setName("Resource1");
@@ -422,6 +513,7 @@ public class CapabilitiesBusinessLogicTest extends BaseBusinessLogicMock {
         resource.setUniqueId(resource.getName().toLowerCase() + ":" + resource.getVersion());
         resource.setCreatorUserId(user.getUserId());
         resource.setCreatorFullName(user.getFirstName() + " " + user.getLastName());
+        resource.setLastUpdaterUserId(user.getUserId());
         resource.setLifecycleState(LifecycleStateEnum.NOT_CERTIFIED_CHECKOUT);
         return resource;
     }
