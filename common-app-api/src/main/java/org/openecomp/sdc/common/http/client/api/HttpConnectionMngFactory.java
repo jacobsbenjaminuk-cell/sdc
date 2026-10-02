@@ -33,9 +33,7 @@ import org.apache.http.config.RegistryBuilder;
 import org.apache.http.conn.HttpClientConnectionManager;
 import org.apache.http.conn.socket.ConnectionSocketFactory;
 import org.apache.http.conn.socket.PlainConnectionSocketFactory;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
-import org.apache.http.conn.ssl.TrustSelfSignedStrategy;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.openecomp.sdc.common.api.Constants;
@@ -73,10 +71,8 @@ public class HttpConnectionMngFactory {
         try {
             if (clientCertificate != null) {
                 setClientSsl(clientCertificate, sslContextBuilder);
-            } else {
-                sslContextBuilder.loadTrustMaterial(new TrustSelfSignedStrategy());
             }
-            sslsf = new SSLConnectionSocketFactory(sslContextBuilder.build(), NoopHostnameVerifier.INSTANCE);
+            sslsf = new SSLConnectionSocketFactory(sslContextBuilder.build(), SSLConnectionSocketFactory.getDefaultHostnameVerifier());
         } catch (GeneralSecurityException e) {
             logger.debug("Create SSL connection socket factory failed with exception, use default SSL factory ", e);
             sslsf = SSLConnectionSocketFactory.getSocketFactory();
@@ -95,9 +91,7 @@ public class HttpConnectionMngFactory {
             char[] keyStorePassword = clientCertificate.getKeyStorePassword().toCharArray();
             KeyStore clientKeyStore = createClientKeyStore(clientCertificate.getKeyStore(), keyStorePassword);
             sslContextBuilder.loadKeyMaterial(clientKeyStore, keyStorePassword);
-            if (StringUtils.isEmpty(clientCertificate.getTrustStore())) {
-                sslContextBuilder.loadTrustMaterial(new TrustSelfSignedStrategy());
-            } else {
+            if (!StringUtils.isEmpty(clientCertificate.getTrustStore())) {
                 sslContextBuilder.loadTrustMaterial(new File(clientCertificate.getTrustStore()), clientCertificate.getTrustStorePassword().toCharArray());
             }
             logger.debug("#setClientSsl - Set Client Certificate authentication");
