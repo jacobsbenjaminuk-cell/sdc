@@ -28,8 +28,10 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isA;
-import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -58,12 +60,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.openecomp.sdc.be.components.impl.CommonImportManager;
+import org.openecomp.sdc.be.components.impl.exceptions.ByActionStatusComponentException;
 import org.openecomp.sdc.be.components.validation.AccessValidations;
+import org.openecomp.sdc.be.dao.api.ActionStatus;
 import org.openecomp.sdc.be.dao.janusgraph.HealingJanusGraphGenericDao;
 import org.openecomp.sdc.be.dao.janusgraph.JanusGraphOperationStatus;
 import org.openecomp.sdc.be.datatypes.enums.NodeTypeEnum;
 import org.openecomp.sdc.be.impl.ComponentsUtils;
 import org.openecomp.sdc.be.model.AnnotationTypeDefinition;
+import org.openecomp.sdc.be.model.User;
 import org.openecomp.sdc.be.model.operations.StorageException;
 import org.openecomp.sdc.be.model.operations.impl.AnnotationTypeOperations;
 import org.openecomp.sdc.be.model.operations.impl.CommonTypeOperations;
@@ -79,6 +84,7 @@ import org.springframework.context.annotation.Import;
 class TypesUploadEndpointTest extends JerseySpringBaseTest {
 
     static final String userId = "jh0003";
+    static final String testerUserId = "jm0007";
 
     private static AccessValidations accessValidations;
     private static HealingJanusGraphGenericDao janusGraphGenericDao;
@@ -125,7 +131,7 @@ class TypesUploadEndpointTest extends JerseySpringBaseTest {
 
     @Test
     void creatingAnnotationTypeSuccessTest() {
-        doNothing().when(accessValidations).validateUserExists(eq(userId), anyString());
+        when(accessValidations.userIsAdminOrDesigner(eq(userId), anyString())).thenReturn(new User(userId));
         when(janusGraphGenericDao.createNode(isA(AnnotationTypeData.class), eq(AnnotationTypeData.class)))
             .thenReturn(Either.left(new AnnotationTypeData()));
         when(janusGraphGenericDao.getNode(anyString(), eq("org.openecomp.annotations.source.1.0.annotationtype"),
@@ -169,7 +175,7 @@ class TypesUploadEndpointTest extends JerseySpringBaseTest {
 
     @Test
     void creatingAnnotationTypeFailureTest() {
-        doNothing().when(accessValidations).validateUserExists(eq(userId), anyString());
+        when(accessValidations.userIsAdminOrDesigner(eq(userId), anyString())).thenReturn(new User(userId));
         when(janusGraphGenericDao.createNode(isA(AnnotationTypeData.class), eq(AnnotationTypeData.class)))
             .thenReturn(Either.left(new AnnotationTypeData()));
         when(janusGraphGenericDao.getNode(anyString(), eq("org.openecomp.annotations.source.1.0.annotationtype"),
@@ -197,6 +203,24 @@ class TypesUploadEndpointTest extends JerseySpringBaseTest {
             .post(Entity.entity(multipartEntity, MediaType.MULTIPART_FORM_DATA), Response.class);
         assertThat(response.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST_400);
         assertThat(Boolean.valueOf(getTypeActionResult(response))).isFalse();
+    }
+
+    @Test
+    void creatingAnnotationTypeByUserWithoutAdminOrDesignerRole_isRestricted() {
+        doThrow(new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION))
+            .when(accessValidations).userIsAdminOrDesigner(eq(testerUserId), anyString());
+        Mockito.clearInvocations(janusGraphGenericDao);
+        FileDataBodyPart filePart = new FileDataBodyPart("annotationTypesZip",
+            new File("src/test/resources/types/annotationTypes.zip"));
+        MultiPart multipartEntity = new FormDataMultiPart();
+        multipartEntity.bodyPart(filePart);
+
+        Response response = target().path("/v1/catalog/uploadType/annotationtypes")
+            .request(MediaType.APPLICATION_JSON)
+            .header(Constants.USER_ID_HEADER, testerUserId)
+            .post(Entity.entity(multipartEntity, MediaType.MULTIPART_FORM_DATA), Response.class);
+        assertThat(response.getStatus()).isEqualTo(HttpStatus.FORBIDDEN_403);
+        verify(janusGraphGenericDao, never()).createNode(isA(AnnotationTypeData.class), eq(AnnotationTypeData.class));
     }
 
     @Test
