@@ -104,12 +104,14 @@ public class ComponentInterfaceOperationBusinessLogic extends BaseBusinessLogic 
         this.artifactTypeBusinessLogic = artifactTypeBusinessLogic;
     }
 
-    public Optional<ComponentInstance> updateComponentInstanceInterfaceOperation(final String componentId, final String componentInstanceId,
+    public Optional<ComponentInstance> updateComponentInstanceInterfaceOperation(final String componentId, final String userId,
+                                                                                 final String componentInstanceId,
                                                                                  final InterfaceDefinition interfaceDefinition,
                                                                                  final ComponentTypeEnum componentTypeEnum,
                                                                                  final Wrapper<ResponseFormat> errorWrapper, final boolean shouldLock)
         throws BusinessLogicException {
         final Component component = getComponent(componentId);
+        validateCanWorkOnComponent(component, userId);
         final Optional<ComponentInstance> componentInstanceOptional = componentValidations.getComponentInstance(component, componentInstanceId);
         ResponseFormat responseFormat;
         if (componentInstanceOptional.isEmpty()) {
@@ -307,13 +309,14 @@ public class ComponentInterfaceOperationBusinessLogic extends BaseBusinessLogic 
         return Optional.of(component);
     }
 
-    public Optional<ComponentInstance> createComponentInstanceInterfaceOperation(String componentId, String componentInstanceId,
+    public Optional<ComponentInstance> createComponentInstanceInterfaceOperation(String componentId, String userId, String componentInstanceId,
                                                                                  InterfaceDefinition interfaceDefinition,
                                                                                  ComponentTypeEnum componentTypeEnum,
                                                                                  Wrapper<ResponseFormat> errorWrapper, final boolean shouldLock)
         throws BusinessLogicException {
         ResponseFormat responseFormat;
         final Component component = getComponent(componentId);
+        validateCanWorkOnComponent(component, userId);
         final Optional<ComponentInstance> componentInstanceOptional = componentValidations.getComponentInstance(component, componentInstanceId);
         if (componentInstanceOptional.isEmpty()) {
             responseFormat = componentsUtils.getResponseFormat(ActionStatus.COMPONENT_INSTANCE_NOT_FOUND);
@@ -385,11 +388,13 @@ public class ComponentInterfaceOperationBusinessLogic extends BaseBusinessLogic 
         return componentInstanceOptional;
     }
 
-    public Optional<Component> createInterfaceOperationInResource(final String componentId, final InterfaceDefinition interfaceDefinition,
+    public Optional<Component> createInterfaceOperationInResource(final String componentId, final String userId,
+                                                                  final InterfaceDefinition interfaceDefinition,
                                                                   final ComponentTypeEnum componentTypeEnum,
                                                                   final Wrapper<ResponseFormat> errorWrapper, final boolean shouldLock)
         throws BusinessLogicException {
         final Component component = getComponent(componentId);
+        validateCanWorkOnComponent(component, userId);
         ResponseFormat responseFormat;
         final String componentInterfaceUpdatedKey = interfaceDefinition.getType();
 
