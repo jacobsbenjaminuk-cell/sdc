@@ -20,10 +20,11 @@
 
 package org.openecomp.sdc.be.csar.storage;
 
-import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
-
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -32,6 +33,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
@@ -53,6 +55,8 @@ public class MinIoStorageCsarSizeReducer implements PackageSizeReducer {
     private static final String CSAR_EXTENSION = "csar";
     private static final String UNEXPECTED_PROBLEM_HAPPENED_WHILE_READING_THE_CSAR = "An unexpected problem happened while reading the CSAR '%s'";
     private static final String EXTERNAL_CSAR_STORE = "externalCsarStore";
+    private static final int DEFAULT_MAX_UNCOMPRESSED_SIZE = 1073741824;
+    private static final int BUFFER_SIZE = 8192;
 
     @Getter
     private final AtomicBoolean reduced = new AtomicBoolean(false);
@@ -72,28 +76,35 @@ public class MinIoStorageCsarSizeReducer implements PackageSizeReducer {
         final List<String> foldersToStrip = commonConfigurationManager.getConfigValue(EXTERNAL_CSAR_STORE, "foldersToStrip", new ArrayList<>());
         final int sizeLimit = commonConfigurationManager.getConfigValue(EXTERNAL_CSAR_STORE, "sizeLimit", 1000000);
         final int thresholdEntries = commonConfigurationManager.getConfigValue(EXTERNAL_CSAR_STORE, "thresholdEntries", 10000);
+        final Number maxUncompressedSize =
+            commonConfigurationManager.getConfigValue(EXTERNAL_CSAR_STORE, "maxUncompressedSize", DEFAULT_MAX_UNCOMPRESSED_SIZE);
         LOGGER.info("Folders to strip: '{}'", String.join(", ", foldersToStrip));
         final Set<Path> foldersToStripPathSet = foldersToStrip.stream().map(Path::of).collect(Collectors.toSet());
-        return new CsarPackageReducerConfiguration(foldersToStripPathSet, sizeLimit, thresholdEntries);
+        return new CsarPackageReducerConfiguration(foldersToStripPathSet, sizeLimit, thresholdEntries, maxUncompressedSize.longValue());
     }
 
     @Override
     public byte[] reduce(final Path csarPackagePath) {
+        final var uncompressedBytesBudget = new AtomicLong(configuration.getMaxUncompressedSize());
         if (hasSignedPackageStructure(csarPackagePath)) {
-            return reduce(csarPackagePath, this::signedZipProcessingConsumer);
+            return reduce(csarPackagePath, this::signedZipProcessingConsumer, uncompressedBytesBudget);
         } else {
-            return reduce(csarPackagePath, this::unsignedZipProcessingConsumer);
+            return reduce(csarPackagePath, this::unsignedZipProcessingConsumer, uncompressedBytesBudget);
         }
     }
 
-    private byte[] reduce(final Path csarPackagePath, final ZipProcessFunction zipProcessingFunction) {
+    private byte[] reduce(final Path csarPackagePath, final ZipProcessFunction zipProcessingFunction, final AtomicLong uncompressedBytesBudget) {
         final var reducedCsarPath = Path.of(csarPackagePath + "." + UUID.randomUUID());
 
         try (final var zf = new ZipFile(csarPackagePath.toString());
             final var zos = new ZipOutputStream(new BufferedOutputStream(Files.newOutputStream(reducedCsarPath)))) {
-            zf.entries().asIterator().forEachRemaining(zipProcessingFunction.getProcessZipConsumer(csarPackagePath, zf, zos));
-        } catch (final IOException ex1) {
+            zf.entries().asIterator()
+                .forEachRemaining(zipProcessingFunction.getProcessZipConsumer(csarPackagePath, zf, zos, uncompressedBytesBudget));
+        } catch (final IOException | RuntimeException ex1) {
             rollback(reducedCsarPath);
+            if (ex1 instanceof CsarSizeReducerException) {
+                throw (CsarSizeReducerException) ex1;
+            }
             LOGGER.error("Could not read ZIP stream '{}'", csarPackagePath, ex1);
             final var errorMsg = String.format(UNEXPECTED_PROBLEM_HAPPENED_WHILE_READING_THE_CSAR, csarPackagePath);
             throw new CsarSizeReducerException(errorMsg, ex1);
@@ -121,7 +132,8 @@ public class MinIoStorageCsarSizeReducer implements PackageSizeReducer {
         return reducedCsarBytes;
     }
 
-    private Consumer<ZipEntry> signedZipProcessingConsumer(final Path csarPackagePath, final ZipFile zf, final ZipOutputStream zos) {
+    private Consumer<ZipEntry> signedZipProcessingConsumer(final Path csarPackagePath, final ZipFile zf, final ZipOutputStream zos,
+                                                           final AtomicLong uncompressedBytesBudget) {
         final var thresholdEntries = configuration.getThresholdEntries();
         final var totalEntryArchive = new AtomicInteger(0);
         return zipEntry -> {
@@ -137,11 +149,19 @@ public class MinIoStorageCsarSizeReducer implements PackageSizeReducer {
                 if (!zipEntry.isDirectory()) {
                     if (entryName.toLowerCase().endsWith(CSAR_EXTENSION)) {
                         final var internalCsarExtractPath = Path.of(csarPackagePath + "." + UUID.randomUUID());
-                        Files.copy(zf.getInputStream(zipEntry), internalCsarExtractPath, REPLACE_EXISTING);
-                        zos.write(reduce(internalCsarExtractPath, this::unsignedZipProcessingConsumer));
-                        Files.delete(internalCsarExtractPath);
+                        try {
+                            try (final InputStream entryInputStream = zf.getInputStream(zipEntry);
+                                final OutputStream extractOutputStream = Files.newOutputStream(internalCsarExtractPath)) {
+                                copyAtMost(entryInputStream, extractOutputStream, Long.MAX_VALUE, uncompressedBytesBudget, csarPackagePath);
+                            }
+                            zos.write(reduce(internalCsarExtractPath, this::unsignedZipProcessingConsumer, uncompressedBytesBudget));
+                        } finally {
+                            Files.deleteIfExists(internalCsarExtractPath);
+                        }
                     } else {
-                        zos.write(zf.getInputStream(zipEntry).readAllBytes());
+                        try (final InputStream entryInputStream = zf.getInputStream(zipEntry)) {
+                            copyAtMost(entryInputStream, zos, Long.MAX_VALUE, uncompressedBytesBudget, csarPackagePath);
+                        }
                     }
                 }
                 zos.closeEntry();
@@ -153,7 +173,8 @@ public class MinIoStorageCsarSizeReducer implements PackageSizeReducer {
         };
     }
 
-    private Consumer<ZipEntry> unsignedZipProcessingConsumer(final Path csarPackagePath, final ZipFile zf, final ZipOutputStream zos) {
+    private Consumer<ZipEntry> unsignedZipProcessingConsumer(final Path csarPackagePath, final ZipFile zf, final ZipOutputStream zos,
+                                                             final AtomicLong uncompressedBytesBudget) {
         final var thresholdEntries = configuration.getThresholdEntries();
         final var totalEntryArchive = new AtomicInteger(0);
         return zipEntry -> {
@@ -172,7 +193,18 @@ public class MinIoStorageCsarSizeReducer implements PackageSizeReducer {
                         zos.write("".getBytes());
                         reduced.set(true);
                     } else {
-                        zos.write(zf.getInputStream(zipEntry).readAllBytes());
+                        final var entryBytes = new ByteArrayOutputStream();
+                        final boolean isWithinSizeLimit;
+                        try (final InputStream entryInputStream = zf.getInputStream(zipEntry)) {
+                            isWithinSizeLimit = copyAtMost(entryInputStream, entryBytes, configuration.getSizeLimit(), uncompressedBytesBudget,
+                                csarPackagePath);
+                        }
+                        if (isWithinSizeLimit) {
+                            entryBytes.writeTo(zos);
+                        } else {
+                            zos.write("".getBytes());
+                            reduced.set(true);
+                        }
                     }
                 }
                 zos.closeEntry();
@@ -182,6 +214,37 @@ public class MinIoStorageCsarSizeReducer implements PackageSizeReducer {
                 throw new CsarSizeReducerException(errorMsg, ei);
             }
         };
+    }
+
+    /**
+     * Copies at most {@code limit} bytes, charging every byte read to {@code uncompressedBytesBudget}.
+     *
+     * @return {@code true} if the whole stream was copied, {@code false} if it holds more than {@code limit} bytes
+     * @throws CsarSizeReducerException if the budget is exhausted
+     */
+    private boolean copyAtMost(final InputStream inputStream, final OutputStream outputStream, final long limit,
+                               final AtomicLong uncompressedBytesBudget, final Path csarPackagePath) throws IOException {
+        final var buffer = new byte[BUFFER_SIZE];
+        long copied = 0;
+        int read;
+        while ((read = inputStream.read(buffer, 0, nextReadLength(buffer.length, limit - copied))) != -1) {
+            if (uncompressedBytesBudget.addAndGet(-read) < 0) {
+                final var errorMsg = String.format("The uncompressed content of the CSAR '%s' exceeds the limit of %d bytes", csarPackagePath,
+                    configuration.getMaxUncompressedSize());
+                LOGGER.warn(errorMsg);
+                throw new CsarSizeReducerException(errorMsg);
+            }
+            copied += read;
+            if (copied > limit) {
+                return false;
+            }
+            outputStream.write(buffer, 0, read);
+        }
+        return true;
+    }
+
+    private static int nextReadLength(final int bufferLength, final long bytesLeftWithinLimit) {
+        return bytesLeftWithinLimit < bufferLength ? (int) bytesLeftWithinLimit + 1 : bufferLength;
     }
 
     private void rollback(final Path reducedCsarPath) {
@@ -253,7 +316,7 @@ public class MinIoStorageCsarSizeReducer implements PackageSizeReducer {
     @FunctionalInterface
     private interface ZipProcessFunction {
 
-        Consumer<ZipEntry> getProcessZipConsumer(Path csarPackagePath, ZipFile zf, ZipOutputStream zos);
+        Consumer<ZipEntry> getProcessZipConsumer(Path csarPackagePath, ZipFile zf, ZipOutputStream zos, AtomicLong uncompressedBytesBudget);
     }
 
 }

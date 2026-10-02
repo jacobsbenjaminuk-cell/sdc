@@ -30,5 +30,6 @@ public class CsarPackageReducerConfiguration implements PackageSizeReducerConfig
     private final Set<Path> foldersToStrip;
     private final long sizeLimit;
     private final int thresholdEntries;
+    private final long maxUncompressedSize;
 
 }

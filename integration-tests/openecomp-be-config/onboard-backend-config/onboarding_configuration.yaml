@@ -62,6 +62,7 @@ externalCsarStore:
     - Files/images
   sizeLimit: 10000000
   thresholdEntries: 10000
+  maxUncompressedSize: 1073741824
   tempPath: "/home/onap/temp/"
   uploadPartSize: 200000000
 
