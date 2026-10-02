@@ -107,8 +107,8 @@ public class TenantAuthorizationFilter implements Filter {
             List<String> itemIds = new ArrayList<>();
             List<String> segments = pathSegments(request);
             parsePathItemId(segments).ifPresent(itemIds::add);
-            if (segments.equals(EXTERNAL_TESTING_EXECUTIONS)) {
-                itemIds.addAll(queryParameterValues(request.getQueryString(), VSP_ID_PARAM));
+            if (segments.equals(EXTERNAL_TESTING_EXECUTIONS) && "POST".equals(request.getMethod())) {
+                queryParameterValues(request.getQueryString(), VSP_ID_PARAM).stream().findFirst().ifPresent(itemIds::add);
             }
             return Optional.of(itemIds);
         } catch (IllegalArgumentException e) {

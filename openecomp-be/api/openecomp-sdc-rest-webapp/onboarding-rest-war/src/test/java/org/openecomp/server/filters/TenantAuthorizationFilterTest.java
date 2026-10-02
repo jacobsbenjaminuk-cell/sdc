@@ -83,8 +83,17 @@ class TenantAuthorizationFilterTest {
     @Test
     void parsesVspIdOfExternalTestingExecution() {
         HttpServletRequest request = request("/v1.0/externaltesting/executions");
-        when(request.getQueryString()).thenReturn("vspId=vsp1&vspVersionId=v1&vspId=vsp%32");
-        assertEquals(Optional.of(List.of("vsp1", "vsp2")), TenantAuthorizationFilter.parseItemIds(request));
+        when(request.getMethod()).thenReturn("POST");
+        when(request.getQueryString()).thenReturn("vspVersionId=v1&vspId=vsp%31&vspId=vsp2");
+        assertEquals(Optional.of(List.of("vsp1")), TenantAuthorizationFilter.parseItemIds(request));
+    }
+
+    @Test
+    void ignoresVspIdOfExternalTestingResultLookup() {
+        HttpServletRequest request = request("/v1.0/externaltesting/executions");
+        when(request.getMethod()).thenReturn("GET");
+        when(request.getQueryString()).thenReturn("requestId=r1&vspId=vsp1");
+        assertEquals(Optional.of(List.of()), TenantAuthorizationFilter.parseItemIds(request));
     }
 
     @Test
@@ -120,6 +129,7 @@ class TenantAuthorizationFilterTest {
     @Test
     void rejectsExternalTestingExecutionOfOtherTenantVsp() throws Exception {
         HttpServletRequest request = authenticatedRequest("/v1.0/externaltesting/executions", "tenantA");
+        when(request.getMethod()).thenReturn("POST");
         when(request.getQueryString()).thenReturn("vspId=" + ITEM_ID);
         when(itemManager.get(ITEM_ID)).thenReturn(item("tenantB"));
 
