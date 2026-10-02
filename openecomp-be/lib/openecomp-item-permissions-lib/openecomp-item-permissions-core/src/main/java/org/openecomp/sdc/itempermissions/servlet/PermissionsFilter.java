@@ -17,6 +17,7 @@ package org.openecomp.sdc.itempermissions.servlet;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.util.Set;
 import javax.servlet.Filter;
 import javax.servlet.FilterChain;
 import javax.servlet.FilterConfig;
@@ -43,6 +44,7 @@ public class PermissionsFilter implements Filter {
     private static final Logger LOGGER = LoggerFactory.getLogger(PermissionsFilter.class);
     private static final String IRRELEVANT_REQUEST = "Irrelevant_Request";
     private static final String EDIT_ITEM = "Edit_Item";
+    private static final Set<String> SAFE_METHODS = Set.of(HttpMethod.GET, HttpMethod.HEAD, HttpMethod.OPTIONS);
     private final PermissionsServices permissionsServices;
 
     public PermissionsFilter() {
@@ -67,8 +69,7 @@ public class PermissionsFilter implements Filter {
     }
 
     private boolean isRelevant(HttpServletRequest servletRequest, ServletResponse servletResponse) throws IOException {
-        String method = servletRequest.getMethod();
-        if (method.equals(HttpMethod.POST) || method.equals(HttpMethod.PUT) || method.equals(HttpMethod.DELETE)) {
+        if (!isSafeMethod(servletRequest.getMethod())) {
             String userId = servletRequest.getHeader("USER_ID");
             String itemId = parseItemIdFromPath(servletRequest.getPathInfo());
             if (!itemId.equals(IRRELEVANT_REQUEST) && !permissionsServices.isAllowed(itemId, userId, EDIT_ITEM)) {
@@ -79,6 +80,10 @@ public class PermissionsFilter implements Filter {
             }
         }
         return true;
+    }
+
+    private static boolean isSafeMethod(String method) {
+        return method != null && SAFE_METHODS.stream().anyMatch(method::equalsIgnoreCase);
     }
 
     private String parseItemIdFromPath(String pathInfo) {

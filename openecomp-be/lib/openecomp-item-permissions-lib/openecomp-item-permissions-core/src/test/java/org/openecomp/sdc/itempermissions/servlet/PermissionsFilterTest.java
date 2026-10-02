@@ -78,6 +78,45 @@ public class PermissionsFilterTest {
         Mockito.verify(filterChain, Mockito.times(1)).doFilter(Mockito.any(), Mockito.any());
     }
 
+    @Test
+    public void testDoFilterBlocksWriteMethodsRegardlessOfCase() throws ServletException, IOException {
+        for (String method : new String[]{"post", "put", "delete", "Delete", "PATCH", "patch", "PROPFIND"}) {
+            assertBlocked(method);
+        }
+    }
+
+    @Test
+    public void testDoFilterAllowsSafeMethodsWithoutPermissionCheck() throws ServletException, IOException {
+        for (String method : new String[]{HttpMethod.GET, "get", HttpMethod.HEAD, "head", HttpMethod.OPTIONS, "options"}) {
+            HttpServletRequest httpServletRequest = Mockito.spy(HttpServletRequest.class);
+            HttpServletResponse httpServletResponse = Mockito.spy(HttpServletResponse.class);
+            FilterChain filterChain = Mockito.mock(FilterChain.class);
+
+            initializeMocking(httpServletRequest, httpServletResponse, filterChain);
+            Mockito.when(httpServletRequest.getMethod()).thenReturn(method);
+            Mockito.when(httpServletRequest.getPathInfo()).thenReturn("onboardingci/onbrest/onboarding-api/v1.0");
+
+            permissionsFilter.doFilter(httpServletRequest, httpServletResponse, filterChain);
+
+            Mockito.verify(filterChain, Mockito.times(1)).doFilter(Mockito.any(), Mockito.any());
+        }
+    }
+
+    private void assertBlocked(String method) throws ServletException, IOException {
+        HttpServletRequest httpServletRequest = Mockito.spy(HttpServletRequest.class);
+        HttpServletResponse httpServletResponse = Mockito.spy(HttpServletResponse.class);
+        FilterChain filterChain = Mockito.mock(FilterChain.class);
+
+        initializeMocking(httpServletRequest, httpServletResponse, filterChain);
+        Mockito.when(httpServletRequest.getMethod()).thenReturn(method);
+        Mockito.when(httpServletRequest.getPathInfo()).thenReturn("onboardingci/onbrest/onboarding-api/v1.0");
+
+        permissionsFilter.doFilter(httpServletRequest, httpServletResponse, filterChain);
+
+        Mockito.verify(filterChain, Mockito.times(0)).doFilter(Mockito.any(), Mockito.any());
+        Mockito.verify(httpServletResponse).setStatus(HttpServletResponse.SC_FORBIDDEN);
+    }
+
     private void initializeMocking(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse,
                                    FilterChain filterChain) throws ServletException, IOException {
         PrintWriter printWriter = new PrintWriter(new ByteArrayOutputStream());
