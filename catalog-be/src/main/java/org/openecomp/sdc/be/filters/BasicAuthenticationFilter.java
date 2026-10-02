@@ -23,6 +23,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.List;
 import java.util.StringTokenizer;
@@ -102,15 +103,25 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter {
         if (p != -1) {
             String userName = credentials.substring(0, p).trim();
             String password = credentials.substring(p + 1).trim();
-            if (!userName.equals(basicAuthConf.getUserName()) || !password.equals(basicAuthConf.getUserPass())) {
+            boolean userNameMatches = constantTimeEquals(userName, basicAuthConf.getUserName());
+            boolean passwordMatches = constantTimeEquals(password, basicAuthConf.getUserPass());
+            if (userNameMatches && passwordMatches) {
+                authSuccessful(requestContext, userName);
+            } else {
                 log.error("Authentication Failed. Invalid userName or password");
                 authInvalidPasswordError(requestContext, userName);
             }
-            authSuccessful(requestContext, userName);
         } else {
             log.error("Authentication Filter Failed Couldn't retrieve authentication, no basic authentication.");
             authInvalidHeaderError(requestContext);
         }
+    }
+
+    private static boolean constantTimeEquals(String actual, String expected) {
+        if (expected == null) {
+            return false;
+        }
+        return MessageDigest.isEqual(actual.getBytes(StandardCharsets.UTF_8), expected.getBytes(StandardCharsets.UTF_8));
     }
 
     private void authSuccessful(ContainerRequestContext requestContext, String userName) {
