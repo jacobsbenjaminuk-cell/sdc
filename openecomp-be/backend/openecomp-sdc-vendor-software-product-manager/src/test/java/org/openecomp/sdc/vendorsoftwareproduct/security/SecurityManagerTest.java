@@ -37,18 +37,24 @@ import io.minio.MinioClient;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
@@ -84,6 +90,11 @@ class SecurityManagerTest {
         newFile.createNewFile();
         FileUtils.copyFile(origFile, newFile);
         return newFile;
+    }
+
+    private void stubExtractionThresholds() {
+        when(commonConfigurationManager.getConfigValue(eq("externalCsarStore"), eq("thresholdEntries"), any())).thenReturn(10000);
+        when(commonConfigurationManager.getConfigValue(eq("externalCsarStore"), eq("thresholdRatio"), any())).thenReturn(10);
     }
 
     private byte[] readAllBytes(String path) throws URISyntaxException, IOException {
@@ -181,6 +192,7 @@ class SecurityManagerTest {
                 when(commonConfigurationManager.getConfigValue("externalCsarStore", "tempPath", null)).thenReturn("cert/2-file-signed-package");
                 when(commonConfigurationManager.getConfigValue(eq("externalCsarStore"), eq("storageType"), any())).thenReturn(MINIO.name());
                 when(commonConfigurationManager.getConfigValue(eq("externalCsarStore"), eq("uploadPartSize"), any())).thenReturn(50_000_000);
+                stubExtractionThresholds();
 
                 prepareCertFiles("/cert/rootCA.cert", cerDirPath + "root.cert");
                 byte[] fileToUploadBytes = readAllBytes("/cert/2-file-signed-package/2-file-signed-package.zip");
@@ -250,6 +262,7 @@ class SecurityManagerTest {
                 when(commonConfigurationManager.getConfigValue("externalCsarStore", "tempPath", null)).thenReturn("tempPath");
                 when(commonConfigurationManager.getConfigValue(eq("externalCsarStore"), eq("storageType"), any())).thenReturn(MINIO.name());
                 when(commonConfigurationManager.getConfigValue(eq("externalCsarStore"), eq("uploadPartSize"), any())).thenReturn(50_000_000);
+                stubExtractionThresholds();
 
                 prepareCertFiles("/cert/rootCA.cert", cerDirPath + "root.cert");
                 byte[] fileToUploadBytes = readAllBytes("/cert/3-file-signed-package/3-file-signed-package.zip");
@@ -338,5 +351,98 @@ class SecurityManagerTest {
             securityManager.verifySignedData(signature, null, archive);
         });
 
+    }
+
+    @Test
+    void verifyPackageSignedDataRejectsHighlyCompressedInternalCsar(@TempDir final Path tempPath) throws Exception {
+        final byte[] signature = readAllBytes("/cert/2-file-signed-package/dummyPnfv4.cms");
+        final ByteArrayOutputStream storedPackage = new ByteArrayOutputStream();
+        try (final ZipOutputStream zos = new ZipOutputStream(storedPackage)) {
+            zos.putNextEntry(new ZipEntry("dummyPnfv4.cms"));
+            zos.write(signature);
+            zos.closeEntry();
+            zos.putNextEntry(new ZipEntry("dummyPnfv4.csar"));
+            final byte[] zeros = new byte[1024 * 1024];
+            for (int i = 0; i < 50; i++) {
+                zos.write(zeros);
+            }
+            zos.closeEntry();
+        }
+
+        final SecurityManagerException exception = assertMinIoVerificationFails(storedPackage.toByteArray(), tempPath);
+        assertEquals("Internal CSAR 'dummyPnfv4.csar' exceeds the allowed compression ratio of 10", exception.getMessage());
+    }
+
+    @Test
+    void verifyPackageSignedDataRejectsMoreThanOneInternalCsar(@TempDir final Path tempPath) throws Exception {
+        final byte[] signature = readAllBytes("/cert/2-file-signed-package/dummyPnfv4.cms");
+        final byte[] archive = readAllBytes("/cert/2-file-signed-package/dummyPnfv4.csar");
+        final ByteArrayOutputStream storedPackage = new ByteArrayOutputStream();
+        try (final ZipOutputStream zos = new ZipOutputStream(storedPackage)) {
+            zos.putNextEntry(new ZipEntry("dummyPnfv4.cms"));
+            zos.write(signature);
+            zos.closeEntry();
+            zos.putNextEntry(new ZipEntry("dummyPnfv4.csar"));
+            zos.write(archive);
+            zos.closeEntry();
+            zos.putNextEntry(new ZipEntry("other.csar"));
+            zos.write(archive);
+            zos.closeEntry();
+        }
+
+        final SecurityManagerException exception = assertMinIoVerificationFails(storedPackage.toByteArray(), tempPath);
+        assertEquals("Signed package contains more than one internal CSAR", exception.getMessage());
+    }
+
+    private SecurityManagerException assertMinIoVerificationFails(final byte[] storedPackage, final Path tempPath) throws Exception {
+        final Map<String, Object> endpoint = new HashMap<>();
+        endpoint.put("host", "localhost");
+        endpoint.put("port", 9000);
+        final Map<String, Object> credentials = new HashMap<>();
+        credentials.put("accessKey", "login");
+        credentials.put("secretKey", "password");
+
+        try (MockedStatic<CommonConfigurationManager> utilities = Mockito.mockStatic(CommonConfigurationManager.class)) {
+            utilities.when(CommonConfigurationManager::getInstance).thenReturn(commonConfigurationManager);
+            try (MockedStatic<MinioClient> minioUtilities = Mockito.mockStatic(MinioClient.class)) {
+                minioUtilities.when(MinioClient::builder).thenReturn(builderMinio);
+                when(builderMinio
+                    .endpoint(anyString(), anyInt(), anyBoolean())
+                    .credentials(anyString(), anyString())
+                    .build()
+                ).thenReturn(minioClient);
+
+                when(commonConfigurationManager.getConfigValue("externalCsarStore", "endpoint", null)).thenReturn(endpoint);
+                when(commonConfigurationManager.getConfigValue("externalCsarStore", "credentials", null)).thenReturn(credentials);
+                when(commonConfigurationManager.getConfigValue("externalCsarStore", "tempPath", null)).thenReturn(tempPath.toString());
+                when(commonConfigurationManager.getConfigValue(eq("externalCsarStore"), eq("storageType"), any())).thenReturn(MINIO.name());
+                when(commonConfigurationManager.getConfigValue(eq("externalCsarStore"), eq("uploadPartSize"), any())).thenReturn(50_000_000);
+                stubExtractionThresholds();
+
+                prepareCertFiles("/cert/rootCA.cert", cerDirPath + "root.cert");
+                final byte[] uploadedPackage = readAllBytes("/cert/2-file-signed-package/2-file-signed-package.zip");
+                when(getObjectArgsBuilder
+                    .bucket(anyString())
+                    .object(anyString())
+                    .build()
+                ).thenReturn(getObjectArgs);
+
+                when(minioClient.getObject(any(GetObjectArgs.class)))
+                    .thenReturn(new GetObjectResponse(null, "bucket", "", "objectName",
+                        new BufferedInputStream(new ByteArrayInputStream(storedPackage))));
+
+                final var onboardingPackageProcessor = new OnboardingPackageProcessor("2-file-signed-package.zip", uploadedPackage,
+                    new CnfPackageValidator(), new MinIoArtifactInfo("bucket", "objectName"));
+                final OnboardPackageInfo onboardPackageInfo = onboardingPackageProcessor.getOnboardPackageInfo().orElse(null);
+
+                final SecurityManagerException exception = Assertions.assertThrows(SecurityManagerException.class, () -> securityManager
+                    .verifyPackageSignedData((OnboardSignedPackage) onboardPackageInfo.getOriginalOnboardPackage(),
+                        onboardPackageInfo.getArtifactInfo()));
+                try (final Stream<Path> leftoverFiles = Files.list(tempPath)) {
+                    assertEquals(0, leftoverFiles.count());
+                }
+                return exception;
+            }
+        }
     }
 }
