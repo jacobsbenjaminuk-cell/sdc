@@ -64,8 +64,7 @@
                 org.openecomp.sdc.be.filters.ComponentsAvailabilityFilter,
                 org.openecomp.sdc.be.servlets.exception.DefaultExceptionMapper,
                 org.openecomp.sdc.be.servlets.exception.ComponentExceptionMapper,
-                org.openecomp.sdc.be.servlets.exception.StorageExceptionMapper,
-                org.openecomp.sdc.be.filters.BasicAuthenticationFilter
+                org.openecomp.sdc.be.servlets.exception.StorageExceptionMapper
             </param-value>
         </init-param>
         <load-on-startup>1</load-on-startup>
@@ -115,6 +114,22 @@
     <filter-mapping>
         <filter-name>contentSecurityPolicyHeaderFilter</filter-name>
         <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+    <filter>
+        <filter-name>externalApiAuthenticationFilter</filter-name>
+        <filter-class>
+            org.springframework.web.filter.DelegatingFilterProxy
+        </filter-class>
+        <init-param>
+            <param-name>targetFilterLifecycle</param-name>
+            <param-value>true</param-value>
+        </init-param>
+    </filter>
+
+    <filter-mapping>
+        <filter-name>externalApiAuthenticationFilter</filter-name>
+        <url-pattern>/sdc/*</url-pattern>
     </filter-mapping>
 
     <filter>

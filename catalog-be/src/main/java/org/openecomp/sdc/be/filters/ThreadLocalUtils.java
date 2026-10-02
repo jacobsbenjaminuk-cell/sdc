@@ -44,6 +44,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 public class ThreadLocalUtils implements IUsersThreadLocalHolder {
 
     private static final Logger log = Logger.getLogger(ThreadLocalUtils.class);
+    private static final String EXTERNAL_API_SERVLET_PATH = "/sdc";
     @Autowired
     private PortalClient portalClient;
     @Autowired
@@ -81,6 +82,11 @@ public class ThreadLocalUtils implements IUsersThreadLocalHolder {
         String userId = httpRequest.getHeader(Constants.USER_ID_HEADER);
         final Configuration.BasicAuthConfig basicAuthConf = ConfigurationManager.getConfigurationManager().getConfiguration().getBasicAuth();
         if (StringUtils.isBlank(userId)) {
+            if (EXTERNAL_API_SERVLET_PATH.equals(httpRequest.getServletPath())) {
+                log.debug("user_id value in external API request header is empty, userContext will not be initialized");
+                ThreadLocalsHolder.setUserContext(null);
+                return;
+            }
             final String excludedUrls = basicAuthConf.getExcludedUrls();
             //there are some internal request that have no user_id header e.g. healthcheck
             if (StringUtils.isBlank(excludedUrls) || !checkForExclusion(excludedUrls, httpRequest.getPathInfo())) {

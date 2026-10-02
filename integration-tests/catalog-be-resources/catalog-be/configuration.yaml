@@ -87,6 +87,10 @@ basicAuth:
   userPass: testPass
   excludedUrls: "/sdc2/rest/healthCheck"
 
+externalApiAuth:
+  consumerAllowedUserIds:
+    ci: [cs0008, jh0003, op0001, jm0007, gv0001, m12345]
+
 cassandraConfig:
     cassandraHosts: [sdc-cs]
     cassandraPort: 9042
