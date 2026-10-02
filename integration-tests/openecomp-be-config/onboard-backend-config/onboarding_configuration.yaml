@@ -6,6 +6,8 @@ catalogNotificationsConfig:
   catalogBeFqdn: sdc-BE
   # do not remove the "" from catalog_notification_url. it is escaping % characters coming from AUTO.json
   catalogNotificationUrl: "%s://%s:%s/sdc2/rest/v1/catalog/notif/vsp/"
+  # must match vspNotificationToken in the catalog-be configuration
+  catalogNotificationToken: "itest-vsp-notification-token"
 
 notifications:
   pollingIntervalMsec: 2000

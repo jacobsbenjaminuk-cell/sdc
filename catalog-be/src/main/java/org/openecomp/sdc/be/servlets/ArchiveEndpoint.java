@@ -61,6 +61,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 @Produces(MediaType.APPLICATION_JSON)
 public class ArchiveEndpoint extends BeGenericServlet {
 
+    static final String VSP_NOTIFICATION_TOKEN_HEADER = "X-SDC-VSP-NOTIFICATION-TOKEN";
     private static final String COMPONENT_ID = "Component ID= ";
     private static final LoggerSupportability loggerSupportability = LoggerSupportability.getLogger(ArchiveEndpoint.class.getName());
     private final ArchiveBusinessLogic archiveBusinessLogic;
@@ -153,8 +154,10 @@ public class ArchiveEndpoint extends BeGenericServlet {
         @ApiResponse(responseCode = "200", description = "Success"), @ApiResponse(responseCode = "400", description = "Bad request"),
         @ApiResponse(responseCode = "403", description = "Restricted operation"),
         @ApiResponse(responseCode = "500", description = "Internal Error. A list of the failed CSAR IDs may be returned.")})
-    public Response onVspArchived(@HeaderParam(value = Constants.USER_ID_HEADER) String userId, @RequestBody List<String> csarIds) {
-        List<String> failedCsarIds = this.archiveBusinessLogic.onVspArchive(userId, csarIds);
+    public Response onVspArchived(@HeaderParam(value = Constants.USER_ID_HEADER) String userId,
+                                  @HeaderParam(value = VSP_NOTIFICATION_TOKEN_HEADER) String notificationToken,
+                                  @RequestBody List<String> csarIds) {
+        List<String> failedCsarIds = this.archiveBusinessLogic.onVspArchive(userId, notificationToken, csarIds);
         if (!failedCsarIds.isEmpty()) {
             //There are some failed CSAR IDs, return 500 and the list of failed CSAR IDs
             Map<String, List<String>> entity = new HashMap<>();
@@ -170,8 +173,10 @@ public class ArchiveEndpoint extends BeGenericServlet {
         @ApiResponse(responseCode = "200", description = "Success"), @ApiResponse(responseCode = "400", description = "Bad request"),
         @ApiResponse(responseCode = "403", description = "Restricted operation"),
         @ApiResponse(responseCode = "500", description = "Internal Error. A list of the failed CSAR IDs may be returned.")})
-    public Response onVspRestored(@HeaderParam(value = Constants.USER_ID_HEADER) String userId, @RequestBody List<String> csarIds) {
-        List<String> failedCsarIds = this.archiveBusinessLogic.onVspRestore(userId, csarIds);
+    public Response onVspRestored(@HeaderParam(value = Constants.USER_ID_HEADER) String userId,
+                                  @HeaderParam(value = VSP_NOTIFICATION_TOKEN_HEADER) String notificationToken,
+                                  @RequestBody List<String> csarIds) {
+        List<String> failedCsarIds = this.archiveBusinessLogic.onVspRestore(userId, notificationToken, csarIds);
         if (!failedCsarIds.isEmpty()) {
             //There are some failed CSAR IDs, return 500 and the list of failed CSAR IDs
             Map<String, List<String>> entity = new HashMap<>();

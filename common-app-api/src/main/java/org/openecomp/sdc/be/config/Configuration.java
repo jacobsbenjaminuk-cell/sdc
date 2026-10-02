@@ -115,6 +115,10 @@ public class Configuration extends BasicConfiguration {
     private String heatTranslatorPath;
     private OnboardingConfig onboarding;
     private BasicAuthConfig basicAuth;
+    /**
+     * Shared secret the onboarding service sends in the VSP archive/restore notifications. Notifications are rejected when unset.
+     */
+    private String vspNotificationToken;
     private CassandrConfig cassandraConfig;
     private SwitchoverDetectorConfig switchoverDetector;
     private ApplicationL1CacheConfig applicationL1Cache;

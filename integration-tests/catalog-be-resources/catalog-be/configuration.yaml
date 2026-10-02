@@ -87,6 +87,9 @@ basicAuth:
   userPass: testPass
   excludedUrls: "/sdc2/rest/healthCheck"
 
+# shared secret the onboarding service sends with VSP archive/restore notifications (/v1/catalog/notif/vsp/*)
+vspNotificationToken: "itest-vsp-notification-token"
+
 cassandraConfig:
     cassandraHosts: [sdc-cs]
     cassandraPort: 9042
