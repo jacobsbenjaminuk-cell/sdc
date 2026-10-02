@@ -45,7 +45,11 @@ import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jetty.http.HttpStatus;
+import org.openecomp.sdc.be.components.impl.exceptions.ByActionStatusComponentException;
+import org.openecomp.sdc.be.dao.api.ActionStatus;
+import org.openecomp.sdc.be.dao.utils.UserStatusEnum;
 import org.openecomp.sdc.be.impl.ComponentsUtils;
 import org.openecomp.sdc.be.model.User;
 import org.openecomp.sdc.be.user.Role;
@@ -81,10 +85,13 @@ public class UserAdminServlet extends BeGenericServlet {
     @Operation(description = "retrieve user details", method = "GET", summary = "Returns user details according to userId", responses = {
         @ApiResponse(content = @Content(array = @ArraySchema(schema = @Schema(implementation = User.class)))),
         @ApiResponse(responseCode = "200", description = "Returns user Ok"), @ApiResponse(responseCode = "404", description = "User not found"),
+        @ApiResponse(responseCode = "401", description = "Authentication required"),
+        @ApiResponse(responseCode = "403", description = "Restricted Access"),
         @ApiResponse(responseCode = "405", description = "Method Not Allowed"),
         @ApiResponse(responseCode = "500", description = "Internal Server Error")})
     public User get(@Parameter(description = "userId of user to get", required = true) @PathParam("userId") final String userId,
                     @Context final HttpServletRequest request) {
+        validateUserReadAccess(request.getHeader(Constants.USER_ID_HEADER), userId);
         return userBusinessLogic.getUser(userId, false);
     }
     /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -96,10 +103,13 @@ public class UserAdminServlet extends BeGenericServlet {
     @Operation(description = "retrieve user role", summary = "Returns user role according to userId", responses = {
         @ApiResponse(content = @Content(array = @ArraySchema(schema = @Schema(implementation = String.class)))),
         @ApiResponse(responseCode = "200", description = "Returns user role Ok"), @ApiResponse(responseCode = "404", description = "User not found"),
+        @ApiResponse(responseCode = "401", description = "Authentication required"),
+        @ApiResponse(responseCode = "403", description = "Restricted Access"),
         @ApiResponse(responseCode = "405", description = "Method Not Allowed"),
         @ApiResponse(responseCode = "500", description = "Internal Server Error")})
     public String getRole(@Parameter(description = "userId of user to get", required = true) @PathParam("userId") final String userId,
                           @Context final HttpServletRequest request) {
+        validateUserReadAccess(request.getHeader(Constants.USER_ID_HEADER), userId);
         User user = userBusinessLogic.getUser(userId, false);
         return "{ \"role\" : \"" + user.getRole() + "\" }";
     }
@@ -167,8 +177,11 @@ public class UserAdminServlet extends BeGenericServlet {
     @Operation(description = "retrieve all administrators", method = "GET", summary = "Returns all administrators", responses = {
         @ApiResponse(content = @Content(array = @ArraySchema(schema = @Schema(implementation = User.class)))),
         @ApiResponse(responseCode = "200", description = "Returns user Ok"), @ApiResponse(responseCode = "405", description = "Method Not Allowed"),
+        @ApiResponse(responseCode = "401", description = "Authentication required"),
+        @ApiResponse(responseCode = "403", description = "Restricted Access"),
         @ApiResponse(responseCode = "500", description = "Internal Server Error")})
     public List<User> getAdminsUser(@Context final HttpServletRequest request) {
+        validateUserReadAccess(request.getHeader(Constants.USER_ID_HEADER), null);
         return userBusinessLogic.getAllAdminUsers();
     }
 
@@ -180,11 +193,13 @@ public class UserAdminServlet extends BeGenericServlet {
         @ApiResponse(content = @Content(array = @ArraySchema(schema = @Schema(implementation = User.class)))),
         @ApiResponse(responseCode = "200", description = "Returns users Ok"),
         @ApiResponse(responseCode = "204", description = "No provisioned ASDC users of requested role"),
+        @ApiResponse(responseCode = "401", description = "Authentication required"),
         @ApiResponse(responseCode = "403", description = "Restricted Access"), @ApiResponse(responseCode = "400", description = "Missing content"),
         @ApiResponse(responseCode = "500", description = "Internal Server Error")})
     public List<User> getUsersList(@Context final HttpServletRequest request,
-                                   @Parameter(description = "Any active user's USER_ID ") @HeaderParam(Constants.USER_ID_HEADER) final String userId,
+                                   @Parameter(description = "Active administrator's USER_ID") @HeaderParam(Constants.USER_ID_HEADER) final String userId,
                                    @Parameter(description = "TESTER,DESIGNER,PRODUCT_STRATEGIST,OPS,PRODUCT_MANAGER,GOVERNOR, ADMIN OR all users by not typing anything") @QueryParam("roles") final String roles) {
+        validateUserReadAccess(userId, null);
         String url = request.getMethod() + " " + request.getRequestURI();
         log.debug("Start handle request of {} modifier id is {}", url, userId);
         List<String> rolesList = new ArrayList<>();
@@ -195,6 +210,18 @@ public class UserAdminServlet extends BeGenericServlet {
             }
         }
         return userBusinessLogic.getUsersList(userId, rolesList, roles);
+    }
+
+    private void validateUserReadAccess(String requesterUserId, String targetUserId) {
+        if (StringUtils.isBlank(requesterUserId)) {
+            throw new ByActionStatusComponentException(ActionStatus.AUTH_REQUIRED);
+        }
+        User requester = userBusinessLogic.getUser(requesterUserId, false);
+        boolean isAdmin = Role.ADMIN.name().equals(requester.getRole());
+        boolean isSelf = targetUserId != null && targetUserId.equals(requester.getUserId());
+        if (requester.getStatus() != UserStatusEnum.ACTIVE || (!isAdmin && !isSelf)) {
+            throw new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION);
+        }
     }
 
     @DELETE
