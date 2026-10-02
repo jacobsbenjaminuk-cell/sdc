@@ -918,6 +918,10 @@ public class ServiceBusinessLogic extends ComponentBusinessLogic {
                 componentsUtils.convertFromStorageResponse(storageStatus.right().value(), ComponentTypeEnum.SERVICE), "");
         }
         Service service = storageStatus.left().value();
+        if (!ComponentValidationUtils.canWorkOnComponent(service, user.getUserId())) {
+            log.info("Restricted operation for user: {}, on service: {}", user.getUserId(), service.getCreatorUserId());
+            throw new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION);
+        }
         Either<Set<String>, StorageOperationStatus> result = null;
         if (lock) {
             try {
@@ -990,6 +994,10 @@ public class ServiceBusinessLogic extends ComponentBusinessLogic {
             throw new ByActionStatusComponentException(componentsUtils.convertFromStorageResponse(errorStatus));
         }
         Service storedService = serviceStorageOperationStatusEither.left().value();
+        if (!ComponentValidationUtils.canWorkOnComponent(storedService, user.getUserId())) {
+            log.info("Restricted operation for user: {}, on service: {}", user.getUserId(), storedService.getCreatorUserId());
+            throw new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION);
+        }
         Either<ForwardingPathDataDefinition, StorageOperationStatus> result;
         Component component = getForwardingPathOriginComponent();
         final String toscaResourceName;
