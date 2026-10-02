@@ -55,6 +55,8 @@ import org.openecomp.sdc.be.model.operations.api.IGroupTypeOperation;
 import org.openecomp.sdc.be.model.operations.api.StorageOperationStatus;
 import org.openecomp.sdc.be.model.operations.impl.InterfaceLifecycleOperation;
 import org.openecomp.sdc.be.model.operations.impl.UniqueIdBuilder;
+import org.openecomp.sdc.be.model.operations.utils.ComponentValidationUtils;
+import org.openecomp.sdc.be.user.Role;
 import org.openecomp.sdc.exception.ResponseFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,6 +70,7 @@ public class CapabilitiesBusinessLogic extends BaseBusinessLogic {
     private static final String DELETE_CAPABILITIES = "deleteCapability";
     private static final String GET_CAPABILITIES = "getCapabilities";
     private static final String EXCEPTION_OCCURRED_DURING_CAPABILITIES = "Exception occurred during {}. Response is {}";
+    private static final List<Role> MODIFY_CAPABILITIES_ROLES = List.of(Role.ADMIN, Role.DESIGNER);
     private final ICapabilityTypeOperation capabilityTypeOperation;
     private CapabilitiesOperation capabilitiesOperation;
     private CapabilitiesValidation capabilitiesValidation;
@@ -120,8 +123,7 @@ public class CapabilitiesBusinessLogic extends BaseBusinessLogic {
 
     private Either<Component, ResponseFormat> validateUserAndCapabilities(User user, String componentId, String errorContext,
                                                                           List<CapabilityDefinition> capabilityDefinitions) {
-        validateUserExists(user.getUserId());
-        Either<Component, ResponseFormat> componentEither = getComponentDetails(componentId);
+        Either<Component, ResponseFormat> componentEither = getModifiableComponent(componentId, user);
         if (componentEither.isRight()) {
             return Either.right(componentEither.right().value());
         }
@@ -179,8 +181,7 @@ public class CapabilitiesBusinessLogic extends BaseBusinessLogic {
 
     public Either<List<CapabilityDefinition>, ResponseFormat> updateCapabilities(String componentId, List<CapabilityDefinition> capabilityDefinitions,
                                                                                  User user, String errorContext, boolean lock) {
-        validateUserExists(user.getUserId());
-        Either<Component, ResponseFormat> componentEither = getComponentDetails(componentId);
+        Either<Component, ResponseFormat> componentEither = getModifiableComponent(componentId, user);
         if (componentEither.isRight()) {
             return Either.right(componentEither.right().value());
         }
@@ -380,8 +381,7 @@ public class CapabilitiesBusinessLogic extends BaseBusinessLogic {
     }
 
     public Either<CapabilityDefinition, ResponseFormat> deleteCapability(String componentId, String capabilityIdToDelete, User user, boolean lock) {
-        validateUserExists(user.getUserId());
-        Either<Component, ResponseFormat> componentEither = getComponentDetails(componentId);
+        Either<Component, ResponseFormat> componentEither = getModifiableComponent(componentId, user);
         if (componentEither.isRight()) {
             return Either.right(componentEither.right().value());
         }
@@ -471,6 +471,20 @@ public class CapabilitiesBusinessLogic extends BaseBusinessLogic {
             }
         }
         return result;
+    }
+
+    private Either<Component, ResponseFormat> getModifiableComponent(String componentId, User user) {
+        validateUserRole(validateUserExists(user.getUserId()), MODIFY_CAPABILITIES_ROLES);
+        Either<Component, ResponseFormat> componentEither = getComponentDetails(componentId);
+        if (componentEither.isRight()) {
+            return componentEither;
+        }
+        Component storedComponent = componentEither.left().value();
+        if (!ComponentValidationUtils.canWorkOnComponent(storedComponent, user.getUserId())) {
+            LOGGER.error("User {} is not allowed to modify capabilities of component {}", user.getUserId(), storedComponent.getUniqueId());
+            return Either.right(componentsUtils.getResponseFormat(ActionStatus.RESTRICTED_OPERATION));
+        }
+        return componentEither;
     }
 
     private Either<Component, ResponseFormat> getComponentDetails(String componentId) {
