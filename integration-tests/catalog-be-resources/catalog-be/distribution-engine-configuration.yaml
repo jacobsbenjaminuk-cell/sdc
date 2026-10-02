@@ -2,8 +2,8 @@ uebServers:
         - 10.0.11.1
         - 10.0.11.1
 
-uebPublicKey: ${UEB_PUBLIC_KEY}
-uebSecretKey: ${UEB_SECRET_KEY}
+uebPublicKey: public
+uebSecretKey: secret
 
 distributionNotifTopicName: SDC-DISTR-NOTIF-TOPIC-INT
 
@@ -61,7 +61,7 @@ aaiConfig:
          connectTimeoutMs: 1000
       clientCertificate:
          keyStore: /app/jetty/base/be/etc/non-prod.jks
-         keyStorePassword: ${AAI_KEYSTORE_PASSWORD}
+         keyStorePassword: XyCUPhFx9u70aklYGo6OiA==
       headers:
          X-FromAppId: asdc
       numOfRetries: 3
@@ -78,6 +78,6 @@ msoConfig:
           connectTimeoutMs: 500
        basicAuthorization:
           userName: asdc
-          password: ${MSO_BASIC_AUTH_PASSWORD}
+          password: XyCUPhFx9u70aklYGo6OiA==
        numOfRetries: 3
 
