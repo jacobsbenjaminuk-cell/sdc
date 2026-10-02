@@ -62,6 +62,7 @@ import org.openecomp.sdc.be.datatypes.elements.MilestoneDataDefinition;
 import org.openecomp.sdc.be.datatypes.elements.ToscaGetFunctionDataDefinition;
 import org.openecomp.sdc.be.datatypes.enums.ComponentTypeEnum;
 import org.openecomp.sdc.be.datatypes.enums.ModelTypeEnum;
+import org.openecomp.sdc.be.datatypes.enums.NodeTypeEnum;
 import org.openecomp.sdc.be.datatypes.tosca.ToscaGetFunctionType;
 import org.openecomp.sdc.be.model.ArtifactDefinition;
 import org.openecomp.sdc.be.model.Component;
@@ -70,6 +71,7 @@ import org.openecomp.sdc.be.model.ComponentInstanceInterface;
 import org.openecomp.sdc.be.model.ComponentInstanceProperty;
 import org.openecomp.sdc.be.model.GroupInstance;
 import org.openecomp.sdc.be.model.InputDefinition;
+import org.openecomp.sdc.be.model.LifecycleStateEnum;
 import org.openecomp.sdc.be.model.Model;
 import org.openecomp.sdc.be.model.Operation;
 import org.openecomp.sdc.be.model.PropertyDefinition;
@@ -1094,6 +1096,72 @@ class ServiceBusinessLogicTest extends ServiceBusinessLogicBaseTestSetup {
                 user.getUserId(), new ServiceConsumptionData());
         assertTrue(operationEither.isRight());
         assertEquals(HttpStatus.NOT_FOUND.value(), operationEither.right().value().getStatus().intValue());
+    }
+
+    @Test
+    void testAddServiceConsumptionDataServiceNotCheckedOut() {
+        Service service = createServiceObject(true);
+        service.setLifecycleState(LifecycleStateEnum.NOT_CERTIFIED_CHECKIN);
+        service.setLastUpdaterUserId(user.getUserId());
+        Mockito.when(toscaOperationFacade.getToscaElement(service.getUniqueId())).thenReturn(Either.left(service));
+
+        Either<List<Operation>, ResponseFormat> result = bl.addServiceConsumptionData(service.getUniqueId(), "2", "3",
+            Lists.newArrayList(new ServiceConsumptionData()), user.getUserId());
+
+        assertTrue(result.isRight());
+        assertEquals(HttpStatus.FORBIDDEN.value(), result.right().value().getStatus().intValue());
+        Mockito.verify(graphLockOperation, Mockito.never()).lockComponent(Mockito.anyString(), Mockito.eq(NodeTypeEnum.Service));
+        Mockito.verify(toscaOperationFacade, Mockito.never()).updateComponentInstanceInterfaces(Mockito.any(), Mockito.anyString());
+    }
+
+    @Test
+    void testAddServiceConsumptionDataServiceCheckedOutByAnotherUser() {
+        Service service = createServiceObject(true);
+        service.setLifecycleState(LifecycleStateEnum.NOT_CERTIFIED_CHECKOUT);
+        service.setLastUpdaterUserId("cs0008");
+        Mockito.when(toscaOperationFacade.getToscaElement(service.getUniqueId())).thenReturn(Either.left(service));
+        Mockito.when(userValidations.isSameUser(user.getUserId(), "cs0008")).thenReturn(false);
+
+        Either<List<Operation>, ResponseFormat> result = bl.addServiceConsumptionData(service.getUniqueId(), "2", "3",
+            Lists.newArrayList(new ServiceConsumptionData()), user.getUserId());
+
+        assertTrue(result.isRight());
+        assertEquals(HttpStatus.FORBIDDEN.value(), result.right().value().getStatus().intValue());
+        Mockito.verify(graphLockOperation, Mockito.never()).lockComponent(Mockito.anyString(), Mockito.eq(NodeTypeEnum.Service));
+        Mockito.verify(toscaOperationFacade, Mockito.never()).updateComponentInstanceInterfaces(Mockito.any(), Mockito.anyString());
+    }
+
+    @Test
+    void testAddServiceConsumptionDataServiceArchived() {
+        Service service = createServiceObject(true);
+        service.setLifecycleState(LifecycleStateEnum.NOT_CERTIFIED_CHECKOUT);
+        service.setLastUpdaterUserId(user.getUserId());
+        service.setArchived(true);
+        Mockito.when(toscaOperationFacade.getToscaElement(service.getUniqueId())).thenReturn(Either.left(service));
+
+        Either<List<Operation>, ResponseFormat> result = bl.addServiceConsumptionData(service.getUniqueId(), "2", "3",
+            Lists.newArrayList(new ServiceConsumptionData()), user.getUserId());
+
+        assertTrue(result.isRight());
+        assertEquals(componentsUtils.getResponseFormat(ActionStatus.COMPONENT_IS_ARCHIVED, service.getName()).getMessageId(),
+            result.right().value().getMessageId());
+        Mockito.verify(graphLockOperation, Mockito.never()).lockComponent(Mockito.anyString(), Mockito.eq(NodeTypeEnum.Service));
+    }
+
+    @Test
+    void testAddServiceConsumptionDataServiceCheckedOutBySameUser() {
+        Service service = createServiceObject(true);
+        service.setLifecycleState(LifecycleStateEnum.NOT_CERTIFIED_CHECKOUT);
+        service.setLastUpdaterUserId(user.getUserId());
+        Mockito.when(toscaOperationFacade.getToscaElement(service.getUniqueId())).thenReturn(Either.left(service));
+        Mockito.when(userValidations.isSameUser(user.getUserId(), user.getUserId())).thenReturn(true);
+
+        Either<List<Operation>, ResponseFormat> result = bl.addServiceConsumptionData(service.getUniqueId(), "2", "3",
+            new ArrayList<>(), user.getUserId());
+
+        assertTrue(result.isLeft());
+        Mockito.verify(graphLockOperation).lockComponent(service.getUniqueId(), NodeTypeEnum.Service);
+        Mockito.verify(graphLockOperation).unlockComponent(service.getUniqueId(), NodeTypeEnum.Service);
     }
 
     private Resource mockGenericTypeResource() {
