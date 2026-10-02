@@ -19,6 +19,7 @@
  */
 package org.openecomp.sdc.be.model.tosca.constraints;
 
+import java.time.Duration;
 import java.util.regex.Pattern;
 import javax.validation.constraints.NotNull;
 import lombok.EqualsAndHashCode;
@@ -35,6 +36,10 @@ import org.openecomp.sdc.be.model.tosca.constraints.exception.PropertyConstraint
 @NoArgsConstructor
 public class PatternConstraint extends AbstractStringPropertyConstraint {
 
+    private static final int MAX_PATTERN_LENGTH = 1024;
+    private static final int MAX_VALUE_LENGTH = 100_000;
+    private static final Duration MATCH_TIME_LIMIT = Duration.ofMillis(100);
+
     @NotNull
     @Getter
     @EqualsAndHashCode.Include
@@ -46,14 +51,30 @@ public class PatternConstraint extends AbstractStringPropertyConstraint {
     }
 
     public void setPattern(String pattern) {
+        if (pattern != null && pattern.length() > MAX_PATTERN_LENGTH) {
+            throw new IllegalArgumentException(
+                "Pattern exceeds the maximum allowed length of " + MAX_PATTERN_LENGTH + " characters");
+        }
         this.pattern = pattern;
-        this.compiledPattern = Pattern.compile(this.pattern);
+        try {
+            this.compiledPattern = Pattern.compile(this.pattern);
+        } catch (StackOverflowError e) {
+            this.compiledPattern = null;
+            throw new IllegalArgumentException("Pattern is too deeply nested to compile", e);
+        }
     }
 
     @Override
     protected void doValidate(String propertyValue) throws ConstraintViolationException {
-        if (!compiledPattern.matcher(propertyValue).matches()) {
-            throw new ConstraintViolationException("The value do not match pattern " + pattern);
+        if (propertyValue.length() > MAX_VALUE_LENGTH) {
+            throw new ConstraintViolationException("The value is too long to validate against pattern " + pattern);
+        }
+        try {
+            if (!compiledPattern.matcher(new BoundedCharSequence(propertyValue, MATCH_TIME_LIMIT.toNanos())).matches()) {
+                throw new ConstraintViolationException("The value do not match pattern " + pattern);
+            }
+        } catch (PatternEvaluationAbortedException e) {
+            throw new ConstraintViolationException("Evaluation of pattern " + pattern + " exceeded the allowed time", e);
         }
     }
 
@@ -70,5 +91,61 @@ public class PatternConstraint extends AbstractStringPropertyConstraint {
     @Override
     public String getErrorMessage(ToscaType toscaType, ConstraintFunctionalException e, String propertyName) {
         return getErrorMessage(toscaType, e, propertyName, "%s property value must match the regular expression %s", pattern);
+    }
+
+    /**
+     * CharSequence that aborts pattern matching once a time budget is spent. java.util.regex reads input exclusively
+     * through CharSequence, so checking the deadline here bounds catastrophic backtracking.
+     */
+    private static final class BoundedCharSequence implements CharSequence {
+
+        private final CharSequence input;
+        private final long deadlineNanos;
+
+        BoundedCharSequence(CharSequence input, long remainingBudgetNanos) {
+            this(input, remainingBudgetNanos, false);
+        }
+
+        private BoundedCharSequence(CharSequence input, long time, boolean absoluteDeadline) {
+            this.input = input;
+            this.deadlineNanos = absoluteDeadline ? time : System.nanoTime() + time;
+        }
+
+        @Override
+        public int length() {
+            checkDeadline();
+            return input.length();
+        }
+
+        @Override
+        public char charAt(int index) {
+            checkDeadline();
+            return input.charAt(index);
+        }
+
+        @Override
+        public CharSequence subSequence(int start, int end) {
+            checkDeadline();
+            return new BoundedCharSequence(input.subSequence(start, end), deadlineNanos, true);
+        }
+
+        @Override
+        public String toString() {
+            checkDeadline();
+            return input.toString();
+        }
+
+        private void checkDeadline() {
+            if (System.nanoTime() - deadlineNanos >= 0) {
+                throw new PatternEvaluationAbortedException();
+            }
+        }
+    }
+
+    private static final class PatternEvaluationAbortedException extends RuntimeException {
+
+        private PatternEvaluationAbortedException() {
+            super("Pattern evaluation exceeded the allowed time");
+        }
     }
 }
