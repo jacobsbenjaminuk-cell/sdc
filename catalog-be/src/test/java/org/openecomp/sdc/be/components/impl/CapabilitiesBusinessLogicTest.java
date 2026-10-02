@@ -152,6 +152,8 @@ public class CapabilitiesBusinessLogicTest extends BaseBusinessLogicMock {
         Assert.assertTrue(capabilities.isLeft());
         Assert.assertTrue(capabilities.left().value().stream().anyMatch(capabilityDefinition ->
                 capabilityDefinition.getName().equals("capName")));
+        Mockito.verify(toscaOperationFacade).getToscaElement(anyString(),
+                Mockito.argThat((ComponentParametersView view) -> !view.isIgnoreUsers()));
     }
 
     @Test

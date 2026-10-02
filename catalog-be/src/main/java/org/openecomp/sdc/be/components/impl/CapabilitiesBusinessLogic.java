@@ -491,6 +491,7 @@ public class CapabilitiesBusinessLogic extends BaseBusinessLogic {
         ComponentParametersView filter = new ComponentParametersView(true);
         filter.setIgnoreCapabilities(false);
         filter.setIgnoreCapabiltyProperties(false);
+        filter.setIgnoreUsers(false);
         Either<Component, StorageOperationStatus> componentStorageOperationStatusEither = toscaOperationFacade.getToscaElement(componentId, filter);
         if (componentStorageOperationStatusEither.isRight()) {
             StorageOperationStatus errorStatus = componentStorageOperationStatusEither.right().value();
