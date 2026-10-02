@@ -641,6 +641,14 @@ public class CommonCsarGenerator {
             .anyMatch(entry -> entry.contains(entryName));
     }
 
+    private Path resolveModelImportEntryPath(final Path defsPath, final Path importPath) {
+        return ToscaDefaultImportHelper.resolveImportEntryPath(defsPath, importPath).orElseThrow(() -> {
+            LOGGER.error(String.valueOf(EcompLoggerErrorCode.BUSINESS_PROCESS_ERROR), CsarUtils.class.getName(),
+                "Invalid model import path '{}': it must be a relative path inside '{}'", importPath, defsPath);
+            return new ByResponseFormatComponentException(componentsUtils.getResponseFormat(ActionStatus.CSAR_TOSCA_IMPORTS_ERROR));
+        });
+    }
+
     private void addSchemaFilesByModel(final ZipOutputStream zipOutputStream, final String modelName,
                                        final String definitionsPath, final boolean isSingleImportsFile,
                                        final List<Component> dependencies) {
@@ -653,21 +661,21 @@ public class CommonCsarGenerator {
                 var importPath = Path.of(toscaImportByModel.getFullPath());
                 if (!isSingleImportsFile) {
                     if (ADDITIONAL_TYPE_DEFINITIONS.equals(Paths.get(String.valueOf(importPath)).normalize().toString())) {
-                        final Path entryPath = defsPath.resolve(importPath);
+                        final Path entryPath = resolveModelImportEntryPath(defsPath, importPath);
                         contentToMerge.put(entryPath, toscaImportByModel.getContent().getBytes(StandardCharsets.UTF_8));
                     } else {
-                        if (writtenEntryPathList.contains(defsPath.resolve(importPath))) {
+                        if (writtenEntryPathList.contains(resolveModelImportEntryPath(defsPath, importPath))) {
                             importPath = ToscaDefaultImportHelper.addModelAsFilePrefix(importPath, toscaImportByModel.getModelId());
                         }
-                        final Path entryPath = defsPath.resolve(importPath);
+                        final Path entryPath = resolveModelImportEntryPath(defsPath, importPath);
                         writtenEntryPathList.add(entryPath);
                         contentToMerge.put(entryPath, toscaImportByModel.getContent().getBytes(StandardCharsets.UTF_8));
                     }
                 } else {
-                    if (writtenEntryPathList.contains(defsPath.resolve(importPath))) {
+                    if (writtenEntryPathList.contains(resolveModelImportEntryPath(defsPath, importPath))) {
                         importPath = ToscaDefaultImportHelper.addModelAsFilePrefix(importPath, toscaImportByModel.getModelId());
                     }
-                    final Path entryPath = defsPath.resolve(importPath);
+                    final Path entryPath = resolveModelImportEntryPath(defsPath, importPath);
                     zipOutputStream.putNextEntry(new ZipEntry(entryPath.toString()));
                     writtenEntryPathList.add(entryPath);
                     final byte[] content = toscaImportByModel.getContent().getBytes(StandardCharsets.UTF_8);
