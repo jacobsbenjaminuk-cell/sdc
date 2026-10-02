@@ -87,6 +87,10 @@ public class RequirementBusinessLogic extends BaseBusinessLogic {
             return Either.right(componentEither.right().value());
         }
         org.openecomp.sdc.be.model.Component storedComponent = componentEither.left().value();
+        Either<Boolean, ResponseFormat> canWorkOnComponentEither = validateCanWorkOnComponentResult(storedComponent, user);
+        if (canWorkOnComponentEither.isRight()) {
+            return Either.right(canWorkOnComponentEither.right().value());
+        }
         Either<Boolean, ResponseFormat> requirementsValidationEither = requirementValidation
             .validateRequirements(requirementDefinitions, storedComponent, false);
         if (requirementsValidationEither.isRight()) {
@@ -148,6 +152,10 @@ public class RequirementBusinessLogic extends BaseBusinessLogic {
             return Either.right(componentEither.right().value());
         }
         org.openecomp.sdc.be.model.Component storedComponent = componentEither.left().value();
+        Either<Boolean, ResponseFormat> canWorkOnComponentEither = validateCanWorkOnComponentResult(storedComponent, user);
+        if (canWorkOnComponentEither.isRight()) {
+            return Either.right(canWorkOnComponentEither.right().value());
+        }
         Either<Boolean, ResponseFormat> requirementsValidationEither = requirementValidation
             .validateRequirements(requirementDefinitions, storedComponent, true);
         if (requirementsValidationEither.isRight()) {
@@ -322,6 +330,10 @@ public class RequirementBusinessLogic extends BaseBusinessLogic {
             return Either.right(componentEither.right().value());
         }
         org.openecomp.sdc.be.model.Component storedComponent = componentEither.left().value();
+        Either<Boolean, ResponseFormat> canWorkOnComponentEither = validateCanWorkOnComponentResult(storedComponent, user);
+        if (canWorkOnComponentEither.isRight()) {
+            return Either.right(canWorkOnComponentEither.right().value());
+        }
         Either<Boolean, ResponseFormat> lockResult = lockComponentResult(lock, storedComponent, DELETE_REQUIREMENTS);
         if (lockResult.isRight()) {
             return Either.right(lockResult.right().value());
@@ -401,6 +413,16 @@ public class RequirementBusinessLogic extends BaseBusinessLogic {
             return Either.right(componentsUtils.getResponseFormat(componentsUtils.convertFromStorageResponse(errorStatus)));
         }
         return Either.left(componentStorageOperationStatusEither.left().value());
+    }
+
+    private Either<Boolean, ResponseFormat> validateCanWorkOnComponentResult(org.openecomp.sdc.be.model.Component component, User user) {
+        try {
+            validateCanWorkOnComponent(component, user.getUserId());
+        } catch (ComponentException e) {
+            LOGGER.error("User {} is not allowed to change requirements of component {}", user.getUserId(), component.getUniqueId());
+            return Either.right(componentsUtils.getResponseFormat(e));
+        }
+        return Either.left(true);
     }
 
     private Either<Boolean, ResponseFormat> lockComponentResult(boolean lock, org.openecomp.sdc.be.model.Component component, String action) {
