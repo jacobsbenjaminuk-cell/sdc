@@ -26,7 +26,6 @@ import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.util.Properties;
 import javax.net.ssl.SSLContext;
-import org.apache.http.conn.ssl.TrustSelfSignedStrategy;
 import org.apache.http.ssl.SSLContextBuilder;
 import org.apache.http.ssl.SSLContexts;
 import org.slf4j.Logger;
@@ -60,7 +59,7 @@ public class JettySSLUtils {
         if (!StringUtils.isEmpty(sslProperties.getTruststorePath())) {
             try (FileInputStream instream = new FileInputStream(new File(sslProperties.getTruststorePath()));) {
                 trustStore.load(instream, (sslProperties.getTruststorePass()).toCharArray());
-                contextBuilder.loadTrustMaterial(trustStore, new TrustSelfSignedStrategy());
+                contextBuilder.loadTrustMaterial(trustStore, null);
             }
         }
         KeyStore keystore = KeyStore.getInstance(sslProperties.getKeystoreType());

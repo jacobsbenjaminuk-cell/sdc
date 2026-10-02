@@ -31,7 +31,6 @@ import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
 import org.apache.http.conn.socket.ConnectionSocketFactory;
 import org.apache.http.conn.socket.PlainConnectionSocketFactory;
-import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
@@ -84,7 +83,7 @@ public class PluginStatusBL {
         if (!isSecured) {
             poolingConnManager = new PoolingHttpClientConnectionManager();
         } else {
-            SSLConnectionSocketFactory s = new SSLConnectionSocketFactory(JettySSLUtils.getSslContext(), new NoopHostnameVerifier());
+            SSLConnectionSocketFactory s = new SSLConnectionSocketFactory(JettySSLUtils.getSslContext());
             Registry<ConnectionSocketFactory> registry = RegistryBuilder.<ConnectionSocketFactory>create()
                 .register("http", new PlainConnectionSocketFactory()).register("https", s).build();
             poolingConnManager = new PoolingHttpClientConnectionManager(registry);
@@ -93,7 +92,7 @@ public class PluginStatusBL {
         int routeMax = System.getProperties().containsKey(MAX_ROUTE_POOL) ? Integer.parseInt(System.getProperty(MAX_ROUTE_POOL)) : 20;
         poolingConnManager.setMaxTotal(maxTotal);
         poolingConnManager.setDefaultMaxPerRoute(routeMax);
-        return HttpClients.custom().setConnectionManager(poolingConnManager).setSSLHostnameVerifier(new NoopHostnameVerifier()).build();
+        return HttpClients.custom().setConnectionManager(poolingConnManager).build();
     }
 
     public String getPluginsList() {
