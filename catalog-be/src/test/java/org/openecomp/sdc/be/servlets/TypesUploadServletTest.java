@@ -25,6 +25,9 @@ import static java.util.Collections.emptyMap;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import fj.data.Either;
@@ -480,6 +483,30 @@ class TypesUploadServletTest extends JerseyTest {
             .post(Entity.entity(multipartEntity, MediaType.MULTIPART_FORM_DATA), Response.class);
 
         assertEquals(HttpStatus.CREATED_201, response.getStatus());
+    }
+
+    @Test
+    void creatingCategoriesByDesignerIsRestrictedTest() {
+        final String designerId = "cs0008";
+        final User designer = new User(designerId);
+        designer.setRole(Role.DESIGNER.name());
+        when(userAdmin.getUser(designerId)).thenReturn(designer);
+        when(request.getHeader(Constants.USER_ID_HEADER)).thenReturn(designerId);
+        when(componentUtils.getResponseFormat(ActionStatus.RESTRICTED_OPERATION)).thenReturn(new ResponseFormat(HttpStatus.FORBIDDEN_403));
+        clearInvocations(categoriesImportManager);
+        final FileDataBodyPart filePart = new FileDataBodyPart("categoriesZip", new File("src/test/resources/types/categoryTypes.zip"));
+        final MultiPart multipartEntity = new FormDataMultiPart();
+        multipartEntity.bodyPart(filePart);
+
+        try {
+            final Response response = target().path("/v1/catalog/uploadType/categories").request(MediaType.APPLICATION_JSON)
+                .post(Entity.entity(multipartEntity, MediaType.MULTIPART_FORM_DATA), Response.class);
+
+            assertEquals(HttpStatus.FORBIDDEN_403, response.getStatus());
+            verify(categoriesImportManager, never()).createCategories(anyString());
+        } finally {
+            when(request.getHeader(Constants.USER_ID_HEADER)).thenReturn("jh0003");
+        }
     }
 
     @Test

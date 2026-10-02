@@ -62,6 +62,7 @@ import org.openecomp.sdc.be.model.PolicyTypeDefinition;
 import org.openecomp.sdc.be.model.RelationshipTypeDefinition;
 import org.openecomp.sdc.be.model.User;
 import org.openecomp.sdc.be.model.normatives.ToscaTypeMetadata;
+import org.openecomp.sdc.be.servlets.ResourceUploadServlet.ResourceAuthorityTypeEnum;
 import org.openecomp.sdc.common.api.Constants;
 import org.openecomp.sdc.common.datastructure.FunctionalInterfaces.ConsumerFourParam;
 import org.openecomp.sdc.common.datastructure.FunctionalInterfaces.ConsumerTwoParam;
@@ -89,6 +90,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -218,7 +220,8 @@ public class TypesUploadServlet extends AbstractValidationsServlet {
                                      @Context final HttpServletRequest request, @HeaderParam("USER_ID") String creator) {
         ConsumerTwoParam<Wrapper<Response>, String> createElementsMethod = (responseWrapper, ymlPayload) ->
                 createElementsType(responseWrapper, () -> categoriesImportManager.createCategories(ymlPayload));
-        return uploadElementTypeServletLogic(createElementsMethod, file, request, creator, "categories");
+        return uploadElementTypeServletLogic(createElementsMethod, file, request, creator, "categories",
+                (responseWrapper, user) -> validateUserRole(responseWrapper, user, ResourceAuthorityTypeEnum.NORMATIVE_TYPE_BE));
     }
 
     @POST
@@ -296,13 +299,19 @@ public class TypesUploadServlet extends AbstractValidationsServlet {
 
     private Response uploadElementTypeServletLogic(ConsumerTwoParam<Wrapper<Response>, String> createElementsMethod, File file,
                                                    final HttpServletRequest request, String creator, String elementTypeName) {
+        return uploadElementTypeServletLogic(createElementsMethod, file, request, creator, elementTypeName, this::validateUserRole);
+    }
+
+    private Response uploadElementTypeServletLogic(ConsumerTwoParam<Wrapper<Response>, String> createElementsMethod, File file,
+                                                   final HttpServletRequest request, String creator, String elementTypeName,
+                                                   final BiConsumer<Wrapper<Response>, User> userRoleValidation) {
         init();
         String userId = initHeaderParam(creator, request, Constants.USER_ID_HEADER);
         try {
             Wrapper<String> yamlStringWrapper = new Wrapper<>();
             String url = request.getMethod() + " " + request.getRequestURI();
             log.debug(START_HANDLE_REQUEST_OF, url);
-            Wrapper<Response> responseWrapper = doUploadTypeValidations(request, userId, file);
+            Wrapper<Response> responseWrapper = doUploadTypeValidations(request, userId, file, userRoleValidation);
             if (responseWrapper.isEmpty()) {
                 fillZipContents(yamlStringWrapper, file);
             }
@@ -401,13 +410,18 @@ public class TypesUploadServlet extends AbstractValidationsServlet {
     }
 
     private Wrapper<Response> doUploadTypeValidations(final HttpServletRequest request, String userId, File file) {
+        return doUploadTypeValidations(request, userId, file, this::validateUserRole);
+    }
+
+    private Wrapper<Response> doUploadTypeValidations(final HttpServletRequest request, String userId, File file,
+                                                      final BiConsumer<Wrapper<Response>, User> userRoleValidation) {
         Wrapper<Response> responseWrapper = new Wrapper<>();
         Wrapper<User> userWrapper = new Wrapper<>();
         String url = request.getMethod() + " " + request.getRequestURI();
         log.debug(START_HANDLE_REQUEST_OF, url);
         validateUserExist(responseWrapper, userWrapper, userId);
         if (responseWrapper.isEmpty()) {
-            validateUserRole(responseWrapper, userWrapper.getInnerElement());
+            userRoleValidation.accept(responseWrapper, userWrapper.getInnerElement());
         }
         if (responseWrapper.isEmpty()) {
             validateDataNotNull(responseWrapper, file);
