@@ -7,7 +7,7 @@
 		users = [
 			{
 				userId="cs0008"
-				password="123123a"
+				password="${SIMULATOR_PASSWORD}"
 				firstName="Carlos"
 				lastName="Santana"
 				role="Designer"
@@ -15,7 +15,7 @@
 			},
 			{
 				userId="jh0003"
-				password="123123a"
+				password="${SIMULATOR_PASSWORD}"
 				firstName="Jimmy"
 				lastName="Hendrix"
 				role="Admin"
@@ -23,7 +23,7 @@
 			},
 			{
 				userId="jm0007"
-				password="123123a"
+				password="${SIMULATOR_PASSWORD}"
 				firstName="Johnny"
 				lastName="Depp"
 				role="Tester"

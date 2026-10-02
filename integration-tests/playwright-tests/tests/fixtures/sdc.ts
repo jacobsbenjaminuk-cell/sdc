@@ -50,7 +50,7 @@ import { test as base, expect, Page, APIRequestContext, APIResponse } from '@pla
 // ---------------------------------------------------------------------------
 
 /** webseal-simulator password for every preconfigured user (openecomp-be/tools/webseal-simulator). */
-export const SIM_PASSWORD = '123123a';
+export const SIM_PASSWORD = process.env.SIMULATOR_PASSWORD || '123123a';
 
 /** cs0008 = Carlos Santana, role DESIGNER. The role every workspace test needs. */
 export const DESIGNER_USER = 'cs0008';
@@ -315,6 +315,20 @@ export async function login(page: Page, userId: string = DESIGNER_USER): Promise
     await expect(page.locator(SEL.homeButton)).toBeVisible({ timeout: 30_000 });
 }
 
+/**
+ * Logs an APIRequestContext in to the webseal-simulator so its session cookie rides on every later
+ * request. Redirects are not followed: a 302 to /sdc1 is the success signal.
+ */
+export async function loginApi(
+    request: APIRequestContext, baseUrl: string, userId: string = DESIGNER_USER,
+): Promise<void> {
+    const resp = await request.post(`${baseUrl}/login`, {
+        form: { userId, password: SIM_PASSWORD },
+        maxRedirects: 0,
+    });
+    expect(resp.status(), `API login as ${userId} failed`).toBe(302);
+}
+
 // ---------------------------------------------------------------------------
 // URL-based navigation — the CR2/CR3-proof path
 // ---------------------------------------------------------------------------
@@ -417,8 +431,9 @@ export interface CreatedAsset {
  *   2. It does not perturb the page under test — an in-page $http.post adds a pending request
  *      that pageLoadWait() then blocks on, which made the old specs racy.
  *
- * The USER_ID header is what the backend authorises on; the simulator's cookies are only
- * needed by the browser, not by direct API calls.
+ * The webseal-simulator ignores client-sent USER_ID headers and cookies and takes the user from
+ * its own session, so the api fixture logs this request context in first (see loginApi()). The
+ * USER_ID header is kept for the dev server, which has no session.
  */
 export class SdcApi {
     constructor(private request: APIRequestContext, private baseUrl: string) {}
@@ -567,6 +582,7 @@ export const test = base.extend<SdcFixtures>({
 
     api: async ({ playwright, baseURL }, use) => {
         const ctx = await playwright.request.newContext({ ignoreHTTPSErrors: true });
+        await loginApi(ctx, baseURL || 'http://localhost:8285');
         await use(new SdcApi(ctx, baseURL || 'http://localhost:8285'));
         await ctx.dispose();
     },

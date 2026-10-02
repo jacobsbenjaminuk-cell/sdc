@@ -6,6 +6,19 @@ SDC Simulator is a project that enables emulation of web server that provides se
   - Provides sign on to the basic user roles/functionalities
   - Creation of basic user accounts
 
+# Sign-on and identity
+
+The simulator only forwards a request to SDC after the user has logged in at `/login` with a password.
+The login creates a server-side session, held in the `SDC_SIMULATOR_SESSION` cookie (HttpOnly).
+The `USER_ID`, `HTTP_IV_USER` and `HTTP_CSP_*` headers sent on to SDC always come from that session.
+Any copies the client sends, in any letter case, are dropped. The `USER_ID` cookie set at login is for the UI to read. It is not trusted.
+
+Scripts that call `/sdc1/feProxy/...` through the simulator must POST `userId` and `password` to `/login` first and keep the session cookie.
+The "Create" links on the login page also need a logged-in Admin.
+
+In Docker the password for every user comes from the `SIMULATOR_PASSWORD` environment variable (default `123123a`).
+The simulator is for development only. Do not expose its ports beyond your machine.
+
 # Docker compilation - Docker Maven Build Profile (io.fabric8 maven Plugin)
 
 If you are using onap vagrant you can deploy the simulator by:
