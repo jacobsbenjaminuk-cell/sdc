@@ -32,6 +32,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
+import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.GET;
 import javax.ws.rs.HeaderParam;
@@ -39,9 +40,11 @@ import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
+import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import org.openecomp.sdc.be.components.impl.ArchiveBusinessLogic;
+import org.openecomp.sdc.be.components.impl.ComponentTenantValidator;
 import org.openecomp.sdc.be.datatypes.enums.ComponentTypeEnum;
 import org.openecomp.sdc.be.impl.ComponentsUtils;
 import org.openecomp.sdc.be.model.catalog.CatalogComponent;
@@ -143,8 +146,10 @@ public class ArchiveEndpoint extends BeGenericServlet {
         @ApiResponse(content = @Content(array = @ArraySchema(schema = @Schema(implementation = String.class)))),
         @ApiResponse(responseCode = "200", description = "Success"), @ApiResponse(responseCode = "400", description = "Bad request"),
         @ApiResponse(responseCode = "403", description = "Restricted operation"), @ApiResponse(responseCode = "500", description = "Internal Error")})
-    public Map<String, List<CatalogComponent>> getArchivedComponents(@HeaderParam(value = Constants.USER_ID_HEADER) String userId) {
-        return this.archiveBusinessLogic.getArchiveComponents(userId, new LinkedList<>());
+    public Map<String, List<CatalogComponent>> getArchivedComponents(@Context final HttpServletRequest request,
+                                                                     @HeaderParam(value = Constants.USER_ID_HEADER) String userId) {
+        return ComponentTenantValidator
+            .filterByTenant(request, this.archiveBusinessLogic.getArchiveComponents(userId, new LinkedList<>()), CatalogComponent::getTenant);
     }
 
     @POST

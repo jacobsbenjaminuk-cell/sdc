@@ -50,6 +50,8 @@ public class MultitenancyFilter implements Filter {
 
     public static final String SKIP_PATTERN_PARAM = "keycloak.config.skipPattern";
 
+    public static final String OPTIONAL_AUTH_PATTERN_PARAM = "keycloak.config.optionalAuthPattern";
+
     public static final String ID_MAPPER_PARAM = "keycloak.config.idMapper";
 
     public static final String CONFIG_RESOLVER_PARAM = "keycloak.config.resolver";
@@ -65,6 +67,8 @@ public class MultitenancyFilter implements Filter {
     protected NodesRegistrationManagement nodesRegistrationManagement;
 
     protected Pattern skipPattern;
+
+    protected Pattern optionalAuthPattern;
 
     private final KeycloakConfigResolver definedConfigResolver;
 
@@ -90,6 +94,10 @@ public class MultitenancyFilter implements Filter {
         String skipPatternDefinition = filterConfig.getInitParameter(SKIP_PATTERN_PARAM);
         if (skipPatternDefinition != null) {
             skipPattern = Pattern.compile(skipPatternDefinition, Pattern.DOTALL);
+        }
+        String optionalAuthPatternDefinition = filterConfig.getInitParameter(OPTIONAL_AUTH_PATTERN_PARAM);
+        if (optionalAuthPatternDefinition != null) {
+            optionalAuthPattern = Pattern.compile(optionalAuthPatternDefinition, Pattern.DOTALL);
         }
 
         String idMapperClassName = filterConfig.getInitParameter(ID_MAPPER_PARAM);
@@ -174,7 +182,7 @@ public class MultitenancyFilter implements Filter {
             return;
         }
 
-        if (shouldSkip(request)) {
+        if (shouldSkip(request) || isAnonymousOptionalAuth(request)) {
             chain.doFilter(req, res);
             return;
         }
@@ -235,6 +243,19 @@ public class MultitenancyFilter implements Filter {
      * @return {@code true} if the request should not be handled,
      * {@code false} otherwise.
      */
+    /**
+     * Requests without credentials to paths matching {@link #OPTIONAL_AUTH_PATTERN_PARAM} continue unauthenticated, so they
+     * carry no tenant roles and only see components that have no tenant.
+     */
+    private boolean isAnonymousOptionalAuth(HttpServletRequest request) {
+        String authorization = request.getHeader("Authorization");
+        if (optionalAuthPattern == null || (authorization != null && authorization.regionMatches(true, 0, "Bearer ", 0, 7))) {
+            return false;
+        }
+        String requestPath = request.getRequestURI().substring(request.getContextPath().length());
+        return optionalAuthPattern.matcher(requestPath).matches();
+    }
+
     private boolean shouldSkip(HttpServletRequest request) {
 
         if (skipPattern == null) {

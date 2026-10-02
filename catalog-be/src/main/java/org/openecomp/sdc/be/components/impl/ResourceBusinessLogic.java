@@ -4360,6 +4360,7 @@ public class ResourceBusinessLogic extends ComponentBusinessLogic {
         // Cannot set highest version through UI
         newResource.setHighestVersion(currentResource.isHighestVersion());
         newResource.setCreationDate(currentResource.getCreationDate());
+        newResource.setTenant(currentResource.getTenant());
         Either<Boolean, ResponseFormat> processUpdateOfDerivedFrom = processUpdateOfDerivedFrom(currentResource, newResource, user.getUserId(),
             inTransaction);
         if (processUpdateOfDerivedFrom.isRight()) {

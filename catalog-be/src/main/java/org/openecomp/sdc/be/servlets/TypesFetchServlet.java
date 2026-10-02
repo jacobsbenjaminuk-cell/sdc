@@ -53,6 +53,7 @@ import org.openecomp.sdc.be.components.impl.ArtifactTypeBusinessLogic;
 import org.openecomp.sdc.be.components.impl.CapabilitiesBusinessLogic;
 import org.openecomp.sdc.be.components.impl.ComponentBusinessLogic;
 import org.openecomp.sdc.be.components.impl.ComponentInstanceBusinessLogic;
+import org.openecomp.sdc.be.components.impl.ComponentTenantValidator;
 import org.openecomp.sdc.be.components.impl.InterfaceOperationBusinessLogic;
 import org.openecomp.sdc.be.components.impl.RelationshipTypeBusinessLogic;
 import org.openecomp.sdc.be.components.impl.ResourceBusinessLogic;
@@ -401,12 +402,12 @@ public class TypesFetchServlet extends AbstractValidationsServlet {
             if (responseWrapper.isEmpty()) {
                 String url = request.getMethod() + " " + request.getRequestURI();
                 log.debug(START_HANDLE_REQUEST_OF_MODIFIER_ID_IS, url, userId);
-                response = getComponent(resourceBusinessLogic, true, userId, modelName);
+                response = getComponent(request, resourceBusinessLogic, true, userId, modelName);
                 if (response.isRight()) {
                     return response.right().value();
                 }
                 componentMap = new HashMap<>(response.left().value());
-                response = getComponent(resourceBusinessLogic, false, userId, modelName);
+                response = getComponent(request, resourceBusinessLogic, false, userId, modelName);
                 if (response.isRight()) {
                     return response.right().value();
                 }
@@ -449,6 +450,7 @@ public class TypesFetchServlet extends AbstractValidationsServlet {
     }
 
     private Either<Map<String, Component>, Response> getComponent(
+        final HttpServletRequest request,
         ComponentBusinessLogic resourceBL,
         boolean isAbstract, String userId,
         final String modelName
@@ -462,7 +464,7 @@ public class TypesFetchServlet extends AbstractValidationsServlet {
             log.debug(FAILED_TO_GET_ALL_NON_ABSTRACT, ComponentTypeEnum.RESOURCE.getValue());
             return Either.right(buildErrorResponse(actionResponse.right().value()));
         }
-        componentList = actionResponse.left().value();
+        componentList = ComponentTenantValidator.filterByTenant(request, actionResponse.left().value(), Component::getTenant);
         return Either.left(ListUtils.emptyIfNull(componentList).stream().filter(component ->
                 ((ResourceMetadataDataDefinition) component.getComponentMetadataDefinition().getMetadataDataDefinition()).getToscaResourceName() != null)
             .collect(Collectors.toMap(

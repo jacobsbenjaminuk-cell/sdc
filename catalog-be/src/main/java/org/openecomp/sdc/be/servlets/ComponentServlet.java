@@ -54,6 +54,7 @@ import javax.ws.rs.core.Response;
 import org.apache.commons.collections.CollectionUtils;
 import org.openecomp.sdc.be.components.impl.ComponentBusinessLogic;
 import org.openecomp.sdc.be.components.impl.ComponentBusinessLogicProvider;
+import org.openecomp.sdc.be.components.impl.ComponentTenantValidator;
 import org.openecomp.sdc.be.config.BeEcompErrorManager;
 import org.openecomp.sdc.be.dao.api.ActionStatus;
 import org.openecomp.sdc.be.datamodel.api.HighestFilterEnum;
@@ -183,7 +184,8 @@ public class ComponentServlet extends BeGenericServlet {
                 log.debug(FAILED_TO_GET_ALL_NON_ABSTRACT, componentType);
                 return buildErrorResponse(actionResponse.right().value());
             }
-            Object components = RepresentationUtils.toRepresentation(actionResponse.left().value());
+            Object components = RepresentationUtils
+                .toRepresentation(ComponentTenantValidator.filterByTenant(request, actionResponse.left().value(), Component::getTenant));
             return buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.OK), components);
         } catch (Exception e) {
             BeEcompErrorManager.getInstance().logBeRestApiGeneralError(GET_CERTIFIED_NON_ABSTRACT + componentType);
@@ -221,7 +223,8 @@ public class ComponentServlet extends BeGenericServlet {
                 log.debug(FAILED_TO_GET_ALL_NON_ABSTRACT, componentType);
                 return buildErrorResponse(actionResponse.right().value());
             }
-            Object components = RepresentationUtils.toRepresentation(actionResponse.left().value());
+            Object components = RepresentationUtils
+                .toRepresentation(ComponentTenantValidator.filterByTenant(request, actionResponse.left().value(), Component::getTenant));
             return buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.OK), components);
         } catch (Exception e) {
             BeEcompErrorManager.getInstance().logBeRestApiGeneralError(GET_CERTIFIED_NON_ABSTRACT + componentType);
@@ -262,7 +265,8 @@ public class ComponentServlet extends BeGenericServlet {
                 return buildErrorResponse(actionResponse.right().value());
             }
             List<UiLeftPaletteComponent> uiLeftPaletteComponents = getComponentsUtils()
-                .convertComponentToUiLeftPaletteComponentObject(actionResponse.left().value());
+                .convertComponentToUiLeftPaletteComponentObject(
+                    ComponentTenantValidator.filterByTenant(request, actionResponse.left().value(), Component::getTenant));
             Map<String, Map<String, List<UiLeftPaletteComponent>>> categorizedComponents = getCategorizedComponents(uiLeftPaletteComponents);
             Object components = RepresentationUtils.toRepresentation(categorizedComponents);
             return buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.OK), components);
