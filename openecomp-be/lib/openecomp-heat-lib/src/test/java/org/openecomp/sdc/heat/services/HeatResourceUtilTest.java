@@ -86,4 +86,44 @@ public class HeatResourceUtilTest {
         Assert.assertTrue(networkRole.isPresent());
         Assert.assertEquals(networkRole.get(), ROLE);
     }
+    @Test
+    public void testEvaluateNetworkRoleFromResourceIdPrefersLongestPrefix() {
+        Optional<String> networkRole = HeatResourceUtil.evaluateNetworkRoleFromResourceId(
+                "vm_port_role_port_1_2", HeatResourcesTypes.NEUTRON_PORT_RESOURCE_TYPE.getHeatResource());
+
+        Assert.assertTrue(networkRole.isPresent());
+        Assert.assertEquals(ROLE, networkRole.get());
+    }
+
+    @Test
+    public void testEvaluateNetworkRoleFromResourceIdDigitsOnlyRole() {
+        Assert.assertFalse(HeatResourceUtil.evaluateNetworkRoleFromResourceId(
+                "vm_type_1_port_1", HeatResourcesTypes.NEUTRON_PORT_RESOURCE_TYPE.getHeatResource()).isPresent());
+    }
+
+    @Test
+    public void testEvaluateNetworkRoleFromResourceIdNonWordCharacters() {
+        Assert.assertFalse(HeatResourceUtil.evaluateNetworkRoleFromResourceId(
+                "vm_type-1_role_port_1", HeatResourcesTypes.NEUTRON_PORT_RESOURCE_TYPE.getHeatResource()).isPresent());
+    }
+
+    @Test
+    public void testEvaluateNetworkRoleFromResourceIdNoPortTypeSuffix() {
+        Assert.assertFalse(HeatResourceUtil.evaluateNetworkRoleFromResourceId(
+                "vm_type_1_role_vmi_1", HeatResourcesTypes.NEUTRON_PORT_RESOURCE_TYPE.getHeatResource()).isPresent());
+    }
+
+    @Test(timeout = 5000)
+    public void testNetworkRoleExtractionFromLongNonMatchingResourceId() {
+        StringBuilder resourceId = new StringBuilder("a");
+        for (int i = 0; i < 100_000; i++) {
+            resourceId.append("_1");
+        }
+        resourceId.append("_portx");
+        Assert.assertFalse(HeatResourceUtil.evaluateNetworkRoleFromResourceId(
+                resourceId.toString(), HeatResourcesTypes.NEUTRON_PORT_RESOURCE_TYPE.getHeatResource()).isPresent());
+        Assert.assertFalse(HeatResourceUtil.extractNetworkRoleFromSubInterfaceId(
+                resourceId.toString(), HeatResourcesTypes.CONTRAIL_V2_VIRTUAL_MACHINE_INTERFACE_RESOURCE_TYPE
+                        .getHeatResource()).isPresent());
+    }
 }
