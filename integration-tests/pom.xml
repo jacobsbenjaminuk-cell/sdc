@@ -1141,6 +1141,8 @@ limitations under the License.
                             <run>
                                 <env>
                                     <ENVNAME>${it.env.name}</ENVNAME>
+                                    <BASIC_AUTH_USERNAME>testName</BASIC_AUTH_USERNAME>
+                                    <BASIC_AUTH_PASSWORD>testPass</BASIC_AUTH_PASSWORD>
                                     <JAVA_OPTIONS>
                                         -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:6000
                                         -Xmx256m -Xms256m
