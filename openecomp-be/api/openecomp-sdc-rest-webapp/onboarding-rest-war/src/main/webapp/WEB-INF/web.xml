@@ -66,6 +66,7 @@
         <filter-name>PermissionsFilter</filter-name>
         <url-pattern>/v1.0/vendor-license-models/*</url-pattern>
         <url-pattern>/v1.0/vendor-software-products/*</url-pattern>
+        <url-pattern>/v1.0/items/*</url-pattern>
     </filter-mapping>
 
     <filter>
