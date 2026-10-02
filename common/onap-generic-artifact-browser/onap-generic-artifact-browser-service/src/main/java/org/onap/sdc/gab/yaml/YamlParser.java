@@ -41,7 +41,9 @@ import org.antlr.v4.runtime.misc.ParseCancellationException;
 import org.apache.commons.io.IOUtils;
 import org.jsfr.json.JsonSurfer;
 import org.jsfr.json.JsonSurferGson;
+import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 /**
  * Yaml parser and searcher which requires 3 steps:
@@ -52,13 +54,17 @@ import org.yaml.snakeyaml.Yaml;
  */
 public class YamlParser implements AutoCloseable {
 
+    static final int MAX_CODE_POINTS = 5 * 1024 * 1024;
+    static final int MAX_NESTING_DEPTH = 50;
+    static final int MAX_ALIASES_FOR_COLLECTIONS = 50;
+    static final int MAX_FILTERS = 100;
     private static final Logger LOGGER = Logger.getLogger(YamlParser.class.getName());
     private Stream<Object> parsedYamlContent;
     private InputStream inputStream;
     private Set<String> filters;
     private Function<Object, List<SimpleEntry<String, ? extends Collection<Object>>>> containsKeys = parsedYamlSingleDocument -> {
         JsonElement jsonElement = new Gson().toJsonTree(parsedYamlSingleDocument);
-        return findInJson(filters, jsonElement);
+        return findInJson(filters, jsonElement.toString());
     };
 
     public YamlParser() {
@@ -121,6 +127,9 @@ public class YamlParser implements AutoCloseable {
      * @throws IOException Means that yaml file has invalid content.
      */
     List<List<SimpleEntry<String, ? extends Collection<Object>>>> collect() throws IOException {
+        if (filters.size() > MAX_FILTERS) {
+            throw new IOException("Too many filters: " + filters.size() + ", maximum is " + MAX_FILTERS);
+        }
         try {
             return parsedYamlContent.map(containsKeys).filter(notEmptyListPredicate()).collect(Collectors.toList());
         } catch (Exception e) {
@@ -136,14 +145,23 @@ public class YamlParser implements AutoCloseable {
             if (Objects.isNull(inputStream) || inputStream.available() <= 0) {
                 throw new IOException("Empty input stream of yaml content.");
             }
-            parsedYamlContent = StreamSupport.stream(new Yaml().loadAll(inputStream).spliterator(), false);
+            parsedYamlContent = StreamSupport.stream(createYaml().loadAll(inputStream).spliterator(), false);
         } catch (IOException e) {
             LOGGER.log(Level.WARNING, "Cannot parse yaml: " + yaml, e);
             parsedYamlContent = Stream.empty();
         }
     }
 
-    private List<SimpleEntry<String, ? extends Collection<Object>>> findInJson(Set<String> keys, JsonElement document) {
+    private static Yaml createYaml() {
+        LoaderOptions loaderOptions = new LoaderOptions();
+        loaderOptions.setCodePointLimit(MAX_CODE_POINTS);
+        loaderOptions.setNestingDepthLimit(MAX_NESTING_DEPTH);
+        loaderOptions.setMaxAliasesForCollections(MAX_ALIASES_FOR_COLLECTIONS);
+        loaderOptions.setAllowRecursiveKeys(false);
+        return new Yaml(new SafeConstructor(loaderOptions));
+    }
+
+    private List<SimpleEntry<String, ? extends Collection<Object>>> findInJson(Set<String> keys, String document) {
         return keys.stream().map(getEntryForKeyFunction(document)).filter(notEmptyEntryPredicate()).collect(Collectors.toList());
     }
 
@@ -155,11 +173,11 @@ public class YamlParser implements AutoCloseable {
         return entry -> !entry.getValue().isEmpty();
     }
 
-    private Function<String, SimpleEntry<String, ? extends Collection<Object>>> getEntryForKeyFunction(JsonElement document) {
+    private Function<String, SimpleEntry<String, ? extends Collection<Object>>> getEntryForKeyFunction(String document) {
         return key -> {
             JsonSurfer surfer = JsonSurferGson.INSTANCE;
             try {
-                return new SimpleEntry<>(key, surfer.collectAll(document.toString(), "$." + key));
+                return new SimpleEntry<>(key, surfer.collectAll(document, "$." + key));
             } catch (ParseCancellationException e) {
                 LOGGER.log(Level.WARNING, "Invalid filter key: " + key, e);
                 return new SimpleEntry<>(key, Collections.emptyList());

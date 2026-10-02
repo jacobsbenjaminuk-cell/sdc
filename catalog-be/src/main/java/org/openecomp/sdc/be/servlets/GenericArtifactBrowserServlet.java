@@ -48,6 +48,7 @@ import org.onap.sdc.gab.model.GABQuery;
 import org.onap.sdc.gab.model.GABQuery.GABQueryType;
 import org.openecomp.sdc.be.components.impl.ArtifactsBusinessLogic;
 import org.openecomp.sdc.be.components.impl.GenericArtifactBrowserBusinessLogic;
+import org.openecomp.sdc.be.dao.api.ActionStatus;
 import org.openecomp.sdc.be.impl.ComponentsUtils;
 import org.openecomp.sdc.be.info.GenericArtifactQueryInfo;
 import org.openecomp.sdc.common.log.wrappers.Logger;
@@ -63,6 +64,9 @@ import org.springframework.stereotype.Controller;
 @Controller
 public class GenericArtifactBrowserServlet extends BeGenericServlet {
 
+    static final int MAX_QUERY_FIELDS = 100;
+    static final int MAX_QUERY_FIELD_LENGTH = 512;
+    static final int MAX_ARTIFACT_SIZE_BYTES = 5 * 1024 * 1024;
     private static final Logger LOGGER = Logger.getLogger(GenericArtifactBrowserServlet.class);
     private final GenericArtifactBrowserBusinessLogic gabLogic;
     private final ArtifactsBusinessLogic artifactsBusinessLogic;
@@ -83,11 +87,19 @@ public class GenericArtifactBrowserServlet extends BeGenericServlet {
         @ApiResponse(responseCode = "400", description = "Invalid content / Missing content")})
     public Response searchFor(@Parameter(description = "Generic Artifact search model", required = true) GenericArtifactQueryInfo query,
                               @Context final HttpServletRequest request) {
+        if (!isQueryWithinLimits(query)) {
+            return buildInvalidContentResponse();
+        }
         try {
             ServletContext context = request.getSession().getServletContext();
             ImmutablePair<String, byte[]> immutablePairResponseFormatEither = getArtifactBL(context)
                 .downloadArtifact(ESAPI.encoder().canonicalize(query.getParentId()), ESAPI.encoder().canonicalize(query.getArtifactUniqueId()));
-            GABQuery gabQuery = prepareGabQuery(query, immutablePairResponseFormatEither);
+            byte[] content = immutablePairResponseFormatEither.getRight();
+            if (content == null || content.length > MAX_ARTIFACT_SIZE_BYTES) {
+                LOGGER.warn("Artifact payload is missing or larger than {} bytes, refusing to search it", MAX_ARTIFACT_SIZE_BYTES);
+                return buildInvalidContentResponse();
+            }
+            GABQuery gabQuery = prepareGabQuery(query, content);
             return buildOkResponse(getGenericArtifactBrowserBL(context).searchFor(gabQuery));
         } catch (IOException e) {
             LOGGER.error("Cannot search for a given queries in the yaml file", e);
@@ -95,8 +107,18 @@ public class GenericArtifactBrowserServlet extends BeGenericServlet {
         }
     }
 
-    private GABQuery prepareGabQuery(GenericArtifactQueryInfo query, ImmutablePair<String, byte[]> immutablePairResponseFormatEither) {
-        byte[] content = immutablePairResponseFormatEither.getRight();
+    private boolean isQueryWithinLimits(GenericArtifactQueryInfo query) {
+        if (query == null || query.getFields() == null || query.getFields().isEmpty() || query.getFields().size() > MAX_QUERY_FIELDS) {
+            return false;
+        }
+        return query.getFields().stream().allMatch(field -> field != null && field.length() <= MAX_QUERY_FIELD_LENGTH);
+    }
+
+    private Response buildInvalidContentResponse() {
+        return buildErrorResponse(componentsUtils.getResponseFormat(ActionStatus.INVALID_CONTENT));
+    }
+
+    private GABQuery prepareGabQuery(GenericArtifactQueryInfo query, byte[] content) {
         Set<String> queryFields = query.getFields().stream().map(ESAPI.encoder()::canonicalize).collect(Collectors.toSet());
         return new GABQuery(queryFields, new String(content), GABQueryType.CONTENT);
     }
