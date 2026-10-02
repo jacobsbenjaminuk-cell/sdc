@@ -1,6 +1,7 @@
 #!/bin/sh
 
 cd /home/sdc/scripts
+sh /home/sdc/scripts/render-config.sh || exit 1
 sh -x conditional_test.sh
 sh -x /home/sdc/scripts/change_cassandra_user.sh
 mkdir -p /tmp/config
