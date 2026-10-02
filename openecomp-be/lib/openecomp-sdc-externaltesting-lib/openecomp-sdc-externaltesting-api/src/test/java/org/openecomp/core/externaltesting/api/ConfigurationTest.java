@@ -63,4 +63,21 @@ public class ConfigurationTest {
     Assert.assertTrue("pattern", matches);
 
   }
+
+  @Test
+  public void testEndpointDefinitionApiKeyIsWriteOnly() throws Exception {
+    RemoteTestingEndpointDefinition def = new RemoteTestingEndpointDefinition();
+    def.setId("vtp");
+    def.setApiKey("FOOBARBAZ");
+
+    ObjectMapper mapper = new ObjectMapper();
+    String json = mapper.writeValueAsString(def);
+    Assert.assertFalse("api key not serialised", json.contains("FOOBARBAZ"));
+    Assert.assertFalse("api key not serialised", json.contains("apiKey"));
+    Assert.assertFalse("api key not in toString", def.toString().contains("FOOBARBAZ"));
+
+    RemoteTestingEndpointDefinition read =
+        mapper.readValue("{\"id\":\"vtp\",\"apiKey\":\"FOOBARBAZ\"}", RemoteTestingEndpointDefinition.class);
+    Assert.assertEquals("api key still deserialised", "FOOBARBAZ", read.getApiKey());
+  }
 }
