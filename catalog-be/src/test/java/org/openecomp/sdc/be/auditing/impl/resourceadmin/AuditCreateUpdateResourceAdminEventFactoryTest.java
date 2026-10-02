@@ -20,7 +20,10 @@
 
 package org.openecomp.sdc.be.auditing.impl.resourceadmin;
 
+import static org.junit.Assert.assertTrue;
+
 import org.junit.Test;
+import org.openecomp.sdc.be.auditing.api.AuditEventFactory;
 import org.openecomp.sdc.be.model.User;
 import org.openecomp.sdc.be.resources.data.auditing.AuditingActionEnum;
 import org.openecomp.sdc.be.resources.data.auditing.model.CommonAuditData;
@@ -47,5 +50,14 @@ public class AuditCreateUpdateResourceAdminEventFactoryTest {
 		// default test
 		testSubject = createTestSubject();
 		result = testSubject.getLogMessage();
+	}
+
+	@Test
+	public void testDeleteInterfaceTypeUsesCreateUpdateFactory() {
+		ResourceVersionInfo resAuData = ResourceVersionInfo.newBuilder().build();
+		AuditEventFactory factory = AuditResourceEventFactoryManager.createResourceEventFactory(AuditingActionEnum.DELETE_INTERFACE_TYPE,
+				CommonAuditData.newBuilder().build(), new ResourceCommonInfo("typeId", "Resource"), resAuData, resAuData, null, new User(), null,
+				null, null, null);
+		assertTrue(factory instanceof AuditCreateUpdateResourceAdminEventFactory);
 	}
 }

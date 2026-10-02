@@ -72,6 +72,9 @@ public enum AuditingActionEnum {
     ARCHIVE_COMPONENT("ArchiveComponent", AuditingTypesConstants.RESOURCE_ADMIN_EVENT_TYPE),
     RESTORE_COMPONENT("RestoreComponent", AuditingTypesConstants.RESOURCE_ADMIN_EVENT_TYPE),
 
+    //Types
+    DELETE_INTERFACE_TYPE("DeleteInterfaceType", AuditingTypesConstants.RESOURCE_ADMIN_EVENT_TYPE),
+
     // Distribution
     DISTRIBUTION_ARTIFACT_DOWNLOAD("DArtifactDownload", AuditingTypesConstants.DISTRIBUTION_DOWNLOAD_EVENT_TYPE),
     DISTRIBUTION_STATE_CHANGE_REQUEST("DRequest", AuditingTypesConstants.RESOURCE_ADMIN_EVENT_TYPE),

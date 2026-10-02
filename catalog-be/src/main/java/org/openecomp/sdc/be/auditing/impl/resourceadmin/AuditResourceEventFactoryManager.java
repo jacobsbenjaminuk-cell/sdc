@@ -51,6 +51,7 @@ public class AuditResourceEventFactoryManager {
             case ARCHIVE_COMPONENT:
             case RESTORE_COMPONENT:
             case UPDATE_SERVICE_METADATA:
+            case DELETE_INTERFACE_TYPE:
                 factory = new AuditCreateUpdateResourceAdminEventFactory(action, commonFields, resourceCommonInfo, prevParams, currParams,
                     invariantUuid, modifier, artifactData, comment, did, org.openecomp.sdc.common.api.Constants.EMPTY_STRING);
                 break;
