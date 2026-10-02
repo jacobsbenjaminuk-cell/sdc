@@ -101,6 +101,17 @@ class AuthenticatedUserFilterTest {
     }
 
     @Test
+    void bindsUserFromPortalPrefixedCookie() throws Exception {
+        Cookie cookie = new Cookie("EPPortal" + COOKIE_NAME, authenticationCookie("alice").getValue());
+        when(request.getCookies()).thenReturn(new Cookie[]{cookie});
+        when(request.getHeader("USER_ID")).thenReturn("alice");
+
+        HttpServletRequest forwarded = runAndCaptureForwardedRequest();
+
+        assertEquals("alice", forwarded.getHeader("USER_ID"));
+    }
+
+    @Test
     void rejectsUserIdThatDiffersFromPrincipal() throws Exception {
         when(request.getUserPrincipal()).thenReturn(() -> "alice");
         when(request.getHeader("USER_ID")).thenReturn("victim");

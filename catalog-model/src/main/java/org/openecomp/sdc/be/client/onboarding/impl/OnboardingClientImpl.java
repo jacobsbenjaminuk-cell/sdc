@@ -76,7 +76,7 @@ public class OnboardingClientImpl implements OnboardingClient {
     private Either<Map<String, byte[]>, StorageOperationStatus> handleGetPackage(final String userId, final String url) {
         final Properties headers = buildDefaultHeader(userId);
         downloadCsarHeaders.forEach(headers::put);
-        LOGGER.debug("Get VSP package URL is '{}'. Used headers '{}'", url, headers);
+        LOGGER.debug("Get VSP package URL is '{}'. Used headers '{}'", url, headers.keySet());
         try {
             final HttpResponse<byte[]> httpResponse = HttpRequest.getAsByteArray(url, headers);
             LOGGER.debug("'{}' HTTP response status was '{}'", url, httpResponse.getStatusCode());
@@ -115,7 +115,7 @@ public class OnboardingClientImpl implements OnboardingClient {
         final String url = buildGetVspUrl(id, versionId);
         final Properties headers = buildDefaultHeader(userId);
         headers.put(ACCEPT, APPLICATION_JSON);
-        LOGGER.debug("Find VSP built url '{}', with headers '{}'", url, headers);
+        LOGGER.debug("Find VSP built url '{}', with headers '{}'", url, headers.keySet());
         final HttpResponse<String> httpResponse;
         try {
             httpResponse = HttpRequest.get(url, headers);
@@ -162,7 +162,7 @@ public class OnboardingClientImpl implements OnboardingClient {
         final String url = buildGetLatestVspUrl(id);
         final Properties headers = buildDefaultHeader(userId);
         headers.put(ACCEPT, APPLICATION_JSON);
-        LOGGER.debug("Find VSP built url '{}', with headers '{}'", url, headers);
+        LOGGER.debug("Find VSP built url '{}', with headers '{}'", url, headers.keySet());
         final HttpResponse<String> httpResponse;
         try {
             httpResponse = HttpRequest.get(url, headers);

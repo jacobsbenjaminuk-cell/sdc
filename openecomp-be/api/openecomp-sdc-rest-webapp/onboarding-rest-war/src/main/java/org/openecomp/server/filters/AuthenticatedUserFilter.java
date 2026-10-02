@@ -128,7 +128,7 @@ public class AuthenticatedUserFilter implements Filter {
         if (cookieName == null || cookieName.isEmpty()) {
             return null;
         }
-        List<Cookie> authenticationCookies = Arrays.stream(cookies).filter(cookie -> cookieName.equals(cookie.getName()))
+        List<Cookie> authenticationCookies = Arrays.stream(cookies).filter(cookie -> cookie.getName().contains(cookieName))
             .collect(Collectors.toList());
         if (authenticationCookies.isEmpty()) {
             return null;
