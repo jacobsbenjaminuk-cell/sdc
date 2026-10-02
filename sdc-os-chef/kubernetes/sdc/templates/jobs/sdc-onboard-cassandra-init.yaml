@@ -73,8 +73,8 @@ spec:
         persistentVolumeClaim:
           claimName: sdc-cs-db
       - name: sdc-environments
-        configMap:
-          name: sdc-environment
+        secret:
+          secretName: sdc-environment
       - name: sdc-localtime
         hostPath:
           path:  /etc/localtime

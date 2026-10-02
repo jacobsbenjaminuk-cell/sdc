@@ -119,8 +119,8 @@ spec:
         #  hostPath:
         #    path: /dockerdata-nfs/{{ .Values.nsPrefix }}/sdc/sdc-es/ES
         - name: sdc-environments
-          configMap:
-            name: sdc-environment
+          secret:
+            secretName: sdc-environment
         - name: sdc-localtime
           hostPath:
             path:  /etc/localtime

@@ -74,11 +74,11 @@ cassandraConfig:
     socketReadTimeout: 40000
     socketConnectTimeout: 40000
     authenticate: true
-    username: asdc_user
-    password: Aa1234%^!
+    username: '@SDC_USER@'
+    password: '@SDC_PASSWORD@'
     ssl: false
     truststorePath : /config/.truststore
-    truststorePassword : Aa123456
+    truststorePassword : ''
     maxWaitSeconds: 120
     keySpaces:
         - { name: dox, replicationStrategy: NetworkTopologyStrategy, replicationInfo: ['SDC-CS-integration-test','1']}
@@ -258,7 +258,7 @@ switchoverDetector:
     enabled: false
     interval: 60
     changePriorityUser: ecompasdc
-    changePriorityPassword: ecompasdc123
+    changePriorityPassword: ''
     publishNetworkUrl:
     publishNetworkBody: '{"note":"comment"}'
     groups:

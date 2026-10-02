@@ -26,8 +26,6 @@ COPY --chown=sdc:sdc startup.sh ./
 
 RUN mkdir -p tools && \
     cp -pr sdctool/tools/* tools/ && \
-    cp scripts/janusgraph.properties sdctool/config/ && \
-    cp scripts/configuration.yaml sdctool/config/ && \
     find /home/sdc -type f -name "*.sh" -exec chmod 750 {} \;
 
 ENTRYPOINT ["/bin/sh", "/home/sdc/startup.sh"]

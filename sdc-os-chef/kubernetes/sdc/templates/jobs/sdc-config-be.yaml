@@ -43,8 +43,8 @@ spec:
           value: "{{ .Values.env.name }}"
       volumes:
         - name: sdc-environments
-          configMap:
-            name: sdc-environment
+          secret:
+            secretName: sdc-environment
       imagePullSecrets:
       - name: "{{ .Values.nsPrefix }}-docker-registry-key"
       restartPolicy: Never

@@ -52,8 +52,8 @@ spec:
       - name: "{{ .Values.nsPrefix }}-docker-registry-key"
       volumes:
       - name: sdc-environments
-        configMap:
-          name: sdc-environment
+        secret:
+          secretName: sdc-environment
       - name: sdc-localtime
         hostPath:
           path:  /etc/localtime

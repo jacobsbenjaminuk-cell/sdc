@@ -47,8 +47,8 @@ spec:
             secretKeyRef: {name: sdc-cs-secret, key: cs_password}
       volumes:
         - name: sdc-environments
-          configMap:
-            name: sdc-environment
+          secret:
+            secretName: sdc-environment
       imagePullSecrets:
       - name: "{{ .Values.nsPrefix }}-docker-registry-key"
       restartPolicy: Never

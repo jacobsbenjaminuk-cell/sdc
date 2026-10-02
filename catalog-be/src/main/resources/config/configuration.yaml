@@ -126,8 +126,9 @@ cassandraConfig:
     localDataCenter: DC-sdc-iltlv650
     reconnectTimeout : 30000
     authenticate: true
-    username: asdc_user
-    password: Aa1234%^!
+    # Supplied at deploy time (SDC_USER / SDC_PASSWORD); no default credentials.
+    username:
+    password:
     ssl: true
     maxWaitSeconds: 120
     keySpaces:

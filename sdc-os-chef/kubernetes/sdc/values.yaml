@@ -18,9 +18,11 @@ image:
 env:
   name: AUTO
 
+# Base64-encoded Cassandra credentials. There are no defaults: set all three
+# at install time, e.g. --set secrets.sdc_password=$(printf '%s' "$PASS" | base64)
 secrets:
-    sdc_user: YXNkY191c2Vy
-    sdc_password: QWExMjM0JV4h
-    cs_password: b25hcDEyMyNAIQ==
+    sdc_user: ""
+    sdc_password: ""
+    cs_password: ""
 
 certDir: /var/lib/jetty/cert
