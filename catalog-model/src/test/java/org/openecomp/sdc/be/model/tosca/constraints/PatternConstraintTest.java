@@ -44,10 +44,11 @@ public class PatternConstraintTest {
 	}
 
 	@Test
-	public void rejectsPatternLongerThanLimit() {
+	public void patternLongerThanLimitFailsValidationButStillLoads() {
 		String pattern = "a".repeat(1025);
-		assertThrows(IllegalArgumentException.class, () -> createTestSubject().setPattern(pattern));
-		assertThrows(IllegalArgumentException.class, () -> new PatternConstraint(pattern));
+		// Construction must not throw: pre-existing stored patterns above the limit still load from the graph.
+		PatternConstraint testSubject = new PatternConstraint(pattern);
+		assertThrows(ConstraintViolationException.class, () -> testSubject.validate("x"));
 	}
 
 	@Test
@@ -73,5 +74,13 @@ public class PatternConstraintTest {
 		long elapsedMillis = (System.nanoTime() - start) / 1_000_000;
 		// Without the bound this match would not finish; allow generous headroom for slow CI machines.
 		assertTrue(elapsedMillis < 10_000, "Pattern evaluation was not aborted in time, took " + elapsedMillis + "ms");
+	}
+
+	@Test
+	public void stackOverflowDuringMatchBecomesViolation() {
+		// Quantified groups recurse one stack frame per input char in java.util.regex.
+		PatternConstraint testSubject = new PatternConstraint("(a|b)*");
+		String value = "a".repeat(100_000);
+		assertThrows(ConstraintViolationException.class, () -> testSubject.validate(value));
 	}
 }

@@ -51,21 +51,30 @@ public class PatternConstraint extends AbstractStringPropertyConstraint {
     }
 
     public void setPattern(String pattern) {
-        if (pattern != null && pattern.length() > MAX_PATTERN_LENGTH) {
-            throw new IllegalArgumentException(
-                "Pattern exceeds the maximum allowed length of " + MAX_PATTERN_LENGTH + " characters");
-        }
         this.pattern = pattern;
+        this.compiledPattern = compilePattern(pattern);
+    }
+
+    /**
+     * Patterns saved before the limits existed must still load from the graph, so over-limit patterns degrade to a
+     * constraint that fails validation instead of throwing here.
+     */
+    private static Pattern compilePattern(String pattern) {
+        if (pattern == null || pattern.length() > MAX_PATTERN_LENGTH) {
+            return null;
+        }
         try {
-            this.compiledPattern = Pattern.compile(this.pattern);
+            return Pattern.compile(pattern);
         } catch (StackOverflowError e) {
-            this.compiledPattern = null;
-            throw new IllegalArgumentException("Pattern is too deeply nested to compile", e);
+            return null;
         }
     }
 
     @Override
     protected void doValidate(String propertyValue) throws ConstraintViolationException {
+        if (compiledPattern == null) {
+            throw new ConstraintViolationException("The pattern is too long or too complex to evaluate");
+        }
         if (propertyValue.length() > MAX_VALUE_LENGTH) {
             throw new ConstraintViolationException("The value is too long to validate against pattern " + pattern);
         }
@@ -75,6 +84,8 @@ public class PatternConstraint extends AbstractStringPropertyConstraint {
             }
         } catch (PatternEvaluationAbortedException e) {
             throw new ConstraintViolationException("Evaluation of pattern " + pattern + " exceeded the allowed time", e);
+        } catch (StackOverflowError e) {
+            throw new ConstraintViolationException("Evaluation of pattern " + pattern + " is too complex", e);
         }
     }
 
