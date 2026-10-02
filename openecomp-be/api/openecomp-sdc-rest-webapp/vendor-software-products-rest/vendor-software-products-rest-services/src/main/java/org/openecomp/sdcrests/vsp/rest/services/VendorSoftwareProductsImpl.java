@@ -274,7 +274,7 @@ public class VendorSoftwareProductsImpl implements VendorSoftwareProducts {
             GenericCollectionWrapper<VspDetailsDto> results = new GenericCollectionWrapper<>();
             MapItemToVspDetailsDto mapper = new MapItemToVspDetailsDto();
             realmroles.stream().forEach(role -> itemManager.list(itemPredicate).stream().sorted((o1, o2) -> o2.getModificationTime().compareTo(o1.getModificationTime()))
-                    .filter(vspItem -> vspItem.getTenant().contains(role))
+                    .filter(vspItem -> role.equals(vspItem.getTenant()))
                     .forEach(vspItem -> results.add(mapper.applyMapping(vspItem, VspDetailsDto.class))));
             return Response.ok(results).build();
         }
@@ -620,6 +620,7 @@ public class VendorSoftwareProductsImpl implements VendorSoftwareProducts {
         item.setId(vspId);
         item.setType(retrievedItem.getType());
         item.setOwner(retrievedItem.getOwner());
+        item.setTenant(retrievedItem.getTenant());
         item.setStatus(retrievedItem.getStatus());
         item.setVersionStatusCounters(retrievedItem.getVersionStatusCounters());
         item.setCreationTime(retrievedItem.getCreationTime());

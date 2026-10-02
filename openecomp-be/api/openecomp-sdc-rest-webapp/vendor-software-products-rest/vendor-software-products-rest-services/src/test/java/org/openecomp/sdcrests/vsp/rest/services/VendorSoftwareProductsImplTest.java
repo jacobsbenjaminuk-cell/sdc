@@ -40,16 +40,22 @@ import java.io.FileNotFoundException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.core.Response;
 import org.apache.http.HttpStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.keycloak.representations.AccessToken;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.MockedConstruction;
+import org.mockito.Mockito;
 import org.openecomp.core.util.UniqueValueUtil;
 import org.openecomp.sdc.activitylog.ActivityLogManager;
 import org.openecomp.sdc.activitylog.dao.type.ActivityLogEntity;
@@ -59,6 +65,7 @@ import org.openecomp.sdc.be.csar.storage.StorageFactory;
 import org.openecomp.sdc.common.errors.CatalogRestClientException;
 import org.openecomp.sdc.common.errors.CoreException;
 import org.openecomp.sdc.common.errors.ErrorCode;
+import org.openecomp.sdc.common.util.Multitenancy;
 import org.openecomp.sdc.datatypes.model.ItemType;
 import org.openecomp.sdc.itempermissions.PermissionsManager;
 import org.openecomp.sdc.notification.services.NotificationPropagationManager;
@@ -72,6 +79,9 @@ import org.openecomp.sdc.versioning.types.Item;
 import org.openecomp.sdc.versioning.types.ItemStatus;
 import org.openecomp.sdcrests.vsp.rest.CatalogVspClient;
 import org.openecomp.sdcrests.vsp.rest.exception.VendorSoftwareProductsExceptionSupplier;
+import org.openecomp.sdcrests.vendorsoftwareproducts.types.VspDescriptionDto;
+import org.openecomp.sdcrests.vendorsoftwareproducts.types.VspDetailsDto;
+import org.openecomp.sdcrests.wrappers.GenericCollectionWrapper;
 
 class VendorSoftwareProductsImplTest {
 
@@ -300,6 +310,57 @@ class VendorSoftwareProductsImplTest {
         Response rsp = vendorSoftwareProducts.deleteVsp(vspId, user);
         assertEquals(HttpStatus.SC_OK, rsp.getStatus());
         assertNull(rsp.getEntity());
+    }
+
+    @Test
+    void updateVspKeepsStoredTenant() {
+        item.setTenant("tenantA");
+        item.setStatus(ItemStatus.ACTIVE);
+        VspDescriptionDto request = new VspDescriptionDto();
+        request.setName("vsp");
+        request.setTenant("tenantB");
+
+        Response rsp = vendorSoftwareProducts.updateVsp(vspId, "versionId", request, user);
+
+        assertEquals(HttpStatus.SC_OK, rsp.getStatus());
+        ArgumentCaptor<Item> updated = ArgumentCaptor.forClass(Item.class);
+        verify(itemManager).update(updated.capture());
+        assertEquals("tenantA", updated.getValue().getTenant());
+    }
+
+    @Test
+    void listVspsMatchesTenantExactly() {
+        Item exact = createVspItem("exact", "tenantA");
+        Item composite = createVspItem("composite", "tenantA-tenantB");
+        Item noTenant = createVspItem("noTenant", null);
+        when(itemManager.list(any())).thenReturn(List.of(exact, composite, noTenant));
+        AccessToken.Access realmAccess = new AccessToken.Access();
+        realmAccess.addRole("tenantA");
+        AccessToken token = new AccessToken();
+        token.setRealmAccess(realmAccess);
+        HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
+
+        Response rsp;
+        try (MockedConstruction<Multitenancy> ignored = Mockito.mockConstruction(Multitenancy.class, (mock, context) -> {
+            when(mock.multiTenancyCheck()).thenReturn(true);
+            when(mock.getAccessToken(request)).thenReturn(token);
+        })) {
+            rsp = vendorSoftwareProducts.listVsps(null, null, user, request);
+        }
+
+        assertEquals(HttpStatus.SC_OK, rsp.getStatus());
+        GenericCollectionWrapper<VspDetailsDto> results = (GenericCollectionWrapper<VspDetailsDto>) rsp.getEntity();
+        assertEquals(List.of("exact"), results.getResults().stream().map(VspDetailsDto::getId).collect(Collectors.toList()));
+    }
+
+    private Item createVspItem(String id, String tenant) {
+        Item vspItem = new Item();
+        vspItem.setId(id);
+        vspItem.setType(ItemType.vsp.getName());
+        vspItem.setStatus(ItemStatus.ACTIVE);
+        vspItem.setTenant(tenant);
+        vspItem.setModificationTime(new Date());
+        return vspItem;
     }
 
     private String getConfigPath(String classpathFile) throws FileNotFoundException {

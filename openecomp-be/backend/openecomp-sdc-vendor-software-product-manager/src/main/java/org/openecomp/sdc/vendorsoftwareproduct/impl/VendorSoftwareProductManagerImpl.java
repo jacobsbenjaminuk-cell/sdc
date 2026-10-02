@@ -434,6 +434,7 @@ public class VendorSoftwareProductManagerImpl implements VendorSoftwareProductMa
                 .build());
         }
         vspDetails.setOnboardingMethod(retrieved.getOnboardingMethod());
+        vspDetails.setTenant(retrieved.getTenant());
         //If any existing feature group is removed from VSP which is also associated in DF then
 
         //update DF to remove feature group associations.
