@@ -36,13 +36,19 @@ import io.minio.GetObjectResponse;
 import io.minio.MinioClient;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -88,6 +94,41 @@ class SecurityManagerTest {
 
     private byte[] readAllBytes(String path) throws URISyntaxException, IOException {
         return Files.readAllBytes(Paths.get(getClass().getResource(path).toURI()));
+    }
+
+    private byte[] zip(final Map<String, byte[]> entries) throws IOException {
+        final var byteArrayOutputStream = new ByteArrayOutputStream();
+        try (final var zipOutputStream = new ZipOutputStream(byteArrayOutputStream)) {
+            for (final Map.Entry<String, byte[]> entry : entries.entrySet()) {
+                zipOutputStream.putNextEntry(new ZipEntry(entry.getKey()));
+                zipOutputStream.write(entry.getValue());
+                zipOutputStream.closeEntry();
+            }
+        }
+        return byteArrayOutputStream.toByteArray();
+    }
+
+    private int centralDirectoryOffset(final byte[] zip) {
+        return ByteBuffer.wrap(zip, zip.length - 6, 4).order(ByteOrder.LITTLE_ENDIAN).getInt();
+    }
+
+    /**
+     * Builds a ZIP whose central directory lists only the visible entries, with the hidden entries' local records
+     * appended after the visible ones so that only a local-header reader sees them.
+     */
+    private byte[] zipWithLocalOnlyEntries(final Map<String, byte[]> visibleEntries, final Map<String, byte[]> hiddenEntries) throws IOException {
+        final byte[] visibleZip = zip(visibleEntries);
+        final byte[] hiddenZip = zip(hiddenEntries);
+        final int visibleCentralDirectoryOffset = centralDirectoryOffset(visibleZip);
+        final int hiddenLocalRecordsLength = centralDirectoryOffset(hiddenZip);
+        final var crafted = new ByteArrayOutputStream();
+        crafted.write(visibleZip, 0, visibleCentralDirectoryOffset);
+        crafted.write(hiddenZip, 0, hiddenLocalRecordsLength);
+        crafted.write(visibleZip, visibleCentralDirectoryOffset, visibleZip.length - visibleCentralDirectoryOffset);
+        final byte[] craftedBytes = crafted.toByteArray();
+        ByteBuffer.wrap(craftedBytes, craftedBytes.length - 6, 4).order(ByteOrder.LITTLE_ENDIAN)
+            .putInt(visibleCentralDirectoryOffset + hiddenLocalRecordsLength);
+        return craftedBytes;
     }
 
     @BeforeEach
@@ -270,6 +311,61 @@ class SecurityManagerTest {
                 assertTrue(securityManager
                     .verifyPackageSignedData((OnboardSignedPackage) onboardPackageInfo.getOriginalOnboardPackage(),
                         onboardPackageInfo.getArtifactInfo()));
+            }
+        }
+    }
+
+    @Test
+    void verifySignedDataArtifactStorageManagerIsEnabledRejectsLocalEntriesMissingFromCentralDirectory() throws Exception {
+        final Map<String, Object> endpoint = new HashMap<>();
+        endpoint.put("host", "localhost");
+        endpoint.put("port", 9000);
+        final Map<String, Object> credentials = new HashMap<>();
+        credentials.put("accessKey", "login");
+        credentials.put("secretKey", "password");
+
+        try (MockedStatic<CommonConfigurationManager> utilities = Mockito.mockStatic(CommonConfigurationManager.class)) {
+            utilities.when(CommonConfigurationManager::getInstance).thenReturn(commonConfigurationManager);
+            try (MockedStatic<MinioClient> minioUtilities = Mockito.mockStatic(MinioClient.class)) {
+                minioUtilities.when(MinioClient::builder).thenReturn(builderMinio);
+                when(builderMinio
+                    .endpoint(anyString(), anyInt(), anyBoolean())
+                    .credentials(anyString(), anyString())
+                    .build()
+                ).thenReturn(minioClient);
+
+                when(commonConfigurationManager.getConfigValue("externalCsarStore", "endpoint", null)).thenReturn(endpoint);
+                when(commonConfigurationManager.getConfigValue("externalCsarStore", "credentials", null)).thenReturn(credentials);
+                when(commonConfigurationManager.getConfigValue("externalCsarStore", "tempPath", null)).thenReturn("tempPath");
+                when(commonConfigurationManager.getConfigValue(eq("externalCsarStore"), eq("storageType"), any())).thenReturn(MINIO.name());
+                when(commonConfigurationManager.getConfigValue(eq("externalCsarStore"), eq("uploadPartSize"), any())).thenReturn(50_000_000);
+
+                prepareCertFiles("/cert/rootCA.cert", cerDirPath + "root.cert");
+                final Map<String, byte[]> visibleEntries = new LinkedHashMap<>();
+                visibleEntries.put("dummyPnfv4.csar", readAllBytes("/cert/tampered-signed-package/dummyPnfv4.csar"));
+                visibleEntries.put("dummyPnfv4.cms", readAllBytes("/cert/2-file-signed-package/dummyPnfv4.cms"));
+                final byte[] fileToUploadBytes = zipWithLocalOnlyEntries(visibleEntries,
+                    Map.of("legit.csar", readAllBytes("/cert/2-file-signed-package/dummyPnfv4.csar")));
+                // the processor receives the size reducer output, which is rebuilt from the central directory
+                final byte[] reducedPackageBytes = zip(visibleEntries);
+                when(getObjectArgsBuilder
+                    .bucket(anyString())
+                    .object(anyString())
+                    .build()
+                ).thenReturn(getObjectArgs);
+
+                when(minioClient.getObject(any(GetObjectArgs.class)))
+                    .thenReturn(new GetObjectResponse(null, "bucket", "", "objectName",
+                        new BufferedInputStream(new ByteArrayInputStream(fileToUploadBytes))));
+
+                final var onboardingPackageProcessor = new OnboardingPackageProcessor("crafted-signed-package.zip", reducedPackageBytes,
+                    new CnfPackageValidator(), new MinIoArtifactInfo("bucket", "objectName"));
+                final OnboardPackageInfo onboardPackageInfo = onboardingPackageProcessor.getOnboardPackageInfo().orElse(null);
+                final var signedPackage = (OnboardSignedPackage) onboardPackageInfo.getOriginalOnboardPackage();
+                assertEquals("dummyPnfv4.csar", signedPackage.getInternalPackageFilePath());
+
+                Assertions.assertThrows(SecurityManagerException.class,
+                    () -> securityManager.verifyPackageSignedData(signedPackage, onboardPackageInfo.getArtifactInfo()));
             }
         }
     }
