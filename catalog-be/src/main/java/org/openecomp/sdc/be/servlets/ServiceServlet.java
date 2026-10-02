@@ -79,7 +79,6 @@ import org.openecomp.sdc.be.datatypes.enums.ComponentTypeEnum;
 import org.openecomp.sdc.be.impl.ComponentsUtils;
 import org.openecomp.sdc.be.impl.ServletUtils;
 import org.openecomp.sdc.be.model.Component;
-import org.openecomp.sdc.be.model.DistributionStatusEnum;
 import org.openecomp.sdc.be.model.GroupInstanceProperty;
 import org.openecomp.sdc.be.model.Resource;
 import org.openecomp.sdc.be.model.Service;
@@ -592,34 +591,6 @@ public class ServiceServlet extends AbstractValidationsServlet {
         } catch (Exception e) {
             BeEcompErrorManager.getInstance().logBeRestApiGeneralError("Mark Distribution As Deployed");
             log.debug("mark distribution as deployed failed with exception", e);
-            throw e;
-        }
-    }
-
-    @POST
-    @Path("/services/{serviceId}/tempUrlToBeDeleted")
-    @Tag(name = "SDCE-2 APIs")
-    @Consumes(MediaType.APPLICATION_JSON)
-    @Produces(MediaType.APPLICATION_JSON)
-    @Operation(responses = {@ApiResponse(responseCode = "200", description = "OK"),
-            @ApiResponse(responseCode = "500", description = "Internal Server Error. Please try again later.")})
-    public Response tempUrlToBeDeleted(@PathParam("serviceId") final String serviceId, @Context final HttpServletRequest request,
-                                       @HeaderParam(value = Constants.USER_ID_HEADER) String userId) {
-        String url = request.getMethod() + " " + request.getRequestURI();
-        log.debug(START_HANDLE_REQUEST_OF, url);
-        User modifier = new User(userId);
-        log.debug(MODIFIER_ID_IS, userId);
-        try {
-            Service service = (serviceBusinessLogic.getService(serviceId, modifier)).left().value();
-            Either<Service, ResponseFormat> res = serviceBusinessLogic
-                    .updateDistributionStatusForActivation(service, modifier, DistributionStatusEnum.DISTRIBUTED);
-            if (res.isRight()) {
-                buildErrorResponse(getComponentsUtils().getResponseFormat(ActionStatus.GENERAL_ERROR));
-            }
-            return buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.OK), null);
-        } catch (Exception e) {
-            BeEcompErrorManager.getInstance().logBeRestApiGeneralError("tempUrlToBeDeleted");
-            log.debug("failed with exception", e);
             throw e;
         }
     }

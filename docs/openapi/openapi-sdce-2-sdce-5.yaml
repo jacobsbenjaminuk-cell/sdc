@@ -15672,29 +15672,6 @@ paths:
       summary: GET requirement from service
       tags:
       - SDCE-2 APIs
-  /v1/catalog/services/{serviceId}/tempUrlToBeDeleted:
-    post:
-      operationId: tempUrlToBeDeleted
-      parameters:
-      - in: path
-        name: serviceId
-        required: true
-        schema:
-          type: string
-      - in: header
-        name: USER_ID
-        schema:
-          type: string
-      responses:
-        "200":
-          description: OK
-        "500":
-          description: Internal Server Error. Please try again later.
-      servers:
-      - url: /sdc2/rest
-        variables: {}
-      tags:
-      - SDCE-2 APIs
   /v1/catalog/services/{serviceName}/{version}:
     delete:
       description: Delete Service By Name And Version
