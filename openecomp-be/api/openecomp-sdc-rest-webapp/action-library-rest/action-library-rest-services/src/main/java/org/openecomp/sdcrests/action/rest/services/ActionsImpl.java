@@ -95,14 +95,13 @@ import static org.openecomp.sdc.action.util.ActionUtil.actionErrorLogProcessor;
 import static org.openecomp.sdc.action.util.ActionUtil.actionLogPostProcessor;
 import static org.openecomp.sdc.action.util.ActionUtil.getUtcDateStringFromTimestamp;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import javax.inject.Named;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.core.Response;
@@ -176,8 +175,11 @@ public class ActionsImpl implements Actions {
         + "\\u3000" // IDEOGRAPHIC SPACE
         ;
     private String invalidFilenameChars = "#<>$+%!`&*'|{}?\"=/:@\\\\";
-    private String whitespaceRegex = ".*[" + whitespaceCharacters + "].*";
-    private String invalidFilenameRegex = ".*[" + whitespaceCharacters + invalidFilenameChars + "].*";
+    //DOTALL: '.' must also match \r and \n so names containing CR/LF cannot bypass the check
+    private final Pattern whitespacePattern =
+        Pattern.compile(".*[" + whitespaceCharacters + "].*", Pattern.DOTALL);
+    private final Pattern invalidFilenamePattern =
+        Pattern.compile(".*[" + whitespaceCharacters + invalidFilenameChars + "].*", Pattern.DOTALL);
 
     @Autowired
     public ActionsImpl(ActionManager actionManager) {
@@ -553,7 +555,7 @@ public class ActionsImpl implements Actions {
             errorMap.put(ACTION_REQUEST_INVALID_GENERIC_CODE, ACTION_REQUEST_MISSING_MANDATORY_PARAM + ARTIFACT_NAME);
         } else {
             //Artifact name syntax check for whitespaces and invalid characters
-            if (artifactName.matches(invalidFilenameRegex)) {
+            if (invalidFilenamePattern.matcher(artifactName).matches()) {
                 errorMap.put(ACTION_ARTIFACT_INVALID_NAME_CODE, ACTION_ARTIFACT_INVALID_NAME);
             }
         }
@@ -941,7 +943,7 @@ public class ActionsImpl implements Actions {
                     setErrorValue(ACTION_REQUEST_INVALID_GENERIC_CODE, ACTION_REQUEST_PARAM_NAME, requestBodyErrorMap);
                 } else {
                     //Added check for action names not allowing whitespaces
-                    if (action.getName().matches(whitespaceRegex)) {
+                    if (whitespacePattern.matcher(action.getName()).matches()) {
                         requestBodyErrorMap.put(ACTION_ARTIFACT_INVALID_NAME_CODE, ACTION_REQUEST_INVALID_NAME);
                     }
                 }
@@ -1029,18 +1031,10 @@ public class ActionsImpl implements Actions {
     private Response createArtifactDownloadResponse(ActionArtifact actionartifact) {
         if (actionartifact != null && actionartifact.getArtifact() != null) {
             byte[] artifactsBytes = actionartifact.getArtifact();
-            File artifactFile = new File(actionartifact.getArtifactName());
-            try (FileOutputStream fos = new FileOutputStream(artifactFile)) {
-                fos.write(artifactsBytes);
-            } catch (IOException exception) {
-                LOGGER.error(ACTION_ENTITY_INTERNAL_SERVER_ERROR_MSG, exception);
-                throw new ActionException(ActionErrorConstants.ACTION_INTERNAL_SERVER_ERR_CODE,
-                    ActionErrorConstants.ACTION_ENTITY_INTERNAL_SERVER_ERROR_MSG);
-            }
-            Response.ResponseBuilder responseBuilder = Response.ok(artifactFile);
-            responseBuilder.header("Content-Disposition", "attachment; filename=" + actionartifact.getArtifactName());
+            Response.ResponseBuilder responseBuilder = Response.ok(artifactsBytes);
+            responseBuilder.header("Content-Disposition", contentDispositionAttachment(actionartifact.getArtifactName()));
             responseBuilder.header("Content-MD5", CalcMD5CheckSum(artifactsBytes));
-            responseBuilder.header("Content-Length", artifactFile.length());
+            responseBuilder.header("Content-Length", artifactsBytes.length);
             return responseBuilder.build();
         } else {
             throw new ActionException(ActionErrorConstants.ACTION_ARTIFACT_ENTITY_NOT_EXIST_CODE,
@@ -1075,6 +1069,15 @@ public class ActionsImpl implements Actions {
         } else if (LOGGER.isErrorEnabled()) {
             MDC.put(CATEGORY_LOG_LEVEL, CategoryLogLevel.ERROR.name());
         }
+    }
+
+    /**
+     * Builds an RFC 6266 Content-Disposition attachment value: the filename is emitted as a
+     * quoted-string with control characters removed and '"' and '\\' escaped.
+     */
+    private static String contentDispositionAttachment(String filename) {
+        String sanitized = filename.replaceAll("\\p{Cntrl}", "");
+        return "attachment; filename=\"" + sanitized.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 
     private String CalcMD5CheckSum(byte[] input) {
