@@ -23,6 +23,7 @@ import fj.data.Either;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.openecomp.sdc.be.components.validation.AccessValidations;
 import org.openecomp.sdc.be.datatypes.elements.DataTypeDataDefinition;
 import org.openecomp.sdc.be.exception.supplier.DataTypeOperationExceptionSupplier;
 import org.openecomp.sdc.be.model.Component;
@@ -45,26 +46,35 @@ public class DataTypeBusinessLogic extends BaseBusinessLogic {
 
     private final DataTypeImportManager dataTypeImportManager;
     private final DataTypeOperation dataTypeOperation;
+    private final AccessValidations accessValidations;
 
     @Autowired
     public DataTypeBusinessLogic(IElementOperation elementDao, IGroupOperation groupOperation, IGroupInstanceOperation groupInstanceOperation,
                                  IGroupTypeOperation groupTypeOperation, InterfaceOperation interfaceOperation,
                                  InterfaceLifecycleOperation interfaceLifecycleTypeOperation, ArtifactsOperations artifactToscaOperation,
                                  DataTypeImportManager dataTypeImportManager,
-                                 DataTypeOperation dataTypeOperation) {
+                                 DataTypeOperation dataTypeOperation, AccessValidations accessValidations) {
         super(elementDao, groupOperation, groupInstanceOperation, groupTypeOperation, interfaceOperation, interfaceLifecycleTypeOperation,
             artifactToscaOperation);
         this.dataTypeImportManager = dataTypeImportManager;
         this.dataTypeOperation = dataTypeOperation;
+        this.accessValidations = accessValidations;
     }
 
     /**
      * Get a list of data types that the Component has.
      *
-     * @param componentId Unique ID of the Component
+     * @param userId        ID of the requesting user
+     * @param componentType the container type (services, resources, ...)
+     * @param componentId   Unique ID of the Component
      * @return list of data types
      */
-    public Either<List<DataTypeDefinition>, StorageOperationStatus> getPrivateDataTypes(String componentId) {
+    public Either<List<DataTypeDefinition>, StorageOperationStatus> getPrivateDataTypes(String userId, String componentType, String componentId) {
+        accessValidations.validateUserCanRetrieveComponentData(componentId, componentType, userId, "GET PRIVATE DATA TYPES");
+        return loadPrivateDataTypes(componentId);
+    }
+
+    private Either<List<DataTypeDefinition>, StorageOperationStatus> loadPrivateDataTypes(String componentId) {
         ComponentParametersView filter = new ComponentParametersView();
         filter.disableAll();
         filter.setIgnoreDataType(false);
@@ -87,12 +97,16 @@ public class DataTypeBusinessLogic extends BaseBusinessLogic {
     /**
      * Get a data type in a Component
      *
-     * @param componentId  Unique ID of the Component
-     * @param dataTypeName Data type name
+     * @param userId        ID of the requesting user
+     * @param componentType the container type (services, resources, ...)
+     * @param componentId   Unique ID of the Component
+     * @param dataTypeName  Data type name
      * @return found data type
      */
-    public Either<DataTypeDefinition, StorageOperationStatus> getPrivateDataType(String componentId, String dataTypeName) {
-        Either<List<DataTypeDefinition>, StorageOperationStatus> dataTypesResult = this.getPrivateDataTypes(componentId);
+    public Either<DataTypeDefinition, StorageOperationStatus> getPrivateDataType(String userId, String componentType, String componentId,
+                                                                                 String dataTypeName) {
+        accessValidations.validateUserCanRetrieveComponentData(componentId, componentType, userId, "GET PRIVATE DATA TYPE");
+        Either<List<DataTypeDefinition>, StorageOperationStatus> dataTypesResult = loadPrivateDataTypes(componentId);
         if (dataTypesResult.isRight()) {
             return Either.right(dataTypesResult.right().value());
         }
