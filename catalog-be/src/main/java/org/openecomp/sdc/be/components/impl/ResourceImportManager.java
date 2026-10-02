@@ -113,10 +113,15 @@ import org.openecomp.sdc.common.util.ValidationUtils;
 import org.openecomp.sdc.exception.ResponseFormat;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.context.WebApplicationContext;
+import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
 
 @org.springframework.stereotype.Component("resourceImportManager")
 public class ResourceImportManager {
+
+    public static final int MAX_NODE_TYPES_YAML_SIZE = 3 * 1024 * 1024;
+    private static final int MAX_NODE_TYPES_YAML_ALIASES = 50;
+    private static final int MAX_NODE_TYPES_YAML_NESTING_DEPTH = 50;
 
     static final Pattern PROPERTY_NAME_PATTERN_IGNORE_LENGTH = Pattern.compile("['\\w\\s\\-\\.\\:]+");
     private static final Logger log = Logger.getLogger(ResourceImportManager.class);
@@ -166,11 +171,20 @@ public class ResourceImportManager {
             needLock, null, null, false, null, null, false, instancesFromCsar);
     }
 
+    private static LoaderOptions buildNodeTypesYamlLoaderOptions() {
+        final var loaderOptions = new LoaderOptions();
+        loaderOptions.setCodePointLimit(MAX_NODE_TYPES_YAML_SIZE);
+        loaderOptions.setMaxAliasesForCollections(MAX_NODE_TYPES_YAML_ALIASES);
+        loaderOptions.setNestingDepthLimit(MAX_NODE_TYPES_YAML_NESTING_DEPTH);
+        loaderOptions.setAllowRecursiveKeys(false);
+        return loaderOptions;
+    }
+
     public void importAllNormativeResource(final String resourcesYaml, final NodeTypesMetadataList nodeTypesMetadataList, final User user,
                                            final boolean createNewVersion, final boolean needLock) {
         final Map<String, Object> nodeTypesYamlMap;
         try {
-            nodeTypesYamlMap = new Yaml().load(resourcesYaml);
+            nodeTypesYamlMap = new Yaml(buildNodeTypesYamlLoaderOptions()).load(resourcesYaml);
         } catch (final Exception e) {
             log.error(EcompLoggerErrorCode.BUSINESS_PROCESS_ERROR, ResourceImportManager.class.getName(), "Could not parse node types YAML", e);
             throw new ByActionStatusComponentException(ActionStatus.INVALID_NODE_TYPES_YAML);

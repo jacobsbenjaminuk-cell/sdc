@@ -24,6 +24,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -32,6 +33,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
 import javax.servlet.ServletContext;
@@ -322,8 +324,29 @@ class ResourceUploadServletTest extends JerseyTest {
         assertThat(response.getStatus()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR_500);
     }
 
+    @Test
+    void bulkImportFailTest_yamlExceedsSizeLimit() throws IOException, ParseException {
+        when(responseFormat.getStatus()).thenReturn(HttpStatus.BAD_REQUEST_400);
+        when(componentsUtils.getResponseFormat(ActionStatus.EXCEEDS_LIMIT, "Node types yaml",
+            String.valueOf(ResourceImportManager.MAX_NODE_TYPES_YAML_SIZE))).thenReturn(responseFormat);
+        final Path oversizedYamlPath = Files.createTempFile("oversizedNodeTypes", ".yaml");
+        try {
+            Files.write(oversizedYamlPath, new byte[ResourceImportManager.MAX_NODE_TYPES_YAML_SIZE + 1]);
+
+            final Response response = doCallToBulkImport(USER_ID, oversizedYamlPath);
+
+            verify(resourceImportManager, never()).importAllNormativeResource(anyString(), any(), any(), anyBoolean(), anyBoolean());
+            assertThat(response.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST_400);
+        } finally {
+            Files.deleteIfExists(oversizedYamlPath);
+        }
+    }
+
     private Response doValidCallToBulkImport(final String userId) throws IOException, ParseException {
-        final Path nodeTypesYamlPath = Path.of("src/test/resources/node-types/nodeTypes.yaml");
+        return doCallToBulkImport(userId, Path.of("src/test/resources/node-types/nodeTypes.yaml"));
+    }
+
+    private Response doCallToBulkImport(final String userId, final Path nodeTypesYamlPath) throws IOException, ParseException {
         final Path nodeTypeMetadataJsonPath = Path.of("src/test/resources/node-types/payload.json");
         return target().path(bulkImportPath.toString()).request(MediaType.APPLICATION_JSON)
             .header(Constants.USER_ID_HEADER, userId)

@@ -184,7 +184,13 @@ public class ResourceUploadServlet extends AbstractValidationsServlet {
 
         final String nodeTypesYamlString;
         try {
-            nodeTypesYamlString = new String(nodeTypesYamlInputStream.readAllBytes(), StandardCharsets.UTF_8);
+            final byte[] nodeTypesYamlBytes = nodeTypesYamlInputStream.readNBytes(ResourceImportManager.MAX_NODE_TYPES_YAML_SIZE + 1);
+            if (nodeTypesYamlBytes.length > ResourceImportManager.MAX_NODE_TYPES_YAML_SIZE) {
+                log.error("The given node types yaml exceeds the limit of {} bytes", ResourceImportManager.MAX_NODE_TYPES_YAML_SIZE);
+                return buildErrorResponse(getComponentsUtils().getResponseFormat(ActionStatus.EXCEEDS_LIMIT, "Node types yaml",
+                    String.valueOf(ResourceImportManager.MAX_NODE_TYPES_YAML_SIZE)));
+            }
+            nodeTypesYamlString = new String(nodeTypesYamlBytes, StandardCharsets.UTF_8);
         } catch (final IOException e) {
             var errorMsg = "Could not read the given node types yaml";
             BeEcompErrorManager.getInstance().logBeRestApiGeneralError(errorMsg);
