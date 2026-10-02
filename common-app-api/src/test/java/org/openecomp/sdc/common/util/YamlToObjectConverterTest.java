@@ -26,6 +26,7 @@ import org.junit.Test;
 import org.openecomp.sdc.be.config.Configuration;
 import org.openecomp.sdc.be.config.DistributionEngineConfiguration;
 import org.openecomp.sdc.be.config.DistributionEngineConfiguration.DistributionDeleteTopicConfig;
+import org.openecomp.sdc.be.config.validation.DeploymentArtifactHeatConfiguration;
 import org.openecomp.sdc.common.http.client.api.HttpClient;
 
 import java.io.IOException;
@@ -74,6 +75,87 @@ public class YamlToObjectConverterTest {
     @Before
     public void setUp() {
         yamlToObjectConverter = new YamlToObjectConverter();
+        GlobalTagTarget.instantiated = false;
+    }
+
+    public static class GlobalTagTarget {
+
+        static boolean instantiated = false;
+
+        public GlobalTagTarget() {
+            instantiated = true;
+        }
+    }
+
+    private static final String GLOBAL_TAG_YAML = "heat_template_version: 2013-05-23\n" +
+            "resources:\n" +
+            "  payload: !!" + GlobalTagTarget.class.getName() + " {}\n";
+
+    @Test
+    public void validateIsValidYamlRejectsGlobalTagsWithoutInstantiatingClasses() {
+        boolean result = yamlToObjectConverter.isValidYaml(GLOBAL_TAG_YAML.getBytes());
+
+        assertFalse(result);
+        assertFalse(GlobalTagTarget.instantiated);
+    }
+
+    @Test
+    public void validateIsValidYamlEncoded64RejectsGlobalTagsWithoutInstantiatingClasses() {
+        boolean result = yamlToObjectConverter.isValidYamlEncoded64(Base64.encodeBase64(GLOBAL_TAG_YAML.getBytes()));
+
+        assertFalse(result);
+        assertFalse(GlobalTagTarget.instantiated);
+    }
+
+    @Test
+    public void validateConvertFromByteArrayRejectsGlobalTagsWithoutInstantiatingClasses() {
+        DeploymentArtifactHeatConfiguration result =
+                yamlToObjectConverter.convert(GLOBAL_TAG_YAML.getBytes(), DeploymentArtifactHeatConfiguration.class);
+
+        assertNull(result);
+        assertFalse(GlobalTagTarget.instantiated);
+    }
+
+    public static class ObjectHolder {
+
+        public Object value;
+    }
+
+    @Test
+    public void validateConvertFromByteArrayRejectsGlobalTagsForUnregisteredClass() {
+        final String yaml = "value: !!" + GlobalTagTarget.class.getName() + " {}\n";
+
+        ObjectHolder result = yamlToObjectConverter.convert(yaml.getBytes(), ObjectHolder.class);
+
+        assertNull(result);
+        assertFalse(GlobalTagTarget.instantiated);
+    }
+
+    @Test
+    public void validateConvertFromByteArrayBindsUnregisteredClass() {
+        final String yaml = "value: plain\n";
+
+        ObjectHolder result = yamlToObjectConverter.convert(yaml.getBytes(), ObjectHolder.class);
+
+        assertNotNull(result);
+        assertEquals("plain", result.value);
+    }
+
+    @Test
+    public void validateConvertFromByteArrayParsesHeatTemplate() {
+        final String yaml = "heat_template_version: 2013-05-23\n" +
+                "description: test\n" +
+                "resources:\n" +
+                "  server:\n" +
+                "    type: OS::Nova::Server\n" +
+                "unknown_section: ignored\n";
+
+        DeploymentArtifactHeatConfiguration result =
+                yamlToObjectConverter.convert(yaml.getBytes(), DeploymentArtifactHeatConfiguration.class);
+
+        assertNotNull(result);
+        assertNotNull(result.getHeat_template_version());
+        assertNotNull(result.getResources().get("server"));
     }
 
     @Test
