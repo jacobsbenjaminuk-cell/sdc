@@ -122,8 +122,8 @@ spec:
           hostPath:
             path: /dockerdata-nfs/{{ .Values.nsPrefix }}/log/sdc/onboard-be/logback.xml
         - name: sdc-environments
-          configMap:
-            name: sdc-environment
+          secret:
+            secretName: sdc-environment
         - name: sdc-localtime
           hostPath:
             path:  /etc/localtime

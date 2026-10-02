@@ -19,11 +19,12 @@ while [ $is_up -eq 0 -a $retry_num -le 100 ]; do
    retry_num=$((retry_num+1))
 done
 
-cassandra_user_exist=$(echo "list users;" | cqlsh -u cassandra -p "$CS_PASSWORD" $CASSANDRA_IP $CASSANDRA_PORT --cqlversion="$cqlversion" | grep -c $SDC_USER)
+sdc_password_cql=$(printf '%s' "$SDC_PASSWORD" | sed "s/'/''/g")
+cassandra_user_exist=$(echo "list users;" | cqlsh -u cassandra -p "$CS_PASSWORD" $CASSANDRA_IP $CASSANDRA_PORT --cqlversion="$cqlversion" | grep -cw "$SDC_USER")
 if [ $cassandra_user_exist -eq 1 ]; then
-    echo "Cassandra user $SDC_USER already exists"
+    echo "Cassandra user $SDC_USER already exists, updating its password"
+    echo "alter user $SDC_USER with password '$sdc_password_cql';" | cqlsh -u cassandra -p "$CS_PASSWORD" $CASSANDRA_IP $CASSANDRA_PORT --cqlversion="$cqlversion"
 else
     echo "Going to create $SDC_USER"
-    sdc_password_cql=$(printf '%s' "$SDC_PASSWORD" | sed "s/'/''/g")
     echo "create user $SDC_USER with password '$sdc_password_cql' nosuperuser;" | cqlsh -u cassandra -p "$CS_PASSWORD" $CASSANDRA_IP $CASSANDRA_PORT --cqlversion="$cqlversion"
 fi
