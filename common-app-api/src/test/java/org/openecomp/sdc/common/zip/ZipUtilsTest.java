@@ -24,8 +24,11 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isIn;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -33,14 +36,18 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
@@ -188,6 +195,139 @@ class ZipUtilsTest {
             FileUtils.deleteDirectory(unzipTempPath.toFile());
             FileUtils.deleteDirectory(zipTempPath.toFile());
         }
+    }
+
+    @AfterEach
+    void clearLimitProperties() {
+        System.clearProperty("sdc.zip.read.maxEntries");
+        System.clearProperty("sdc.zip.read.maxEntrySize");
+        System.clearProperty("sdc.zip.read.maxTotalSize");
+        System.clearProperty("sdc.zip.read.maxCompressedSize");
+        System.clearProperty("sdc.zip.read.maxCompressionRatio");
+    }
+
+    private static byte[] buildZip(final Map<String, byte[]> entries) throws IOException {
+        final ByteArrayOutputStream output = new ByteArrayOutputStream();
+        try (final ZipOutputStream zipOutputStream = new ZipOutputStream(output)) {
+            for (final Map.Entry<String, byte[]> entry : entries.entrySet()) {
+                zipOutputStream.putNextEntry(new ZipEntry(entry.getKey()));
+                zipOutputStream.write(entry.getValue());
+                zipOutputStream.closeEntry();
+            }
+        }
+        return output.toByteArray();
+    }
+
+    @Test
+    void testReadZipRejectsTooManyEntries() throws IOException {
+        System.setProperty("sdc.zip.read.maxEntries", "1");
+        final Map<String, byte[]> entries = new HashMap<>();
+        entries.put("file1.txt", "content1".getBytes());
+        entries.put("file2.txt", "content2".getBytes());
+        assertThrows(ZipException.class, () -> ZipUtils.readZip(buildZip(entries), false));
+    }
+
+    @Test
+    void testReadZipRejectsEntryAboveMaxEntrySize() throws IOException {
+        System.setProperty("sdc.zip.read.maxEntrySize", "10");
+        final Map<String, byte[]> entries = new HashMap<>();
+        entries.put("file1.txt", "a content bigger than ten bytes".getBytes());
+        assertThrows(ZipException.class, () -> ZipUtils.readZip(buildZip(entries), false));
+    }
+
+    @Test
+    void testReadZipRejectsTotalSizeAboveMaxTotalSize() throws IOException {
+        System.setProperty("sdc.zip.read.maxTotalSize", "20");
+        final Map<String, byte[]> entries = new HashMap<>();
+        entries.put("file1.txt", "0123456789".getBytes());
+        entries.put("file2.txt", "0123456789A".getBytes());
+        assertThrows(ZipException.class, () -> ZipUtils.readZip(buildZip(entries), false));
+    }
+
+    @Test
+    void testReadZipRejectsArchiveAboveMaxCompressedSize() throws IOException {
+        System.setProperty("sdc.zip.read.maxCompressedSize", "10");
+        final Map<String, byte[]> entries = new HashMap<>();
+        entries.put("file1.txt", "content1".getBytes());
+        assertThrows(ZipException.class, () -> ZipUtils.readZip(buildZip(entries), false));
+    }
+
+    @Test
+    void testReadZipRejectsZipBombByCompressionRatio() throws IOException {
+        System.setProperty("sdc.zip.read.maxCompressionRatio", "200");
+        final Map<String, byte[]> entries = new HashMap<>();
+        entries.put("bomb.bin", new byte[4 * 1024 * 1024]);
+        assertThrows(ZipException.class, () -> ZipUtils.readZip(buildZip(entries), false));
+    }
+
+    @Test
+    void testReadZipAcceptsHighlyCompressibleSmallArchive() throws IOException, ZipException {
+        //below the ratio check threshold of 1 MiB inflated, high ratios are allowed
+        final Map<String, byte[]> entries = new HashMap<>();
+        entries.put("zeros.bin", new byte[512 * 1024]);
+        final Map<String, byte[]> fileMap = ZipUtils.readZip(buildZip(entries), false);
+        assertThat("Entry should be read", fileMap, aMapWithSize(1));
+    }
+
+    @Test
+    void testReadZipFromInputStreamAppliesLimits() throws IOException {
+        System.setProperty("sdc.zip.read.maxEntries", "1");
+        final Map<String, byte[]> entries = new HashMap<>();
+        entries.put("file1.txt", "content1".getBytes());
+        entries.put("file2.txt", "content2".getBytes());
+        assertThrows(ZipException.class, () -> ZipUtils.readZip(new ByteArrayInputStream(buildZip(entries)), false));
+    }
+
+    @Test
+    void testReadZipFromInputStreamRejectsOversizedCompressedStream() throws IOException {
+        System.setProperty("sdc.zip.read.maxCompressedSize", "10");
+        final Map<String, byte[]> entries = new HashMap<>();
+        entries.put("file1.txt", "content1".getBytes());
+        assertThrows(ZipException.class, () -> ZipUtils.readZip(new ByteArrayInputStream(buildZip(entries)), false));
+    }
+
+    @Test
+    void testReadZipFromInputStreamReadsRegularZip() throws IOException, ZipException {
+        final Map<String, byte[]> entries = new HashMap<>();
+        entries.put("file1.txt", "content1".getBytes());
+        final Map<String, byte[]> fileMap = ZipUtils.readZip(new ByteArrayInputStream(buildZip(entries)), false);
+        assertThat("Entry should be read", fileMap, aMapWithSize(1));
+        assertThat("Entry content should match", fileMap.get("file1.txt"), is("content1".getBytes()));
+    }
+
+    @Test
+    void testReadZipFromInputStreamFailsOnReadError() throws IOException {
+        //a mid-stream IO failure must propagate instead of silently returning a partial map
+        final Map<String, byte[]> entries = new HashMap<>();
+        entries.put("file1.txt", "content1".getBytes());
+        entries.put("file2.txt", "content2".getBytes());
+        final byte[] zipBytes = buildZip(entries);
+        final InputStream failingStream = new InputStream() {
+            private final ByteArrayInputStream delegate = new ByteArrayInputStream(zipBytes);
+            private int readSoFar;
+
+            @Override
+            public int read() throws IOException {
+                if (++readSoFar > zipBytes.length / 2) {
+                    throw new IOException("simulated stream failure");
+                }
+                return delegate.read();
+            }
+        };
+        assertThrows(ZipException.class, () -> ZipUtils.readZip(failingStream, false));
+    }
+
+    @Test
+    void testReadZipFromInputStreamAcceptsMixedContentArchive() throws IOException, ZipException {
+        //a highly compressible entry followed by incompressible data must not trip the ratio check mid-read
+        final Map<String, byte[]> entries = new HashMap<>();
+        entries.put("zeros.bin", new byte[2 * 1024 * 1024]);
+        final byte[] randomContent = new byte[2 * 1024 * 1024];
+        new java.util.Random(42).nextBytes(randomContent);
+        entries.put("data.bin", randomContent);
+        final byte[] zipBytes = buildZip(entries);
+        final Map<String, byte[]> fileMap = ZipUtils.readZip(new ByteArrayInputStream(zipBytes), false);
+        assertThat("Both entries should be read", fileMap, aMapWithSize(2));
     }
 
 }

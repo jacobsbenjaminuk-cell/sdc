@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.Objects;
 import org.apache.commons.collections4.MapUtils;
 import org.openecomp.core.utilities.file.FileContentHandler;
-import org.openecomp.core.utilities.file.FileUtils;
 import org.openecomp.core.validation.api.ValidationManager;
 import org.openecomp.sdc.common.errors.CoreException;
 import org.openecomp.sdc.common.errors.ErrorCategory;
@@ -48,7 +47,7 @@ import org.openecomp.sdc.validation.util.ValidationManagerUtil;
  */
 public class UploadValidationManagerImpl implements UploadValidationManager {
 
-    private static FileContentHandler getFileContentMapFromZip(byte[] uploadFileData) throws IOException {
+    private static FileContentHandler getFileContentMapFromZip(final InputStream uploadFileData) throws IOException {
         final Map<String, byte[]> zipFileAndByteMap;
         try {
             zipFileAndByteMap = ZipUtils.readZip(uploadFileData, true);
@@ -97,6 +96,6 @@ public class UploadValidationManagerImpl implements UploadValidationManager {
     }
 
     private FileContentHandler getFileContent(InputStream is) throws IOException {
-        return getFileContentMapFromZip(FileUtils.toByteArray(is));
+        return getFileContentMapFromZip(is);
     }
 }
