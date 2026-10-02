@@ -24,13 +24,11 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.openecomp.sdc.be.config.BeEcompErrorManager;
 import org.openecomp.sdc.be.config.BeEcompErrorManager.ErrorSeverity;
@@ -166,9 +164,7 @@ public class CsarValidationUtils {
                 String.format(TOSCA_METADATA_TOSCA_META_FILE_IS_NOT_IN_EXPECTED_KEY_VALUE_FORM_IN_CSAR_CSAR_ID, csarUUID)));
         }
         String yamlFileName = props.getProperty(TOSCA_META_ENTRY_DEFINITIONS);
-        String result = Arrays.asList(yamlFileName.split(DEL_PATTERN)).stream().map(x -> x).collect(Collectors.joining(DEL_PATTERN));
-        keyOp = csar.keySet().stream().filter(k -> Pattern.compile(result).matcher(k).matches()).findAny();
-        if (keyOp.isEmpty()) {
+        if (yamlFileName == null || !csar.containsKey(yamlFileName)) {
             log.error(ENTRY_DEFINITIONS_ENTRY_NOT_FOUND_IN_TOSCA_METADATA_TOSCA_META_FILE_CSAR_ID, csarUUID);
             BeEcompErrorManager.getInstance()
                 .logInternalDataError(ENTRY_DEFINITIONS_ENTRY_NOT_FOUND_IN_TOSCA_METADATA_TOSCA_META_FILE_CSAR_ID + csarUUID,
