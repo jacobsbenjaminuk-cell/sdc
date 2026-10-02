@@ -177,4 +177,19 @@ public class SessionValidationFilterTest {
         Mockito.verify(filterChain, times(1)).doFilter(request, response);
     }
 
+    @Test
+    public void multipleAuthenticationCookiesValuesAreNotRead() throws IOException, ServletException, CipherUtilException {
+        when(request.getPathInfo()).thenReturn("/resource");
+        String cookieName = sessionValidationFilter.getFilterConfiguration().getCookieName();
+        String encryptedCookie = AuthenticationCookieUtils.getEncryptedCookie(new AuthenticationCookie("kuku"),
+            sessionValidationFilter.getFilterConfiguration());
+        Cookie cookie = new Cookie(cookieName, encryptedCookie);
+        Cookie secondCookie = Mockito.spy(new Cookie("portal" + cookieName, encryptedCookie));
+
+        when(request.getCookies()).thenReturn(new Cookie[]{cookie, secondCookie});
+        sessionValidationFilter.doFilter(request, response, filterChain);
+        Mockito.verify(filterChain, times(1)).doFilter(request, response);
+        Mockito.verify(secondCookie, Mockito.never()).getValue();
+    }
+
 }

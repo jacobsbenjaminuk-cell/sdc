@@ -217,8 +217,7 @@ public abstract class SessionValidationFilter implements Filter {
         List<Cookie> authenticationCookies = Arrays.stream(cookies).filter(c -> isCookieNameMatch(actualCookieName, c)).collect(Collectors.toList());
         log.debug("SessionValidationFilter: Extracted {} authentication cookies from request", authenticationCookies.size());
         if (authenticationCookies.size() > 1) {
-            authenticationCookies.forEach(cookie -> log
-                .debug("SessionValidationFilter: Multiple cookies found cookie name, {} cookie value {}", cookie.getName(), cookie.getValue()));
+            authenticationCookies.forEach(cookie -> log.debug("SessionValidationFilter: Multiple cookies found, cookie name {}", cookie.getName()));
         }
         return authenticationCookies;
     }
