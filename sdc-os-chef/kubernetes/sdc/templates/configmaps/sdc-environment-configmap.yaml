@@ -38,8 +38,8 @@ data:
                 "decryption_key": "AGLDdG4D04BKm2IxIWEr8o=="
             },
             "UEB": {
-                "PublicKey": "{{ .Values.ueb.publicKey }}",
-                "SecretKey": "{{ .Values.ueb.secretKey }}",
+                "PublicKey": {{ .Values.ueb.publicKey | quote }},
+                "SecretKey": {{ .Values.ueb.secretKey | quote }},
                 "fqdn": ["dmaap.onap-message-router", "dmaap.onap-message-router"]
             },
             "Nodes": {
