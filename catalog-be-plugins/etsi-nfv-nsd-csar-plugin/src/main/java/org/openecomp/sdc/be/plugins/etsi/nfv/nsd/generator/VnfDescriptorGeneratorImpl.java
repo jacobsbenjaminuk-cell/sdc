@@ -20,7 +20,9 @@
 package org.openecomp.sdc.be.plugins.etsi.nfv.nsd.generator;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -31,12 +33,14 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipException;
+import java.util.zip.ZipInputStream;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.onap.sdc.tosca.services.YamlUtil;
 import org.openecomp.core.utilities.file.FileContentHandler;
-import org.openecomp.core.utilities.file.FileUtils;
 import org.openecomp.sdc.be.csar.storage.StorageFactory;
 import org.openecomp.sdc.be.model.ArtifactDefinition;
 import org.openecomp.sdc.be.plugins.etsi.nfv.nsd.builder.NsdToscaMetadataBuilder;
@@ -61,6 +65,12 @@ public class VnfDescriptorGeneratorImpl implements VnfDescriptorGenerator {
     private static final String SLASH = "/";
     private static final String DEFINITIONS_DIRECTORY = "Definitions";
     private static final String TOSCA_META_PATH = "TOSCA-Metadata/TOSCA.meta";
+    static final int MAX_ZIP_ENTRIES = 10_000;
+    static final long MAX_DEFINITION_FILE_SIZE = 10L * 1024 * 1024;
+    static final long MAX_TOTAL_DEFINITION_SIZE = 50L * 1024 * 1024;
+    static final long COMPRESSION_RATIO_CHECK_THRESHOLD = 100L * 1024 * 1024;
+    static final long MAX_COMPRESSION_RATIO = 100;
+    private static final int READ_BUFFER_SIZE = 8192;
 
     private static boolean isACsarArtifact(final ArtifactDefinition definition) {
         return definition.getPayloadData() != null && definition.getArtifactName() != null
@@ -76,11 +86,12 @@ public class VnfDescriptorGeneratorImpl implements VnfDescriptorGenerator {
             final var artifactStorageManager = new StorageFactory().createArtifactStorageManager();
             final byte[] payloadData = onboardedPackageArtifact.getPayloadData();
             if (artifactStorageManager.isEnabled()) {
-                final var inputStream =
-                        artifactStorageManager.get(getFromPayload(payloadData, "bucket"), getFromPayload(payloadData, "object") + ".reduced");
-                fileContentHandler = FileUtils.getFileContentMapFromZip(inputStream);
+                try (final var inputStream =
+                        artifactStorageManager.get(getFromPayload(payloadData, "bucket"), getFromPayload(payloadData, "object") + ".reduced")) {
+                    fileContentHandler = readDefinitionFilesFromZip(inputStream);
+                }
             } else {
-                fileContentHandler = FileUtils.getFileContentMapFromZip(new ByteArrayInputStream(payloadData));
+                fileContentHandler = readDefinitionFilesFromZip(new ByteArrayInputStream(payloadData));
             }
         } catch (final IOException e) {
             final String errorMsg = String.format("Could not unzip artifact '%s' content", onboardedPackageArtifact.getArtifactName());
@@ -107,6 +118,108 @@ public class VnfDescriptorGeneratorImpl implements VnfDescriptorGenerator {
         vnfDescriptor.setDefinitionFiles(getFiles(fileContentHandler, mainDefinitionFile));
         vnfDescriptor.setNodeType(getNodeType(getFileContent(fileContentHandler, mainDefinitionFile)));
         return Optional.of(vnfDescriptor);
+    }
+
+    /**
+     * Reads only the TOSCA.meta and YAML entries of a package into memory, rejecting archives with too many entries, oversized definition files
+     * or an excessive overall compression ratio. Other entries are streamed through without being kept.
+     */
+    static FileContentHandler readDefinitionFilesFromZip(final InputStream inputStream) throws IOException {
+        final var compressedStream = new CountingInputStream(inputStream);
+        final var fileContentHandler = new FileContentHandler();
+        long definitionBytes = 0;
+        int entryCount = 0;
+        try (final var zipInputStream = new ZipInputStream(compressedStream)) {
+            final var inflatedStream = new CountingInputStream(zipInputStream);
+            ZipEntry zipEntry;
+            while ((zipEntry = zipInputStream.getNextEntry()) != null) {
+                if (++entryCount > MAX_ZIP_ENTRIES) {
+                    throw new ZipException(String.format("Package has more than %d entries", MAX_ZIP_ENTRIES));
+                }
+                final String entryName = zipEntry.getName();
+                if (zipEntry.isDirectory()) {
+                    fileContentHandler.addFolder(entryName);
+                } else if (isDefinitionFile(entryName)) {
+                    final byte[] content = readEntry(inflatedStream, compressedStream, entryName, true);
+                    definitionBytes += content.length;
+                    if (definitionBytes > MAX_TOTAL_DEFINITION_SIZE) {
+                        throw new ZipException(String.format("Package definition files exceed %d bytes", MAX_TOTAL_DEFINITION_SIZE));
+                    }
+                    fileContentHandler.addFile(entryName, content);
+                } else {
+                    readEntry(inflatedStream, compressedStream, entryName, false);
+                }
+            }
+        }
+        return fileContentHandler;
+    }
+
+    private static boolean isDefinitionFile(final String entryName) {
+        if (TOSCA_META_PATH.equals(entryName)) {
+            return true;
+        }
+        final String extension = FilenameUtils.getExtension(entryName);
+        return "yaml".equalsIgnoreCase(extension) || "yml".equalsIgnoreCase(extension);
+    }
+
+    private static byte[] readEntry(final CountingInputStream inflatedStream, final CountingInputStream compressedStream, final String entryName,
+                                    final boolean keepContent) throws IOException {
+        final var outputStream = keepContent ? new ByteArrayOutputStream() : null;
+        final var buffer = new byte[READ_BUFFER_SIZE];
+        long entrySize = 0;
+        int read;
+        while ((read = inflatedStream.read(buffer)) != -1) {
+            entrySize += read;
+            final long inflatedTotal = inflatedStream.getCount();
+            if (inflatedTotal > COMPRESSION_RATIO_CHECK_THRESHOLD && inflatedTotal > compressedStream.getCount() * MAX_COMPRESSION_RATIO) {
+                throw new ZipException(String.format("Package compression ratio exceeds %d", MAX_COMPRESSION_RATIO));
+            }
+            if (outputStream != null) {
+                if (entrySize > MAX_DEFINITION_FILE_SIZE) {
+                    throw new ZipException(String.format("Package entry '%s' exceeds %d bytes", entryName, MAX_DEFINITION_FILE_SIZE));
+                }
+                outputStream.write(buffer, 0, read);
+            }
+        }
+        return outputStream == null ? new byte[0] : outputStream.toByteArray();
+    }
+
+    private static final class CountingInputStream extends FilterInputStream {
+
+        private long count;
+
+        CountingInputStream(final InputStream inputStream) {
+            super(inputStream);
+        }
+
+        long getCount() {
+            return count;
+        }
+
+        @Override
+        public int read() throws IOException {
+            final int value = super.read();
+            if (value != -1) {
+                count++;
+            }
+            return value;
+        }
+
+        @Override
+        public int read(final byte[] buffer, final int offset, final int length) throws IOException {
+            final int read = super.read(buffer, offset, length);
+            if (read > 0) {
+                count += read;
+            }
+            return read;
+        }
+
+        @Override
+        public long skip(final long n) throws IOException {
+            final long skipped = super.skip(n);
+            count += skipped;
+            return skipped;
+        }
     }
 
     private String getFromPayload(final byte[] payload, final String name) {
