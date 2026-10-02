@@ -38,6 +38,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.TreeSet;
 import java.util.zip.GZIPInputStream;
 import javax.net.ssl.SSLContext;
 import javax.servlet.RequestDispatcher;
@@ -84,8 +86,9 @@ public class SdcProxy extends HttpServlet {
     private static final Logger LOGGER = LoggerFactory.getLogger(SdcProxy.class);
 
     private static final long serialVersionUID = 1L;
-    private static final Set<String> RESERVED_HEADERS =
-        Arrays.stream(ReservedHeaders.values()).map(ReservedHeaders::getValue).collect(Collectors.toSet());
+    // Header names are case-insensitive, and the front end also trusts these identity headers, so the client must not be able to set any of them.
+    private static final Set<String> RESERVED_HEADERS = Stream.concat(Arrays.stream(ReservedHeaders.values()).map(ReservedHeaders::getValue),
+        Stream.of("csp-attuid", "iv-user")).collect(Collectors.toCollection(() -> new TreeSet<>(String.CASE_INSENSITIVE_ORDER)));
     static final String SESSION_USER = "simulator.userId";
     private static final String USER_ID = "USER_ID";
     private static final String HTTP_IV_USER = "HTTP_IV_USER";
