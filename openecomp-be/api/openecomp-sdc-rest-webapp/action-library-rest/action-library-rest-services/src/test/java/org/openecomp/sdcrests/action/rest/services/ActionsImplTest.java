@@ -282,6 +282,20 @@ public class ActionsImplTest {
     }
 
     @Test(expected = ActionException.class)
+    public void testUploadArtifactShouldThrowActionExceptionWhenArtifactNameContainsCrLf() throws IOException {
+        Attachment artifactToUpload = new Attachment("id", "mediaType", new Object());
+        DataSource dataSource = new AttachmentDataSource("ctParam", new ByteArrayInputStream(new byte[0]));
+        DataHandler dataHandler = new DataHandler(dataSource);
+        artifactToUpload.setDataHandler(dataHandler);
+
+        when(request.getContentType()).thenReturn("contentType");
+        action.uploadArtifact("actionInvariantUUID", "artifactName\r\nX-Injected: 1", "artifactLabel",
+                "artifactCategory", "artifactDescription", "readOnly",
+                "d41d8cd98f00b204e9800998ecf8427e",
+                artifactToUpload, request);
+    }
+
+    @Test(expected = ActionException.class)
     public void testUploadArtifactShouldThrowActionExceptionWhenArtifactToUploadIsNull() throws IOException {
         when(request.getContentType()).thenReturn("contentType");
         action.uploadArtifact("actionInvariantUUID", "artifactName", "artifactLabel",
@@ -301,6 +315,22 @@ public class ActionsImplTest {
         when(actionManager.downloadArtifact(anyString(), anyString())).thenReturn(actionArtifact);
         Response response = action.downloadArtifact("actionUUID", "artifactUUID", request);
         Assert.assertEquals(200, response.getStatus());
+        Assert.assertEquals("attachment; filename=\"artifactName\"",
+            response.getHeaderString("Content-Disposition"));
+    }
+
+    @Test
+    public void testDownloadArtifactShouldReturnSanitizedContentDispositionFilename() {
+        ActionArtifact actionArtifact = new ActionArtifact();
+        actionArtifact.setArtifactUuId("artifactUUID");
+        actionArtifact.setArtifact(new byte[0]);
+        actionArtifact.setArtifactName("artifact\tname;.txt");
+
+        when(actionManager.downloadArtifact(anyString(), anyString())).thenReturn(actionArtifact);
+        Response response = action.downloadArtifact("actionUUID", "artifactUUID", request);
+        Assert.assertEquals(200, response.getStatus());
+        Assert.assertEquals("attachment; filename=\"artifactname;.txt\"",
+            response.getHeaderString("Content-Disposition"));
     }
 
     @Test(expected = ActionException.class)
