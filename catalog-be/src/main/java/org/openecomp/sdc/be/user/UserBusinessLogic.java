@@ -84,7 +84,7 @@ public class UserBusinessLogic {
         return user;
     }
 
-    private String decryptUserId(final String userId) {
+    public String decryptUserId(final String userId) {
         if (StringUtils.isNotEmpty(userId) && isUserBase64Encoded(userId)) {
             try {
                 return CipherUtil.decryptPKC(userId);
