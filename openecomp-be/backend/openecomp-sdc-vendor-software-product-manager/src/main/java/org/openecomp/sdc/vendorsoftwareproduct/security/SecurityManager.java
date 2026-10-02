@@ -26,9 +26,9 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.NoSuchAlgorithmException;
@@ -63,7 +63,7 @@ import org.bouncycastle.asn1.cms.ContentInfo;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cms.CMSException;
 import org.bouncycastle.cms.CMSProcessableByteArray;
-import org.bouncycastle.cms.CMSProcessableFile;
+import org.bouncycastle.cms.CMSProcessable;
 import org.bouncycastle.cms.CMSSignedData;
 import org.bouncycastle.cms.SignerInformation;
 import org.bouncycastle.cms.jcajce.JcaSimpleSignerInfoVerifierBuilder;
@@ -193,7 +193,6 @@ public class SecurityManager {
             throw new SecurityManagerException(String.format("Failed to create directory '%s'", folder), e);
         }
 
-        final var target = folder.resolve(UUID.randomUUID().toString());
         final var storedPackage = folder.resolve(UUID.randomUUID().toString());
 
         try (final var signatureStream = new ByteArrayInputStream(fileContentHandler.getFileContent(signedPackage.getSignatureFilePath()));
@@ -208,13 +207,18 @@ public class SecurityManager {
             try (final InputStream inputStream = artifactStorageManager.get(artifactInfo)) {
                 Files.copy(inputStream, storedPackage);
             }
-            if (!extractInternalPackage(storedPackage, signedPackage.getInternalPackageFilePath(), target)) {
-                fail = true;
-                return false;
+            try (final var zipFile = new ZipFile(storedPackage.toFile())) {
+                final Optional<ZipEntry> internalPackageEntry =
+                    findInternalPackageEntry(zipFile, storedPackage, signedPackage.getInternalPackageFilePath());
+                if (internalPackageEntry.isEmpty()) {
+                    fail = true;
+                    return false;
+                }
+                final var signedContent = new ZipEntryProcessable(zipFile, internalPackageEntry.get());
+                final var verify = verify(packageCert, new CMSSignedData(signedContent, ContentInfo.getInstance(parsedObject)));
+                fail = !verify;
+                return verify;
             }
-            final var verify = verify(packageCert, new CMSSignedData(new CMSProcessableFile(target.toFile()), ContentInfo.getInstance(parsedObject)));
-            fail = !verify;
-            return verify;
         } catch (final IOException e) {
             fail = true;
             LOGGER.error(e.getMessage(), e);
@@ -228,7 +232,6 @@ public class SecurityManager {
             LOGGER.error(e.getMessage(), e);
             throw e;
         } finally {
-            deleteFile(target);
             deleteFile(storedPackage);
             if (fail) {
                 artifactStorageManager.delete(artifactInfo);
@@ -276,25 +279,20 @@ public class SecurityManager {
         }
     }
 
-    private boolean extractInternalPackage(final Path packagePath, final String internalPackagePath, final Path target)
+    private Optional<ZipEntry> findInternalPackageEntry(final ZipFile zipFile, final Path packagePath, final String internalPackagePath)
         throws IOException, SecurityManagerException {
         if (internalPackagePath == null) {
             LOGGER.error("No internal package found in the signed package");
-            return false;
+            return Optional.empty();
         }
-        try (final var zipFile = new ZipFile(packagePath.toFile())) {
-            final List<String> centralDirectoryEntryNames = zipFile.stream().map(ZipEntry::getName).collect(Collectors.toList());
-            validateLocalEntriesMatchCentralDirectory(packagePath, centralDirectoryEntryNames);
-            final ZipEntry internalPackageEntry = zipFile.getEntry(internalPackagePath);
-            if (internalPackageEntry == null || internalPackageEntry.isDirectory()) {
-                LOGGER.error("Internal package '{}' not found in the signed package", internalPackagePath);
-                return false;
-            }
-            try (final InputStream internalPackageStream = zipFile.getInputStream(internalPackageEntry)) {
-                Files.copy(internalPackageStream, target, StandardCopyOption.REPLACE_EXISTING);
-            }
-            return true;
+        final List<String> centralDirectoryEntryNames = zipFile.stream().map(ZipEntry::getName).collect(Collectors.toList());
+        validateLocalEntriesMatchCentralDirectory(packagePath, centralDirectoryEntryNames);
+        final ZipEntry internalPackageEntry = zipFile.getEntry(internalPackagePath);
+        if (internalPackageEntry == null || internalPackageEntry.isDirectory()) {
+            LOGGER.error("Internal package '{}' not found in the signed package", internalPackagePath);
+            return Optional.empty();
         }
+        return Optional.of(internalPackageEntry);
     }
 
     private void validateLocalEntriesMatchCentralDirectory(final Path packagePath, final List<String> centralDirectoryEntryNames)
@@ -479,5 +477,28 @@ public class SecurityManager {
     private static class SecurityManagerInstanceHolder {
 
         private static final SecurityManager instance = new SecurityManager();
+    }
+
+    private static class ZipEntryProcessable implements CMSProcessable {
+
+        private final ZipFile zipFile;
+        private final ZipEntry zipEntry;
+
+        ZipEntryProcessable(final ZipFile zipFile, final ZipEntry zipEntry) {
+            this.zipFile = zipFile;
+            this.zipEntry = zipEntry;
+        }
+
+        @Override
+        public void write(final OutputStream out) throws IOException {
+            try (final InputStream inputStream = zipFile.getInputStream(zipEntry)) {
+                inputStream.transferTo(out);
+            }
+        }
+
+        @Override
+        public Object getContent() {
+            return zipEntry;
+        }
     }
 }
