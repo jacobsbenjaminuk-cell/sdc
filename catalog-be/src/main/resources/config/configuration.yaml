@@ -917,3 +917,6 @@ permittedAncestors: ""
 
 # Comma separated list of excluded URLs by the DataValidatorFilter
 dataValidatorFilterExcludedUrls: "/healthCheck,/followed,/authorize"
+
+# Maximum request body size in bytes read by the DataValidatorFilter; larger POST/PUT bodies are rejected with 413
+dataValidatorFilterMaxBodySize: 20971520

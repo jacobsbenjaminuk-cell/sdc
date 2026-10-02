@@ -82,6 +82,7 @@ public class Configuration extends BasicConfiguration {
      */
     private String defaultUserId = "cs0008";
     private String dataValidatorFilterExcludedUrls; // Comma separated list of excluded URLs by the DataValidatorFilter
+    private Long dataValidatorFilterMaxBodySize; // Maximum request body size in bytes read by the DataValidatorFilter
     private String permittedAncestors; // Space separated list of permitted ancestors
 
     public Integer getHealthCheckSocketTimeoutInMs(int defaultVal) {

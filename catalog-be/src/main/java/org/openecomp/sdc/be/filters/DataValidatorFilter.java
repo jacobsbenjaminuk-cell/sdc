@@ -61,4 +61,10 @@ public class DataValidatorFilter extends DataValidatorFilterAbstract {
         return new ArrayList<>();
     }
 
+    @Override
+    protected long getMaxBodySize() {
+        final Long maxBodySize = ConfigurationManager.getConfigurationManager().getConfiguration().getDataValidatorFilterMaxBodySize();
+        return maxBodySize != null && maxBodySize > 0 ? maxBodySize : DEFAULT_MAX_BODY_SIZE;
+    }
+
 }

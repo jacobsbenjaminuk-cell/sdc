@@ -31,6 +31,7 @@ import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.HttpMethod;
 import javax.ws.rs.core.MediaType;
 import org.apache.commons.collections4.CollectionUtils;
@@ -38,6 +39,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.openecomp.sdc.common.util.DataValidator;
 import org.openecomp.sdc.common.util.SecureString;
 import org.openecomp.sdc.exception.NotAllowedSpecialCharsException;
+import org.openecomp.sdc.exception.RequestBodyTooLargeException;
 
 /**
  * Provides mechanism to filter request according to {@link DataValidator} and {@code dataValidatorFilterExcludedUrlsList}.
@@ -45,7 +47,10 @@ import org.openecomp.sdc.exception.NotAllowedSpecialCharsException;
 public abstract class DataValidatorFilterAbstract implements Filter {
 
     protected static final String DATA_VALIDATOR_FILTER_EXCLUDED_URLS = "dataValidatorFilterExcludedUrls";
+    protected static final String DATA_VALIDATOR_FILTER_MAX_BODY_SIZE = "dataValidatorFilterMaxBodySize";
+    protected static final long DEFAULT_MAX_BODY_SIZE = 20L * 1024 * 1024;
     protected static final String ERROR_SPECIAL_CHARACTERS_NOT_ALLOWED = "Error: HTML elements not permitted in field values.";
+    protected static final String ERROR_REQUEST_BODY_TOO_LARGE = "Error: request body is too large.";
     private DataValidator dataValidator;
 
     @Override
@@ -65,7 +70,17 @@ public abstract class DataValidatorFilterAbstract implements Filter {
             chain.doFilter(request, response);
         } else {
             if (!skipCheckBody((HttpServletRequest) request)) {
-                request = new RequestWrapper((HttpServletRequest) request);
+                final long maxBodySize = getMaxBodySize();
+                if (((HttpServletRequest) request).getContentLengthLong() > maxBodySize) {
+                    rejectTooLarge(response);
+                    return;
+                }
+                try {
+                    request = new RequestWrapper((HttpServletRequest) request, maxBodySize);
+                } catch (final RequestBodyTooLargeException e) {
+                    rejectTooLarge(response);
+                    return;
+                }
             }
             if (isValid((HttpServletRequest) request)) {
                 chain.doFilter(request, response);
@@ -73,6 +88,10 @@ public abstract class DataValidatorFilterAbstract implements Filter {
                 throw new NotAllowedSpecialCharsException();
             }
         }
+    }
+
+    private void rejectTooLarge(final ServletResponse response) throws IOException {
+        ((HttpServletResponse) response).sendError(HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE, ERROR_REQUEST_BODY_TOO_LARGE);
     }
 
     private boolean isPostOrPut(final String method) {
@@ -86,6 +105,13 @@ public abstract class DataValidatorFilterAbstract implements Filter {
     }
 
     protected abstract List<String> getDataValidatorFilterExcludedUrls();
+
+    /**
+     * Maximum size in bytes of a request body that is read and validated. Larger bodies are rejected with 413.
+     */
+    protected long getMaxBodySize() {
+        return DEFAULT_MAX_BODY_SIZE;
+    }
 
     private boolean skipCheckBody(final HttpServletRequest requestWrapper) {
         final String contentType = requestWrapper.getContentType();
