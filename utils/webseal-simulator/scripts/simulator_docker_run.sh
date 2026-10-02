@@ -8,7 +8,7 @@ JAVA_OPTIONS=" -Xmx128m -Xms128m -Xss1m"
 
 [ -f ${WORKSPACE}/opt/config/env_name.txt ] && DEP_ENV=$(cat ${WORKSPACE}/opt/config/env_name.txt)
 [ -f ${WORKSPACE}/opt/config/nexus_username.txt ] && NEXUS_USERNAME=$(cat ${WORKSPACE}/opt/config/nexus_username.txt)    || NEXUS_USERNAME=release
-[ -f ${WORKSPACE}/opt/config/nexus_password.txt ] && NEXUS_PASSWD=$(cat ${WORKSPACE}/opt/config/nexus_password.txt)      || NEXUS_PASSWD=sfWU3DFVdBr7GVxB85mTYgAW
+[ -f ${WORKSPACE}/opt/config/nexus_password.txt ] && NEXUS_PASSWD=$(cat ${WORKSPACE}/opt/config/nexus_password.txt)
 [ -f ${WORKSPACE}/opt/config/nexus_docker_repo.txt ] && NEXUS_DOCKER_REPO=$(cat ${WORKSPACE}/opt/config/nexus_docker_repo.txt)
 
 function usage {
@@ -79,7 +79,13 @@ while getopts "r:e:u:-:" OPTION "${@}"; do
     shift
 done
 
-[ -f ${WORKSPACE}/opt/config/nexus_username.txt ] && docker login -u $NEXUS_USERNAME -p $NEXUS_PASSWD $NEXUS_DOCKER_REPO
+if [ -f ${WORKSPACE}/opt/config/nexus_username.txt ]; then
+    if [ -z "${NEXUS_PASSWD}" ]; then
+        echo "Nexus password not set: export NEXUS_PASSWD or create ${WORKSPACE}/opt/config/nexus_password.txt" >&2
+        exit 1
+    fi
+    printf '%s' "${NEXUS_PASSWD}" | docker login -u "${NEXUS_USERNAME}" --password-stdin ${NEXUS_DOCKER_REPO}
+fi
 
 cleanup
 
