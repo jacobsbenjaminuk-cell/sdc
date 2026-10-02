@@ -115,6 +115,7 @@ public class Configuration extends BasicConfiguration {
     private String heatTranslatorPath;
     private OnboardingConfig onboarding;
     private BasicAuthConfig basicAuth;
+    private ExternalApiAuthConfig externalApiAuth;
     private CassandrConfig cassandraConfig;
     private SwitchoverDetectorConfig switchoverDetector;
     private ApplicationL1CacheConfig applicationL1Cache;
@@ -347,6 +348,14 @@ public class Configuration extends BasicConfiguration {
         private String userName;
         private String userPass;
         private String excludedUrls;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class ExternalApiAuthConfig {
+
+        private Map<String, List<String>> consumerAllowedUserIds = Collections.emptyMap();
     }
 
     @Getter

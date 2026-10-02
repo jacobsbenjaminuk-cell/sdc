@@ -88,6 +88,10 @@ basicAuth:
   userPass: test
   excludedUrls: '/test1'
 
+externalApiAuth:
+  consumerAllowedUserIds:
+    testConsumer: [cs0008]
+
 cassandraConfig:
     cassandraHosts: ['localhost']
     cassandraPort: 9042

@@ -120,6 +120,11 @@ basicAuth:
   userPass: "testPass"
   excludedUrls: ""
 
+# Every external API (/sdc/*) request must authenticate with consumer credentials.
+# A request that sends a USER_ID header is only accepted if that user ID is listed for the authenticated consumer.
+externalApiAuth:
+  consumerAllowedUserIds: {}
+
 cassandraConfig:
     cassandraHosts: [192.168.33.10]
     cassandraPort: 9042
