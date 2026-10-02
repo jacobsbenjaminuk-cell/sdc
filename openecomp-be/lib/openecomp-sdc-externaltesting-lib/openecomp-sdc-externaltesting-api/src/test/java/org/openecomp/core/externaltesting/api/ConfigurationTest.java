@@ -63,4 +63,23 @@ public class ConfigurationTest {
     Assert.assertTrue("pattern", matches);
 
   }
+
+  @Test
+  public void testScenarioFilterIgnoredInJsonInput() throws Exception {
+    ObjectMapper mapper = new ObjectMapper();
+    RemoteTestingEndpointDefinition def = mapper.readValue(
+        "{\"id\":\"x\",\"enabled\":true,\"scenarioFilter\":\"(a+)+$\"}",
+        RemoteTestingEndpointDefinition.class);
+    Assert.assertEquals("id equals", "x", def.getId());
+    Assert.assertNull("scenarioFilter not settable from JSON", def.getScenarioFilter());
+    Assert.assertNull("no pattern compiled", def.getScenarioFilterPattern());
+  }
+
+  @Test
+  public void testScenarioFilterStillSerialized() throws Exception {
+    RemoteTestingEndpointDefinition def = new RemoteTestingEndpointDefinition();
+    def.setScenarioFilter("c.*");
+    String json = new ObjectMapper().writeValueAsString(def);
+    Assert.assertTrue("scenarioFilter in output", json.contains("\"scenarioFilter\":\"c.*\""));
+  }
 }

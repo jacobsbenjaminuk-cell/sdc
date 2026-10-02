@@ -17,6 +17,7 @@
 package org.openecomp.core.externaltesting.api;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.regex.Pattern;
 import lombok.Data;
 
@@ -28,6 +29,9 @@ public class RemoteTestingEndpointDefinition {
     private String url;
     private String id;
     private String apiKey;
+
+    // regex from operator configuration only; never accepted from REST input.
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private String scenarioFilter;
 
     // a compact way to specify and endpoint to ease docker configuration.
