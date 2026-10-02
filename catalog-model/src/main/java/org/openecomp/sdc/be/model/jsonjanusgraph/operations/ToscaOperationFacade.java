@@ -1308,7 +1308,7 @@ public class ToscaOperationFacade {
      * @return max counter of component instance Id's, null if not found
      */
     private Integer getMaxCounterFromNamesAndIds(final Component containerComponent, final String normalizedName) {
-        final Pattern COUNTER_PATTERN = Pattern.compile(normalizedName + "[\\s_:-]?\\d+$");
+        final Pattern COUNTER_PATTERN = Pattern.compile(Pattern.quote(normalizedName) + "[\\s_:-]?\\d+$");
         final List<String> countersInNames = containerComponent.getComponentInstances().stream()
             .filter(ci -> ci.getNormalizedName() != null && ci.getNormalizedName().startsWith(normalizedName))
             .filter(ci -> !ci.getNormalizedName().equals(normalizedName))
