@@ -17,16 +17,21 @@ case "$BASIC_AUTH_ENABLED" in
     *) echo "BASIC_AUTH_ENABLED must be 'true' or 'false'" >&2; exit 1 ;;
 esac
 
-if [ "$BASIC_AUTH_ENABLED" = "true" ] && { [ -z "$BASIC_AUTH_USERNAME" ] || [ -z "$BASIC_AUTH_PASSWORD" ]; }; then
-    echo "BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD must be set when BASIC_AUTH_ENABLED is true" >&2
-    exit 1
-fi
+NEWLINE='
+'
 
 yaml_single_quote_escape() {
     printf '%s' "$1" | sed "s/'/''/g"
 }
 
 if grep -q '${BASIC_AUTH_' "$CONFIG_YAML"; then
+    if [ "$BASIC_AUTH_ENABLED" = "true" ] && { [ -z "$BASIC_AUTH_USERNAME" ] || [ -z "$BASIC_AUTH_PASSWORD" ]; }; then
+        echo "BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD must be set when BASIC_AUTH_ENABLED is true" >&2
+        exit 1
+    fi
+    case "$BASIC_AUTH_USERNAME$BASIC_AUTH_PASSWORD" in
+        *"$NEWLINE"*) echo "BASIC_AUTH_USERNAME and BASIC_AUTH_PASSWORD must not contain newlines" >&2; exit 1 ;;
+    esac
     ( umask 077 && \
       BASIC_AUTH_USERNAME="$(yaml_single_quote_escape "$BASIC_AUTH_USERNAME")" \
       BASIC_AUTH_PASSWORD="$(yaml_single_quote_escape "$BASIC_AUTH_PASSWORD")" \
