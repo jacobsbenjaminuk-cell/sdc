@@ -25,6 +25,7 @@ package org.openecomp.sdc.common.util;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.keycloak.KeycloakPrincipal;
+import org.keycloak.KeycloakSecurityContext;
 import org.keycloak.representations.AccessToken;
 import org.openecomp.sdc.common.log.wrappers.Logger;
 import javax.servlet.http.HttpServletRequest;
@@ -32,6 +33,9 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.security.Principal;
+import java.util.Collections;
+import java.util.Set;
 
 
 /**
@@ -44,6 +48,31 @@ public class Multitenancy {
     public AccessToken getAccessToken(HttpServletRequest request){
      KeycloakPrincipal principal = (KeycloakPrincipal) request.getUserPrincipal();
         return  principal.getKeycloakSecurityContext().getToken();
+    }
+
+    /**
+     * Returns the realm roles of the Keycloak principal of the request, or an empty set when the request carries no
+     * Keycloak token.
+     */
+    public Set<String> getRealmRoles(HttpServletRequest request) {
+        Principal principal = request == null ? null : request.getUserPrincipal();
+        if (!(principal instanceof KeycloakPrincipal)) {
+            return Collections.emptySet();
+        }
+        KeycloakSecurityContext securityContext = ((KeycloakPrincipal<?>) principal).getKeycloakSecurityContext();
+        AccessToken token = securityContext == null ? null : securityContext.getToken();
+        AccessToken.Access realmAccess = token == null ? null : token.getRealmAccess();
+        if (realmAccess == null || realmAccess.getRoles() == null) {
+            return Collections.emptySet();
+        }
+        return realmAccess.getRoles();
+    }
+
+    /**
+     * Checks that the tenant exactly matches one of the realm roles of the request's Keycloak principal.
+     */
+    public boolean isTenantAllowed(HttpServletRequest request, String tenant) {
+        return tenant != null && getRealmRoles(request).contains(tenant);
     }
 
     public boolean multiTenancyCheck() {

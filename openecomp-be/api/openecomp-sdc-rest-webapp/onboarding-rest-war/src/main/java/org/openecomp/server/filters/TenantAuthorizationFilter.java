@@ -1,0 +1,166 @@
+/*-
+ * ============LICENSE_START=======================================================
+ * SDC
+ * ================================================================================
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * ============LICENSE_END=========================================================
+ */
+
+package org.openecomp.server.filters;
+
+import java.io.IOException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import javax.servlet.Filter;
+import javax.servlet.FilterChain;
+import javax.servlet.FilterConfig;
+import javax.servlet.ServletException;
+import javax.servlet.ServletRequest;
+import javax.servlet.ServletResponse;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import org.openecomp.sdc.common.util.Multitenancy;
+import org.openecomp.sdc.logging.api.Logger;
+import org.openecomp.sdc.logging.api.LoggerFactory;
+import org.openecomp.sdc.versioning.ItemManager;
+import org.openecomp.sdc.versioning.ItemManagerFactory;
+import org.openecomp.sdc.versioning.types.Item;
+
+/**
+ * When multitenancy is enabled, rejects every request scoped to a VSP, VLM or item that does not exist or whose tenant is
+ * not one of the caller's Keycloak realm roles.
+ */
+public class TenantAuthorizationFilter implements Filter {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(TenantAuthorizationFilter.class);
+    private static final String API_VERSION = "v1.0";
+    private static final String VSP_ROOT = "vendor-software-products";
+    private static final String PACKAGES = "packages";
+    private static final Set<String> ITEM_ROOTS = Set.of(VSP_ROOT, "vendor-license-models", "items");
+    private static final Set<String> VSP_COLLECTION_SEGMENTS = Set.of(PACKAGES, "validation-vsp");
+    private static final List<String> EXTERNAL_TESTING_EXECUTIONS = List.of(API_VERSION, "externaltesting", "executions");
+    private static final String VSP_ID_PARAM = "vspId";
+
+    private final Multitenancy multitenancy;
+    private final Supplier<ItemManager> itemManagerSupplier;
+    private ItemManager itemManager;
+
+    public TenantAuthorizationFilter() {
+        this(new Multitenancy(), () -> ItemManagerFactory.getInstance().createInterface());
+    }
+
+    TenantAuthorizationFilter(Multitenancy multitenancy, Supplier<ItemManager> itemManagerSupplier) {
+        this.multitenancy = multitenancy;
+        this.itemManagerSupplier = itemManagerSupplier;
+    }
+
+    @Override
+    public void init(FilterConfig filterConfig) {
+        // required by servlet API
+    }
+
+    @Override
+    public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain)
+        throws IOException, ServletException {
+        if (!(servletRequest instanceof HttpServletRequest) || !multitenancy.multiTenancyCheck()) {
+            filterChain.doFilter(servletRequest, servletResponse);
+            return;
+        }
+        HttpServletRequest request = (HttpServletRequest) servletRequest;
+        Optional<List<String>> itemIds = parseItemIds(request);
+        if (itemIds.isEmpty() || !itemIds.get().stream().allMatch(itemId -> isAllowed(request, itemId))) {
+            LOGGER.error("Caller is not authorized for the tenant of the requested item");
+            ((HttpServletResponse) servletResponse).sendError(HttpServletResponse.SC_FORBIDDEN, "Unauthorized Tenant");
+            return;
+        }
+        filterChain.doFilter(servletRequest, servletResponse);
+    }
+
+    private boolean isAllowed(HttpServletRequest request, String itemId) {
+        Item item = getItemManager().get(itemId);
+        return item != null && multitenancy.isTenantAllowed(request, item.getTenant());
+    }
+
+    /**
+     * Returns the IDs of the items the request is scoped to, decoded the same way JAX-RS decodes them, or an empty
+     * optional when the request cannot be parsed.
+     */
+    static Optional<List<String>> parseItemIds(HttpServletRequest request) {
+        try {
+            List<String> itemIds = new ArrayList<>();
+            List<String> segments = pathSegments(request);
+            parsePathItemId(segments).ifPresent(itemIds::add);
+            if (segments.equals(EXTERNAL_TESTING_EXECUTIONS) && "POST".equals(request.getMethod())) {
+                queryParameterValues(request.getQueryString(), VSP_ID_PARAM).stream().findFirst().ifPresent(itemIds::add);
+            }
+            return Optional.of(itemIds);
+        } catch (IllegalArgumentException e) {
+            return Optional.empty();
+        }
+    }
+
+    private static List<String> pathSegments(HttpServletRequest request) {
+        String uri = request.getRequestURI() == null ? "" : request.getRequestURI();
+        String contextPath = request.getContextPath() == null ? "" : request.getContextPath();
+        if (uri.startsWith(contextPath)) {
+            uri = uri.substring(contextPath.length());
+        }
+        return Arrays.stream(uri.split("/"))
+            .map(segment -> segment.split(";", 2)[0])
+            .filter(segment -> !segment.isEmpty())
+            .map(segment -> URLDecoder.decode(segment.replace("+", "%2B"), StandardCharsets.UTF_8))
+            .collect(Collectors.toList());
+    }
+
+    private static Optional<String> parsePathItemId(List<String> segments) {
+        if (segments.size() < 3 || !API_VERSION.equals(segments.get(0)) || !ITEM_ROOTS.contains(segments.get(1))) {
+            return Optional.empty();
+        }
+        String root = segments.get(1);
+        String candidate = segments.get(2);
+        if (VSP_ROOT.equals(root) && VSP_COLLECTION_SEGMENTS.contains(candidate)) {
+            return PACKAGES.equals(candidate) && segments.size() > 3 ? Optional.of(segments.get(3)) : Optional.empty();
+        }
+        return Optional.of(candidate);
+    }
+
+    private static List<String> queryParameterValues(String queryString, String name) {
+        if (queryString == null) {
+            return List.of();
+        }
+        return Arrays.stream(queryString.split("&"))
+            .map(pair -> pair.split("=", 2))
+            .filter(pair -> name.equals(URLDecoder.decode(pair[0], StandardCharsets.UTF_8)))
+            .map(pair -> pair.length > 1 ? URLDecoder.decode(pair[1], StandardCharsets.UTF_8) : "")
+            .collect(Collectors.toList());
+    }
+
+    private synchronized ItemManager getItemManager() {
+        if (itemManager == null) {
+            itemManager = itemManagerSupplier.get();
+        }
+        return itemManager;
+    }
+
+    @Override
+    public void destroy() {
+        // required by servlet API
+    }
+}

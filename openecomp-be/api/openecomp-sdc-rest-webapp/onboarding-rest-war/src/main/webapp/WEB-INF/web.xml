@@ -28,14 +28,16 @@
     <filter>
         <filter-name>Keycloak Filter</filter-name>
         <filter-class>org.openecomp.server.filters.MultitenancyKeycloakFilter</filter-class>
+        <init-param>
+            <param-name>keycloak.config.skipPattern</param-name>
+            <param-value>/v1\.0/healthcheck(/.*)?</param-value>
+        </init-param>
     </filter>
     <filter-mapping>
         <filter-name>Keycloak Filter</filter-name>
         <url-pattern>/keycloak/*</url-pattern>
-        <url-pattern>/v1.0/vendor-license-models/*</url-pattern>
-        <url-pattern>/v1.0/vendor-software-products</url-pattern>
+        <url-pattern>/v1.0/*</url-pattern>
         <url-pattern>*/actions</url-pattern>
-        <url-pattern>/v1.0/items/*</url-pattern>
     </filter-mapping>
 
     <filter>
@@ -133,6 +135,15 @@
     <filter-mapping>
         <filter-name>SessionContextFilter</filter-name>
         <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+    <filter>
+        <filter-name>TenantAuthorizationFilter</filter-name>
+        <filter-class>org.openecomp.server.filters.TenantAuthorizationFilter</filter-class>
+    </filter>
+    <filter-mapping>
+        <filter-name>TenantAuthorizationFilter</filter-name>
+        <url-pattern>/v1.0/*</url-pattern>
     </filter-mapping>
 
     <!-- Spring WS Mapping -->

@@ -268,14 +268,12 @@ public class VendorSoftwareProductsImpl implements VendorSoftwareProducts {
     public Response listVsps(String versionStatus, String itemStatus, String user, HttpServletRequest hreq ) {
         Multitenancy keyaccess = new Multitenancy();
         if (keyaccess.multiTenancyCheck()) {
-           AccessToken.Access realmAccess = keyaccess.getAccessToken(hreq).getRealmAccess();
-            Set<String> realmroles = realmAccess.getRoles();
-            Predicate<Item> itemPredicate = createItemPredicate(versionStatus, itemStatus, user);
+            Set<String> realmroles = keyaccess.getRealmRoles(hreq);
             GenericCollectionWrapper<VspDetailsDto> results = new GenericCollectionWrapper<>();
             MapItemToVspDetailsDto mapper = new MapItemToVspDetailsDto();
-            realmroles.stream().forEach(role -> itemManager.list(itemPredicate).stream().sorted((o1, o2) -> o2.getModificationTime().compareTo(o1.getModificationTime()))
-                    .filter(vspItem -> vspItem.getTenant().contains(role))
-                    .forEach(vspItem -> results.add(mapper.applyMapping(vspItem, VspDetailsDto.class))));
+            getVspList(versionStatus, itemStatus, user).stream()
+                    .filter(vspItem -> realmroles.contains(vspItem.getTenant()))
+                    .forEach(vspItem -> results.add(mapper.applyMapping(vspItem, VspDetailsDto.class)));
             return Response.ok(results).build();
         }
         else {
@@ -526,9 +524,12 @@ public class VendorSoftwareProductsImpl implements VendorSoftwareProducts {
     }
 
     @Override
-    public Response listPackages(String status, String category, String subCategory, String user) {
-        List<String> vspsIds = getVspList(null, status != null ? ItemStatus.valueOf(status).name() : null, user).stream().map(Item::getId)
-            .collect(Collectors.toList());
+    public Response listPackages(String status, String category, String subCategory, String user, HttpServletRequest hreq) {
+        Multitenancy keyaccess = new Multitenancy();
+        Predicate<Item> tenantPredicate = keyaccess.multiTenancyCheck()
+            ? vspItem -> keyaccess.isTenantAllowed(hreq, vspItem.getTenant()) : vspItem -> true;
+        List<String> vspsIds = getVspList(null, status != null ? ItemStatus.valueOf(status).name() : null, user).stream()
+            .filter(tenantPredicate).map(Item::getId).collect(Collectors.toList());
         List<PackageInfo> packageInfoList = vendorSoftwareProductManager.listPackages(category, subCategory);
         packageInfoList = packageInfoList.stream().filter(packageInfo -> vspsIds.contains(packageInfo.getVspId())).collect(Collectors.toList());
         GenericCollectionWrapper<PackageInfoDto> results = new GenericCollectionWrapper<>();

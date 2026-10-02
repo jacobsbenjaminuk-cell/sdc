@@ -37,7 +37,6 @@ import javax.annotation.PostConstruct;
 import javax.inject.Named;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.core.Response;
-import org.keycloak.representations.AccessToken;
 import org.openecomp.sdc.activitylog.dao.type.ActivityLogEntity;
 import org.openecomp.sdc.activitylog.dao.type.ActivityType;
 import org.openecomp.sdc.be.csar.storage.StorageFactory;
@@ -126,12 +125,11 @@ public class ItemsImpl implements Items {
         MapItemToDto mapper = new MapItemToDto();
         Multitenancy keyaccess= new Multitenancy();
         if (keyaccess.multiTenancyCheck()) {
-            AccessToken.Access realmAccess = keyaccess.getAccessToken(hreq).getRealmAccess();
-            Set<String> realmroles = realmAccess.getRoles();
-        realmroles.stream().forEach(role ->  getManagersProvider().getItemManager().list(itemPredicate).stream()
+            Set<String> realmroles = keyaccess.getRealmRoles(hreq);
+            getManagersProvider().getItemManager().list(itemPredicate).stream()
                 .sorted((o1, o2) -> o2.getModificationTime().compareTo(o1.getModificationTime()))
-                .filter(item -> item.getTenant().contains(role))
-                .forEach(item -> results.add(mapper.applyMapping(item, ItemDto.class))));
+                .filter(item -> realmroles.contains(item.getTenant()))
+                .forEach(item -> results.add(mapper.applyMapping(item, ItemDto.class)));
             return Response.ok(results).build();
         }
         else{
