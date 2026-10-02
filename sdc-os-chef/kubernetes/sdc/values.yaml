@@ -23,4 +23,8 @@ secrets:
     sdc_password: QWExMjM0JV4h
     cs_password: b25hcDEyMyNAIQ==
 
+ueb:
+    publicKey: ""
+    secretKey: ""
+
 certDir: /var/lib/jetty/cert
