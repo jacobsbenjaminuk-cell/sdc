@@ -36,6 +36,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -51,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 import lombok.SneakyThrows;
 import mockit.Deencapsulation;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -61,6 +63,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
@@ -82,6 +87,8 @@ import org.openecomp.sdc.be.datatypes.elements.GetPolicyValueDataDefinition;
 import org.openecomp.sdc.be.datatypes.elements.ListDataDefinition;
 import org.openecomp.sdc.be.datatypes.elements.RequirementDataDefinition;
 import org.openecomp.sdc.be.datatypes.elements.SchemaDefinition;
+import org.openecomp.sdc.be.datatypes.elements.SubPropertyToscaFunction;
+import org.openecomp.sdc.be.datatypes.elements.ToscaFunction;
 import org.openecomp.sdc.be.datatypes.elements.ToscaGetFunctionDataDefinition;
 import org.openecomp.sdc.be.datatypes.enums.ComponentTypeEnum;
 import org.openecomp.sdc.be.datatypes.enums.JsonPresentationFields;
@@ -488,6 +495,99 @@ class ComponentInstanceBusinessLogicTest {
         final ResponseFormat responseFormat = response.right().value();
         assertThat(responseFormat.getStatus()).as("Response status should be as expected").isEqualTo(400);
         assertThat(responseFormat.getMessageId()).as("Error message id should be as expected").isEqualTo("SVC4726");
+    }
+
+    static Stream<Arguments> invalidSubPropertyPaths() {
+        return Stream.of(
+            Arguments.of(Collections.singletonList("2147483647")),
+            Arguments.of(Collections.singletonList("500000000")),
+            Arguments.of(Collections.singletonList("2")),
+            Arguments.of(Collections.singletonList("99999999999")),
+            Arguments.of(Collections.singletonList("-1")),
+            Arguments.of(Collections.singletonList("abc")),
+            Arguments.of(Arrays.asList("0", "1")),
+            Arguments.of(Collections.emptyList()),
+            Arguments.of(Collections.nCopies(33, "0"))
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("invalidSubPropertyPaths")
+    void testCreateOrUpdatePropertiesValuesInvalidSubPropertyPath(final List<String> subPropertyPath) {
+        final ComponentInstanceProperty property = createListPropertyWithSubPropertyToscaFunction(subPropertyPath);
+        final String containerComponentId = mockComponentForListProperty();
+
+        final Either<List<ComponentInstanceProperty>, ResponseFormat> response = componentInstanceBusinessLogic.createOrUpdatePropertiesValues(
+            ComponentTypeEnum.RESOURCE_INSTANCE, containerComponentId, "resourceId", Collections.singletonList(property), "userId");
+
+        assertThat(response.isRight()).isTrue();
+        assertThat(response.right().value().getStatus()).isEqualTo(400);
+        assertThat(property.getValue()).isEqualTo("[\"a\"]");
+        verify(toscaOperationFacade, never()).updateComponentInstanceMetadataOfTopologyTemplate(any());
+    }
+
+    @Test
+    void testCreateOrUpdatePropertiesValuesValidSubPropertyPath() {
+        final ComponentInstanceProperty property = createListPropertyWithSubPropertyToscaFunction(Collections.singletonList("1"));
+        final String containerComponentId = mockComponentForListProperty();
+
+        final Either<List<ComponentInstanceProperty>, ResponseFormat> response = componentInstanceBusinessLogic.createOrUpdatePropertiesValues(
+            ComponentTypeEnum.RESOURCE_INSTANCE, containerComponentId, "resourceId", Collections.singletonList(property), "userId");
+
+        assertThat(response.isLeft()).isTrue();
+        assertThat(property.getValue()).isEqualTo("[\"a\",\"b\"]");
+    }
+
+    private ComponentInstanceProperty createListPropertyWithSubPropertyToscaFunction(final List<String> subPropertyPath) {
+        final ToscaFunction toscaFunction = Mockito.mock(ToscaFunction.class);
+        when(toscaFunction.getValue()).thenReturn("b");
+        final SubPropertyToscaFunction subPropertyToscaFunction = new SubPropertyToscaFunction();
+        subPropertyToscaFunction.setSubPropertyPath(subPropertyPath);
+        subPropertyToscaFunction.setToscaFunction(toscaFunction);
+        final ComponentInstanceProperty property = new ComponentInstanceProperty();
+        property.setName("property");
+        property.setUniqueId("propId");
+        property.setType("list");
+        property.setValue("[\"a\"]");
+        property.setSubPropertyToscaFunctions(Collections.singletonList(subPropertyToscaFunction));
+        return property;
+    }
+
+    @SneakyThrows
+    private String mockComponentForListProperty() {
+        final String containerComponentId = "containerId";
+        final ComponentInstanceProperty origProperty = new ComponentInstanceProperty();
+        origProperty.setName("property");
+        origProperty.setUniqueId("propId");
+        origProperty.setType("list");
+        origProperty.setValue("[\"a\"]");
+        final Component component = new Service();
+        component.setLastUpdaterUserId("userId");
+        component.setLifecycleState(LifecycleStateEnum.NOT_CERTIFIED_CHECKOUT);
+        final Map<String, List<ComponentInstanceProperty>> componentInstanceProps = new HashMap<>();
+        componentInstanceProps.put("resourceId", new ArrayList<>(Collections.singletonList(origProperty)));
+        component.setComponentInstancesProperties(componentInstanceProps);
+        final ComponentInstance ci = createComponentInstance("ci1");
+        ci.setUniqueId("resourceId");
+        ci.setProperties(new ArrayList<>(Collections.singletonList(new ComponentInstanceProperty(origProperty))));
+        component.setComponentInstances(Collections.singletonList(ci));
+
+        final Map<String, DataTypeDefinition> types = new HashMap<>();
+        types.put("list", new DataTypeDefinition());
+        types.put("string", new DataTypeDefinition());
+        when(toscaOperationFacade.getToscaElement(containerComponentId, JsonParseFlagEnum.ParseAll)).thenReturn(Either.left(component));
+        when(graphLockOperation.lockComponent(containerComponentId, NodeTypeEnum.ResourceInstance)).thenReturn(StorageOperationStatus.OK);
+        when(graphLockOperation.unlockComponent(containerComponentId, NodeTypeEnum.ResourceInstance)).thenReturn(StorageOperationStatus.OK);
+        when(componentsUtils.getAllDataTypes(applicationDataTypeCache, component.getModel())).thenReturn(types);
+        when(propertyOperation.validateAndUpdatePropertyValue(eq("list"), any(), eq(true), any(), eq(types)))
+            .thenAnswer(invocation -> Either.left(invocation.getArgument(1)));
+        when(propertyOperation.validateAndUpdateRules(eq("list"), any(), any(), eq(types), eq(true))).thenReturn(ImmutablePair.of("list", null));
+        when(toscaOperationFacade.updateComponentInstanceProperty(any(), any(), any())).thenReturn(StorageOperationStatus.OK);
+        when(toscaOperationFacade.updateComponentInstanceMetadataOfTopologyTemplate(component)).thenReturn(Either.left(component));
+        when(janusGraphDao.commit()).thenReturn(JanusGraphOperationStatus.OK);
+        when(propertyBusinessLogic.getComponentModelByComponentId(any())).thenReturn(component.getModel());
+        when(applicationDataTypeCache.getAll(any())).thenReturn(Either.left(types));
+        return containerComponentId;
     }
 
     @SneakyThrows

@@ -182,6 +182,7 @@ public class ComponentInstanceBusinessLogic extends BaseBusinessLogic {
     private static final String RESTRICTED_OPERATION_ON_COMPONENT = "Restricted operation for user: {} on component {}";
     private static final String RESOURCE_INSTANCE = "resource instance";
     private static final String SERVICE = "service";
+    private static final int MAX_SUB_PROPERTY_PATH_DEPTH = 32;
 
     private final ComponentInstanceOperation componentInstanceOperation;
     private final ArtifactsBusinessLogic artifactBusinessLogic;
@@ -1958,13 +1959,13 @@ public class ComponentInstanceBusinessLogic extends BaseBusinessLogic {
                     if (ToscaPropertyType.LIST.equals(type)) {
                         final JSONArray jsonArray = property.getValue() == null ? new JSONArray() : new JSONArray(property.getValue());
                         property.getSubPropertyToscaFunctions().stream().forEach(subToscaFunction -> {
-                            addE(jsonArray, subToscaFunction.getSubPropertyPath(), subToscaFunction.getToscaFunction().getValue());
+                            addSubPropertyValue(jsonArray, subToscaFunction.getSubPropertyPath(), subToscaFunction.getToscaFunction().getValue());
                         });
                         property.setValue(jsonArray.toString());
                     } else {
                         final JSONObject jObject = property.getValue() == null ? new JSONObject() : new JSONObject(property.getValue());
                         property.getSubPropertyToscaFunctions().stream().forEach(subToscaFunction -> {
-                            addE(jObject, subToscaFunction.getSubPropertyPath(), subToscaFunction.getToscaFunction().getValue());
+                            addSubPropertyValue(jObject, subToscaFunction.getSubPropertyPath(), subToscaFunction.getToscaFunction().getValue());
                         });
                         property.setValue(jObject.toString());
                     }
@@ -2022,8 +2023,41 @@ public class ComponentInstanceBusinessLogic extends BaseBusinessLogic {
         return getInputValueDataDefinition;
     }
 
+    private void addSubPropertyValue(JSONArray jsonArray, List<String> path, String value) {
+        validateSubPropertyPath(path);
+        addE(jsonArray, path, value);
+    }
+
+    private void addSubPropertyValue(JSONObject jsonObject, List<String> path, String value) {
+        validateSubPropertyPath(path);
+        addE(jsonObject, path, value);
+    }
+
+    private void validateSubPropertyPath(List<String> path) {
+        if (CollectionUtils.isEmpty(path) || path.size() > MAX_SUB_PROPERTY_PATH_DEPTH || path.stream().anyMatch(StringUtils::isEmpty)) {
+            log.debug("Invalid sub property path: {}", path);
+            throw new ByActionStatusComponentException(ActionStatus.INVALID_CONTENT);
+        }
+    }
+
+    private int getListIndex(JSONArray jsonArray, String pathElement) {
+        if (StringUtils.isNumeric(pathElement)) {
+            try {
+                final int index = Integer.parseInt(pathElement);
+                if (index <= jsonArray.length()) {
+                    return index;
+                }
+            } catch (final NumberFormatException e) {
+                log.debug("Invalid list index in sub property path: {}", pathElement);
+            }
+        }
+        log.debug("List index {} in sub property path is out of range for list of size {}", pathElement, jsonArray.length());
+        throw new ByActionStatusComponentException(ActionStatus.INVALID_CONTENT);
+    }
+
     private void addE(JSONArray jsonArray, List<String> path, String value) {
-        Object objectForPath = jsonArray.opt(Integer.parseInt(path.get(0)));
+        final int index = getListIndex(jsonArray, path.get(0));
+        Object objectForPath = jsonArray.opt(index);
         if (objectForPath == null) {
             if (path.size() > 1) {
                 if (StringUtils.isNumeric(path.get(1))) {
@@ -2031,18 +2065,21 @@ public class ComponentInstanceBusinessLogic extends BaseBusinessLogic {
                 } else {
                     objectForPath = new JSONObject();
                 }
-                jsonArray.put(Integer.parseInt(path.get(0)), objectForPath);
+                jsonArray.put(index, objectForPath);
             }
         }
 
         if (path.size() == 1) {
             Object valueAsObject = new Yaml().loadAs(value, Object.class);
-            jsonArray.put(Integer.parseInt(path.get(0)), valueAsObject);
+            jsonArray.put(index, valueAsObject);
         } else {
             if (objectForPath instanceof JSONObject) {
                 addE((JSONObject) objectForPath, path.subList(1, path.size()), value);
-            } else {
+            } else if (objectForPath instanceof JSONArray) {
                 addE((JSONArray) objectForPath, path.subList(1, path.size()), value);
+            } else {
+                log.debug("Sub property path {} does not match the property value structure", path);
+                throw new ByActionStatusComponentException(ActionStatus.INVALID_CONTENT);
             }
         }
     }
@@ -2067,8 +2104,11 @@ public class ComponentInstanceBusinessLogic extends BaseBusinessLogic {
         } else {
             if (objectForPath instanceof JSONObject) {
                 addE((JSONObject) objectForPath, path.subList(1, path.size()), value);
-            } else {
+            } else if (objectForPath instanceof JSONArray) {
                 addE((JSONArray) objectForPath, path.subList(1, path.size()), value);
+            } else {
+                log.debug("Sub property path {} does not match the property value structure", path);
+                throw new ByActionStatusComponentException(ActionStatus.INVALID_CONTENT);
             }
         }
     }
