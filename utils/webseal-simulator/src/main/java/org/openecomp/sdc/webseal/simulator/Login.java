@@ -29,6 +29,7 @@ import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import org.apache.commons.text.StringEscapeUtils;
 import org.openecomp.sdc.logging.api.Logger;
 import org.openecomp.sdc.logging.api.LoggerFactory;
 import org.openecomp.sdc.webseal.simulator.conf.Conf;
@@ -46,6 +47,7 @@ public class Login extends HttpServlet {
             return;
         }
         logger.info("about to build login page");
+        final String csrfToken = CsrfToken.getOrCreate(request.getSession(true));
         response.setContentType("text/html");
         PrintWriter writer = response.getWriter();
 
@@ -99,12 +101,12 @@ public class Login extends HttpServlet {
             writer.println("<td>" + user.getUserRef() + "</td>");
             writer.println("<td>" + user.getUserId() + "</td>");
             writer.println("<td>" + user.getRole() + "</td>");
-            writer.println("<td>" + user.getUserCreateRef() + "</td>");
+            writer.println("<td>" + createUserForm(csrfToken, "userId", user.getUserId(), "create") + "</td>");
             writer.println("</tr>");
         }
         writer.println("</table>");
 
-        writer.println("<a href='create?all=true' target='resultFrame'>Create All</a>");
+        writer.println(createUserForm(csrfToken, "all", "true", "Create All"));
         writer.println("<hr/><iframe name='resultFrame' width='400' height='300'></iframe>");
 
         writer.println("</body>");
@@ -136,6 +138,14 @@ public class Login extends HttpServlet {
             response.sendRedirect("/sdc1");
         }
 
+    }
+
+    private String createUserForm(final String csrfToken, final String name, final String value, final String label) {
+        return "<form action='create' method='post' target='resultFrame' style='margin: 0;'>"
+            + "<input type='hidden' name='" + CsrfToken.PARAMETER_NAME + "' value='" + StringEscapeUtils.escapeHtml4(csrfToken) + "'>"
+            + "<input type='hidden' name='" + name + "' value='" + StringEscapeUtils.escapeHtml4(value) + "'>"
+            + "<input type='submit' value='" + label + "'>"
+            + "</form>";
     }
 
     private User getUser(String userId, String password) {

@@ -90,10 +90,6 @@ public class User {
 		return "<a href='?userId="+getUserId()+"&password="+getPassword()+"'>"+getFirstName()+" "+getLastName()+"</a>";
 	}
 	
-	public String getUserCreateRef() {
-		return "<a href='create?userId="+getUserId()+"&firstName="+getFirstName()+"&lastName="+getLastName()+"&role=" + getRole() + "&email=" + getEmail() + "' target='resultFrame'>create</a>";
-	}
-
 	@Override
 	public String toString() {
 		return "User [firstName=" + firstName + ", lastName=" + lastName + ", email=" + email + ", userId=" + userId

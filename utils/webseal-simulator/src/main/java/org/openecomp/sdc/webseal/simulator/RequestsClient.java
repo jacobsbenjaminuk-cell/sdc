@@ -20,13 +20,15 @@
 
 package org.openecomp.sdc.webseal.simulator;
 
+import com.google.gson.JsonObject;
 import java.io.BufferedReader;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -34,59 +36,69 @@ import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.text.StringEscapeUtils;
 import org.openecomp.sdc.webseal.simulator.conf.Conf;
 
+/**
+ * Creates the users defined in the simulator configuration in SDC. Only accepts POST requests carrying the CSRF token issued by the
+ * login page, and only for users present in {@link Conf#getUsers()}.
+ */
 public class RequestsClient extends HttpServlet {
 
     private static final long serialVersionUID = 1L;
+    private static final String ADMIN_ID = "jh0003";
 
     @Override
-    protected void doGet(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
+    protected void doPost(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
+        if (!CsrfToken.isValid(request)) {
+            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Invalid or missing CSRF token");
+            return;
+        }
+        final Map<String, User> users = Conf.getInstance().getUsers();
+        final String url = Conf.getInstance().getFeHost() + "/sdc1/feProxy/rest/v1/user";
 
-        String adminId = request.getParameter("adminId") != null ? request.getParameter("adminId") : "jh0003";
-        String createAll = request.getParameter("all");
-        String url = Conf.getInstance().getFeHost() + "/sdc1/feProxy/rest/v1/user";
-
-        PrintWriter writer = response.getWriter();
-
-        int resultCode;
-
-        if ("true".equals(createAll)) {
-            Map<String, User> users = Conf.getInstance().getUsers();
-            for (User user : users.values()) {
-                resultCode = createUser(response, user.getUserId(), user.getRole().toUpperCase(), user.getFirstName(), user.getLastName(),
-                    user.getEmail(), url, adminId);
-                writer.println("User " + user.getFirstName() + " " + user.getLastName() + getResultMessage(resultCode) + "<br>");
+        if ("true".equals(request.getParameter("all"))) {
+            final PrintWriter writer = getHtmlWriter(response);
+            for (final User user : users.values()) {
+                writer.println(createUser(user, url) + "<br>");
             }
-        } else {
-            String userId = request.getParameter("userId");
-            String role = request.getParameter("role").toUpperCase();
-            String firstName = request.getParameter("firstName");
-            String lastName = request.getParameter("lastName");
-            String email = request.getParameter("email");
-
-            resultCode = createUser(response, userId, role, firstName, lastName, email, url, adminId);
-
-            writer.println("User " + firstName + " " + lastName + getResultMessage(resultCode));
+            return;
         }
 
+        final User user = users.get(request.getParameter("userId"));
+        if (user == null) {
+            response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Unknown user");
+            return;
+        }
+        getHtmlWriter(response).println(createUser(user, url));
+    }
+
+    private PrintWriter getHtmlWriter(final HttpServletResponse response) throws IOException {
+        response.setContentType("text/html");
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        return response.getWriter();
+    }
+
+    private String createUser(final User user, final String url) throws IOException {
+        final Map<String, String> headers = new HashMap<>();
+        headers.put("Content-Type", "application/json");
+        headers.put("USER_ID", ADMIN_ID);
+        final int resultCode = sendHttpPost(url, toJson(user), headers);
+        return StringEscapeUtils.escapeHtml4("User " + user.getFirstName() + " " + user.getLastName() + getResultMessage(resultCode));
+    }
+
+    static String toJson(final User user) {
+        final JsonObject json = new JsonObject();
+        json.addProperty("firstName", user.getFirstName());
+        json.addProperty("lastName", user.getLastName());
+        json.addProperty("userId", user.getUserId());
+        json.addProperty("email", user.getEmail());
+        json.addProperty("role", user.getRole() == null ? null : user.getRole().toUpperCase());
+        return json.toString();
     }
 
     private String getResultMessage(int resultCode) {
         return 201 == resultCode ? " created successfuly" : " not created (" + resultCode + ")";
-    }
-
-    private int createUser(final HttpServletResponse response, String userId, String role, String firstName, String lastName, String email,
-                           String url, String adminId) throws IOException {
-        response.setContentType("text/html");
-
-        String body = "{\"firstName\":\"" + firstName + "\", \"lastName\":\"" + lastName + "\", \"userId\":\"" + userId + "\", \"email\":\"" + email
-            + "\",\"role\":\"" + role + "\"}";
-
-        HashMap<String, String> headers = new HashMap<String, String>();
-        headers.put("Content-Type", "application/json");
-        headers.put("USER_ID", adminId);
-        return sendHttpPost(url, body, headers);
     }
 
     private int sendHttpPost(String url, String body, Map<String, String> headers) throws IOException {
@@ -110,10 +122,9 @@ public class RequestsClient extends HttpServlet {
         // Send post request
         if (body != null) {
             con.setDoOutput(true);
-            DataOutputStream wr = new DataOutputStream(con.getOutputStream());
-            wr.writeBytes(body);
-            wr.flush();
-            wr.close();
+            try (OutputStream wr = con.getOutputStream()) {
+                wr.write(body.getBytes(StandardCharsets.UTF_8));
+            }
         }
 
         int responseCode = con.getResponseCode();
