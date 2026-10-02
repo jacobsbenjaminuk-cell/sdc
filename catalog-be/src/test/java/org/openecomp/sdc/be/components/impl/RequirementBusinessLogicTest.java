@@ -29,6 +29,7 @@ import org.mockito.MockitoAnnotations;
 import org.openecomp.sdc.be.auditing.impl.AuditingManager;
 import org.openecomp.sdc.be.components.validation.RequirementValidation;
 import org.openecomp.sdc.be.components.validation.UserValidations;
+import org.openecomp.sdc.be.dao.api.ActionStatus;
 import org.openecomp.sdc.be.dao.janusgraph.JanusGraphOperationStatus;
 import org.openecomp.sdc.be.dao.janusgraph.JanusGraphDao;
 import org.openecomp.sdc.be.datatypes.enums.ComponentTypeEnum;
@@ -65,6 +66,8 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class RequirementBusinessLogicTest extends BaseBusinessLogicMock {
@@ -118,6 +121,8 @@ public class RequirementBusinessLogicTest extends BaseBusinessLogicMock {
         when(requirementOperation.deleteRequirements( any(), anyString()))
                 .thenReturn(StorageOperationStatus.OK);
         when(mockJanusGraphDao.commit()).thenReturn(JanusGraphOperationStatus.OK);
+        when(userValidations.isSameUser(anyString(), anyString()))
+                .thenAnswer(invocation -> invocation.getArgument(0).equals(invocation.getArgument(1)));
 
         requirementsBusinessLogicMock = new RequirementBusinessLogic(elementDao,
             groupOperation, groupInstanceOperation, groupTypeOperation, interfaceOperation,
@@ -326,6 +331,87 @@ public class RequirementBusinessLogicTest extends BaseBusinessLogicMock {
 
     }
 
+    @Test
+    public void shouldFailCreateRequirementsWhenComponentIsCertified() {
+        Resource resource = createComponent(false);
+        resource.setComponentType(ComponentTypeEnum.RESOURCE);
+        resource.setLifecycleState(LifecycleStateEnum.CERTIFIED);
+        when(toscaOperationFacade.getToscaElement(anyString(), any(ComponentParametersView.class)))
+                .thenReturn(Either.left(resource));
+        Either<List<RequirementDefinition>, ResponseFormat> requirements = requirementsBusinessLogicMock
+                .createRequirements(componentId, createMockRequirementListToReturn(createRequirement("reqName", "capType",
+                        "node", "source1", "0", "10")), user, "createRequirements", true);
+        assertRestrictedOperation(requirements);
+    }
+
+    @Test
+    public void shouldFailCreateRequirementsWhenComponentIsCheckedOutByAnotherUser() {
+        Resource resource = createComponent(false);
+        resource.setComponentType(ComponentTypeEnum.RESOURCE);
+        resource.setLastUpdaterUserId("otherUser");
+        when(toscaOperationFacade.getToscaElement(anyString(), any(ComponentParametersView.class)))
+                .thenReturn(Either.left(resource));
+        Either<List<RequirementDefinition>, ResponseFormat> requirements = requirementsBusinessLogicMock
+                .createRequirements(componentId, createMockRequirementListToReturn(createRequirement("reqName", "capType",
+                        "node", "source1", "0", "10")), user, "createRequirements", true);
+        assertRestrictedOperation(requirements);
+    }
+
+    @Test
+    public void shouldFailUpdateRequirementsWhenComponentIsCheckedOutByAnotherUser() {
+        Resource resource = createComponent(true);
+        resource.setComponentType(ComponentTypeEnum.RESOURCE);
+        resource.setLastUpdaterUserId("otherUser");
+        when(toscaOperationFacade.getToscaElement(anyString(), any(ComponentParametersView.class)))
+                .thenReturn(Either.left(resource));
+        Either<List<RequirementDefinition>, ResponseFormat> requirements = requirementsBusinessLogicMock
+                .updateRequirements(componentId, createMockRequirementListToReturn(createRequirement("reqName", "capType",
+                        "node", "source1", "6", "11")), user, "updateRequirements", true);
+        assertRestrictedOperation(requirements);
+    }
+
+    @Test
+    public void shouldFailUpdateRequirementsWhenComponentIsArchived() {
+        Resource resource = createComponent(true);
+        resource.setComponentType(ComponentTypeEnum.RESOURCE);
+        resource.setArchived(true);
+        when(toscaOperationFacade.getToscaElement(anyString(), any(ComponentParametersView.class)))
+                .thenReturn(Either.left(resource));
+        Either<List<RequirementDefinition>, ResponseFormat> requirements = requirementsBusinessLogicMock
+                .updateRequirements(componentId, createMockRequirementListToReturn(createRequirement("reqName", "capType",
+                        "node", "source1", "6", "11")), user, "updateRequirements", true);
+        Assert.assertTrue(requirements.isRight());
+        verifyNoRequirementWrite();
+    }
+
+    @Test
+    public void shouldFailDeleteRequirementWhenComponentIsCheckedIn() {
+        Resource resource = createComponent(true);
+        resource.setComponentType(ComponentTypeEnum.RESOURCE);
+        resource.setLifecycleState(LifecycleStateEnum.NOT_CERTIFIED_CHECKIN);
+        when(toscaOperationFacade.getToscaElement(anyString(), any(ComponentParametersView.class)))
+                .thenReturn(Either.left(resource));
+        Either<RequirementDefinition, ResponseFormat> deleteRequirementEither
+                = requirementsBusinessLogicMock.deleteRequirement(componentId, requirementId, user, true);
+        assertRestrictedOperation(deleteRequirementEither);
+    }
+
+    private void assertRestrictedOperation(Either<?, ResponseFormat> result) {
+        Assert.assertTrue(result.isRight());
+        ResponseFormat expected = new ComponentsUtils(Mockito.mock(AuditingManager.class))
+                .getResponseFormat(ActionStatus.RESTRICTED_OPERATION);
+        Assert.assertEquals(expected.getStatus(), result.right().value().getStatus());
+        Assert.assertEquals(expected.getMessageId(), result.right().value().getMessageId());
+        verifyNoRequirementWrite();
+    }
+
+    private void verifyNoRequirementWrite() {
+        verify(requirementOperation, never()).addRequirement(anyString(), any());
+        verify(requirementOperation, never()).updateRequirement(anyString(), any());
+        verify(requirementOperation, never()).deleteRequirements(any(), anyString());
+        verify(graphLockOperation, never()).lockComponent(anyString(), any(NodeTypeEnum.class));
+    }
+
     private Resource createComponent(boolean needRequirements) {
         Resource resource = new Resource();
         resource.setName("Resource1");
@@ -349,6 +435,7 @@ public class RequirementBusinessLogicTest extends BaseBusinessLogicMock {
         resource.setUniqueId(resource.getName().toLowerCase() + ":" + resource.getVersion());
         resource.setCreatorUserId(user.getUserId());
         resource.setCreatorFullName(user.getFirstName() + " " + user.getLastName());
+        resource.setLastUpdaterUserId(user.getUserId());
         resource.setLifecycleState(LifecycleStateEnum.NOT_CERTIFIED_CHECKOUT);
         return resource;
     }
