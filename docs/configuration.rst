@@ -54,8 +54,8 @@ environment.json
 
             # Configuration parameters used by SDC to work with Dmaap
             "UEB": {
-                "PublicKey": "iPIxkpAMI8qTcQj8",
-                "SecretKey": "Ehq3WyT4bkif4zwgEbvshGal",
+                "PublicKey": "${UEB_PUBLIC_KEY}",
+                "SecretKey": "${UEB_SECRET_KEY}",
                 "fqdn": ["10.0.11.1", "10.0.11.1"]
             },
 

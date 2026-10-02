@@ -387,7 +387,7 @@ dmaapConsumerConfiguration:
   timeLimitForNotificationHandleMs: 120000
   credential:
       username: m09875@sdc.att.com
-      password: hmXYcznAljMSisdy8zgcag==
+      password: XyCUPhFx9u70aklYGo6OiA==
 
 dmaapProducerConfiguration:
     hosts: olsd004.wnsnet.attws.com:3905
@@ -415,4 +415,4 @@ dmaapProducerConfiguration:
     timeLimitForNotificationHandleMs: 120000
     credential:
         username: m09875@sdc.att.com
-        password: hmXYcznAljMSisdy8zgcag==
+        password: XyCUPhFx9u70aklYGo6OiA==
