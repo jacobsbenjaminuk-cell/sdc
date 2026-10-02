@@ -19,6 +19,9 @@
 package org.openecomp.server.filters;
 
 import java.io.IOException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -41,8 +44,8 @@ import org.openecomp.sdc.versioning.ItemManagerFactory;
 import org.openecomp.sdc.versioning.types.Item;
 
 /**
- * When multitenancy is enabled, rejects every request scoped to a VSP, VLM or item whose tenant is not one of the
- * caller's Keycloak realm roles.
+ * When multitenancy is enabled, rejects every request scoped to a VSP, VLM or item that does not exist or whose tenant is
+ * not one of the caller's Keycloak realm roles.
  */
 public class TenantAuthorizationFilter implements Filter {
 
@@ -52,6 +55,8 @@ public class TenantAuthorizationFilter implements Filter {
     private static final String PACKAGES = "packages";
     private static final Set<String> ITEM_ROOTS = Set.of(VSP_ROOT, "vendor-license-models", "items");
     private static final Set<String> VSP_COLLECTION_SEGMENTS = Set.of(PACKAGES, "validation-vsp");
+    private static final List<String> EXTERNAL_TESTING_EXECUTIONS = List.of(API_VERSION, "externaltesting", "executions");
+    private static final String VSP_ID_PARAM = "vspId";
 
     private final Multitenancy multitenancy;
     private final Supplier<ItemManager> itemManagerSupplier;
@@ -79,25 +84,52 @@ public class TenantAuthorizationFilter implements Filter {
             return;
         }
         HttpServletRequest request = (HttpServletRequest) servletRequest;
-        Optional<String> itemId = parseItemId(request);
-        if (itemId.isPresent()) {
-            Item item = getItemManager().get(itemId.get());
-            if (item != null && !multitenancy.isTenantAllowed(request, item.getTenant())) {
-                LOGGER.error("Tenant of item {} is not authorized for the caller", itemId.get());
-                ((HttpServletResponse) servletResponse).sendError(HttpServletResponse.SC_FORBIDDEN, "Unauthorized Tenant");
-                return;
-            }
+        Optional<List<String>> itemIds = parseItemIds(request);
+        if (itemIds.isEmpty() || !itemIds.get().stream().allMatch(itemId -> isAllowed(request, itemId))) {
+            LOGGER.error("Caller is not authorized for the tenant of the requested item");
+            ((HttpServletResponse) servletResponse).sendError(HttpServletResponse.SC_FORBIDDEN, "Unauthorized Tenant");
+            return;
         }
         filterChain.doFilter(servletRequest, servletResponse);
     }
 
-    static Optional<String> parseItemId(HttpServletRequest request) {
-        String path = (request.getServletPath() == null ? "" : request.getServletPath())
-            + (request.getPathInfo() == null ? "" : request.getPathInfo());
-        List<String> segments = Arrays.stream(path.split("/"))
+    private boolean isAllowed(HttpServletRequest request, String itemId) {
+        Item item = getItemManager().get(itemId);
+        return item != null && multitenancy.isTenantAllowed(request, item.getTenant());
+    }
+
+    /**
+     * Returns the IDs of the items the request is scoped to, decoded the same way JAX-RS decodes them, or an empty
+     * optional when the request cannot be parsed.
+     */
+    static Optional<List<String>> parseItemIds(HttpServletRequest request) {
+        try {
+            List<String> itemIds = new ArrayList<>();
+            List<String> segments = pathSegments(request);
+            parsePathItemId(segments).ifPresent(itemIds::add);
+            if (segments.equals(EXTERNAL_TESTING_EXECUTIONS)) {
+                itemIds.addAll(queryParameterValues(request.getQueryString(), VSP_ID_PARAM));
+            }
+            return Optional.of(itemIds);
+        } catch (IllegalArgumentException e) {
+            return Optional.empty();
+        }
+    }
+
+    private static List<String> pathSegments(HttpServletRequest request) {
+        String uri = request.getRequestURI() == null ? "" : request.getRequestURI();
+        String contextPath = request.getContextPath() == null ? "" : request.getContextPath();
+        if (uri.startsWith(contextPath)) {
+            uri = uri.substring(contextPath.length());
+        }
+        return Arrays.stream(uri.split("/"))
             .map(segment -> segment.split(";", 2)[0])
             .filter(segment -> !segment.isEmpty())
+            .map(segment -> URLDecoder.decode(segment.replace("+", "%2B"), StandardCharsets.UTF_8))
             .collect(Collectors.toList());
+    }
+
+    private static Optional<String> parsePathItemId(List<String> segments) {
         if (segments.size() < 3 || !API_VERSION.equals(segments.get(0)) || !ITEM_ROOTS.contains(segments.get(1))) {
             return Optional.empty();
         }
@@ -107,6 +139,17 @@ public class TenantAuthorizationFilter implements Filter {
             return PACKAGES.equals(candidate) && segments.size() > 3 ? Optional.of(segments.get(3)) : Optional.empty();
         }
         return Optional.of(candidate);
+    }
+
+    private static List<String> queryParameterValues(String queryString, String name) {
+        if (queryString == null) {
+            return List.of();
+        }
+        return Arrays.stream(queryString.split("&"))
+            .map(pair -> pair.split("=", 2))
+            .filter(pair -> name.equals(URLDecoder.decode(pair[0], StandardCharsets.UTF_8)))
+            .map(pair -> pair.length > 1 ? URLDecoder.decode(pair[1], StandardCharsets.UTF_8) : "")
+            .collect(Collectors.toList());
     }
 
     private synchronized ItemManager getItemManager() {

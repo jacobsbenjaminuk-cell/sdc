@@ -30,6 +30,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Optional;
 import javax.servlet.FilterChain;
 import javax.servlet.http.HttpServletRequest;
@@ -65,22 +66,77 @@ class TenantAuthorizationFilterTest {
 
     @Test
     void parsesItemIdFromItemScopedRoutes() {
-        assertEquals(Optional.of("vsp1"), TenantAuthorizationFilter.parseItemId(request("/v1.0/vendor-software-products/vsp1")));
-        assertEquals(Optional.of("vsp1"), TenantAuthorizationFilter.parseItemId(
-            request("/v1.0/vendor-software-products/vsp1/versions/v1/components/c1/processes/p1/data")));
-        assertEquals(Optional.of("vsp1"), TenantAuthorizationFilter.parseItemId(request("/v1.0/vendor-software-products/packages/vsp1")));
-        assertEquals(Optional.of("vlm1"), TenantAuthorizationFilter.parseItemId(request("/v1.0/vendor-license-models/vlm1/versions/v1")));
-        assertEquals(Optional.of("i1"), TenantAuthorizationFilter.parseItemId(request("/v1.0/items/i1/versions/v1/activity-logs")));
-        assertEquals(Optional.of("i1"), TenantAuthorizationFilter.parseItemId(request("/v1.0/items/i1;jsessionid=x/actions")));
+        assertEquals(List.of("vsp1"), parse("/v1.0/vendor-software-products/vsp1"));
+        assertEquals(List.of("vsp1"), parse("/v1.0/vendor-software-products/vsp1/versions/v1/components/c1/processes/p1/data"));
+        assertEquals(List.of("vsp1"), parse("/v1.0/vendor-software-products/packages/vsp1"));
+        assertEquals(List.of("vlm1"), parse("/v1.0/vendor-license-models/vlm1/versions/v1"));
+        assertEquals(List.of("i1"), parse("/v1.0/items/i1/versions/v1/activity-logs"));
+        assertEquals(List.of("i1"), parse("/v1.0/items/i1;jsessionid=x/actions"));
+    }
+
+    @Test
+    void decodesItemIdLikeJaxRs() {
+        assertEquals(List.of("i1"), parse("/v1.0/items/%69%31"));
+        assertEquals(List.of("a+b"), parse("/v1.0/items/a+b"));
+    }
+
+    @Test
+    void parsesVspIdOfExternalTestingExecution() {
+        HttpServletRequest request = request("/v1.0/externaltesting/executions");
+        when(request.getQueryString()).thenReturn("vspId=vsp1&vspVersionId=v1&vspId=vsp%32");
+        assertEquals(Optional.of(List.of("vsp1", "vsp2")), TenantAuthorizationFilter.parseItemIds(request));
     }
 
     @Test
     void ignoresCollectionRoutes() {
-        assertTrue(TenantAuthorizationFilter.parseItemId(request("/v1.0/vendor-software-products")).isEmpty());
-        assertTrue(TenantAuthorizationFilter.parseItemId(request("/v1.0/vendor-software-products/packages")).isEmpty());
-        assertTrue(TenantAuthorizationFilter.parseItemId(request("/v1.0/vendor-software-products/validation-vsp")).isEmpty());
-        assertTrue(TenantAuthorizationFilter.parseItemId(request("/v1.0/items")).isEmpty());
-        assertTrue(TenantAuthorizationFilter.parseItemId(request("/v1.0/healthcheck")).isEmpty());
+        assertTrue(parse("/v1.0/vendor-software-products").isEmpty());
+        assertTrue(parse("/v1.0/vendor-software-products/packages").isEmpty());
+        assertTrue(parse("/v1.0/vendor-software-products/validation-vsp").isEmpty());
+        assertTrue(parse("/v1.0/items").isEmpty());
+        assertTrue(parse("/v1.0/healthcheck").isEmpty());
+        assertTrue(parse("/v1.0/externaltesting/executions").isEmpty());
+    }
+
+    @Test
+    void rejectsMalformedEncoding() throws Exception {
+        HttpServletRequest request = authenticatedRequest("/v1.0/items/%zz", "tenantA");
+
+        filter.doFilter(request, response, chain);
+
+        verify(response).sendError(HttpServletResponse.SC_FORBIDDEN, "Unauthorized Tenant");
+        verifyNoInteractions(chain, itemManager);
+    }
+
+    @Test
+    void rejectsUnknownItem() throws Exception {
+        HttpServletRequest request = authenticatedRequest("/v1.0/items/" + ITEM_ID, "tenantA");
+
+        filter.doFilter(request, response, chain);
+
+        verify(response).sendError(HttpServletResponse.SC_FORBIDDEN, "Unauthorized Tenant");
+        verifyNoInteractions(chain);
+    }
+
+    @Test
+    void rejectsExternalTestingExecutionOfOtherTenantVsp() throws Exception {
+        HttpServletRequest request = authenticatedRequest("/v1.0/externaltesting/executions", "tenantA");
+        when(request.getQueryString()).thenReturn("vspId=" + ITEM_ID);
+        when(itemManager.get(ITEM_ID)).thenReturn(item("tenantB"));
+
+        filter.doFilter(request, response, chain);
+
+        verify(response).sendError(HttpServletResponse.SC_FORBIDDEN, "Unauthorized Tenant");
+        verifyNoInteractions(chain);
+    }
+
+    @Test
+    void allowsCollectionRoutes() throws Exception {
+        HttpServletRequest request = authenticatedRequest("/v1.0/vendor-software-products", "tenantA");
+
+        filter.doFilter(request, response, chain);
+
+        verify(chain).doFilter(request, response);
+        verifyNoInteractions(itemManager);
     }
 
     @Test
@@ -138,10 +194,14 @@ class TenantAuthorizationFilterTest {
         verifyNoInteractions(itemManager);
     }
 
-    private static HttpServletRequest request(String pathInfo) {
+    private static List<String> parse(String path) {
+        return TenantAuthorizationFilter.parseItemIds(request(path)).orElseThrow();
+    }
+
+    private static HttpServletRequest request(String path) {
         HttpServletRequest request = mock(HttpServletRequest.class);
-        when(request.getServletPath()).thenReturn("");
-        when(request.getPathInfo()).thenReturn(pathInfo);
+        when(request.getContextPath()).thenReturn("/onboarding-api");
+        when(request.getRequestURI()).thenReturn("/onboarding-api" + path);
         return request;
     }
 
