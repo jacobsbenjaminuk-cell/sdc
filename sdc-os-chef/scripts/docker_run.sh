@@ -581,9 +581,15 @@ done
 #Prefix those with WORKSPACE so it can be set to something other than /opt
 [ -f ${WORKSPACE}/opt/config/env_name.txt ] && DEP_ENV=$(cat ${WORKSPACE}/opt/config/env_name.txt) || echo ${DEP_ENV}
 [ -f ${WORKSPACE}/opt/config/nexus_username.txt ] && NEXUS_USERNAME=$(cat ${WORKSPACE}/opt/config/nexus_username.txt)    || NEXUS_USERNAME=release
-[ -f ${WORKSPACE}/opt/config/nexus_password.txt ] && NEXUS_PASSWD=$(cat ${WORKSPACE}/opt/config/nexus_password.txt)      || NEXUS_PASSWD=sfWU3DFVdBr7GVxB85mTYgAW
+[ -f ${WORKSPACE}/opt/config/nexus_password.txt ] && NEXUS_PASSWD=$(cat ${WORKSPACE}/opt/config/nexus_password.txt)
 [ -f ${WORKSPACE}/opt/config/nexus_docker_repo.txt ] && NEXUS_DOCKER_REPO=$(cat ${WORKSPACE}/opt/config/nexus_docker_repo.txt) || NEXUS_DOCKER_REPO=nexus3.onap.org:${PORT}
-[ -f ${WORKSPACE}/opt/config/nexus_username.txt ] && docker login -u $NEXUS_USERNAME -p $NEXUS_PASSWD $NEXUS_DOCKER_REPO
+if [ -f ${WORKSPACE}/opt/config/nexus_username.txt ]; then
+    if [ -z "${NEXUS_PASSWD}" ]; then
+        echo "Nexus password not set: export NEXUS_PASSWD or create ${WORKSPACE}/opt/config/nexus_password.txt" >&2
+        exit ${FAILURE}
+    fi
+    printf '%s' "${NEXUS_PASSWD}" | docker login -u "${NEXUS_USERNAME}" --password-stdin ${NEXUS_DOCKER_REPO}
+fi
 
 
 export IP=`ip route get 8.8.8.8 | awk '/src/{ print $7 }'`
