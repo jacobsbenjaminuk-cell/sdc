@@ -25,6 +25,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -52,7 +53,6 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -73,6 +73,7 @@ import org.openecomp.sdc.be.csar.storage.ArtifactInfo;
 import org.openecomp.sdc.be.csar.storage.ArtifactStorageConfig;
 import org.openecomp.sdc.be.csar.storage.ArtifactStorageManager;
 import org.openecomp.sdc.be.csar.storage.StorageFactory;
+import org.openecomp.sdc.common.CommonConfigurationManager;
 import org.openecomp.sdc.logging.api.Logger;
 import org.openecomp.sdc.logging.api.LoggerFactory;
 import org.openecomp.sdc.vendorsoftwareproduct.types.OnboardSignedPackage;
@@ -89,6 +90,10 @@ public class SecurityManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(SecurityManager.class);
     private static final String UNEXPECTED_ERROR_OCCURRED_DURING_SIGNATURE_VALIDATION = "Unexpected error occurred during signature validation!";
     private static final String COULD_NOT_VERIFY_SIGNATURE = "Could not verify signature!";
+    private static final String EXTERNAL_CSAR_STORE = "externalCsarStore";
+    private static final int DEFAULT_THRESHOLD_ENTRIES = 10000;
+    private static final int DEFAULT_THRESHOLD_RATIO = 10;
+    private static final long MIN_EXTRACTED_BYTES_BEFORE_RATIO_CHECK = 1024L * 1024L;
 
     static {
         if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
@@ -272,27 +277,45 @@ public class SecurityManager {
         }
     }
 
-    private boolean findCSARandExtract(final InputStream inputStream, final Path target) throws IOException {
-        final AtomicBoolean found = new AtomicBoolean(false);
+    private boolean findCSARandExtract(final InputStream inputStream, final Path target) throws IOException, SecurityManagerException {
+        final var commonConfigurationManager = CommonConfigurationManager.getInstance();
+        final int thresholdEntries = commonConfigurationManager.getConfigValue(EXTERNAL_CSAR_STORE, "thresholdEntries", DEFAULT_THRESHOLD_ENTRIES);
+        final int thresholdRatio = commonConfigurationManager.getConfigValue(EXTERNAL_CSAR_STORE, "thresholdRatio", DEFAULT_THRESHOLD_RATIO);
 
-        final var zipInputStream = new ZipInputStream(inputStream);
+        final var countingInputStream = new CountingInputStream(inputStream);
+        final var zipInputStream = new ZipInputStream(countingInputStream);
+        boolean found = false;
+        int totalEntries = 0;
         ZipEntry zipEntry;
         byte[] buffer = new byte[2048];
         while ((zipEntry = zipInputStream.getNextEntry()) != null) {
+            if (++totalEntries > thresholdEntries) {
+                throw new SecurityManagerException(String.format("Signed package has more than %d entries", thresholdEntries));
+            }
             final var entryName = zipEntry.getName();
             if (!zipEntry.isDirectory() && entryName.toLowerCase().endsWith(".csar")) {
+                if (found) {
+                    throw new SecurityManagerException("Signed package contains more than one internal CSAR");
+                }
+                found = true;
+                long totalWritten = 0;
                 try (final FileOutputStream fos = new FileOutputStream(target.toFile());
                     final BufferedOutputStream bos = new BufferedOutputStream(fos, buffer.length)) {
 
                     int len;
                     while ((len = zipInputStream.read(buffer)) > 0) {
+                        totalWritten += len;
+                        if (totalWritten > MIN_EXTRACTED_BYTES_BEFORE_RATIO_CHECK
+                            && totalWritten > (long) thresholdRatio * countingInputStream.getCount()) {
+                            throw new SecurityManagerException(String.format(
+                                "Internal CSAR '%s' exceeds the allowed compression ratio of %d", entryName, thresholdRatio));
+                        }
                         bos.write(buffer, 0, len);
                     }
                 }
-                found.set(true);
             }
         }
-        return found.get();
+        return found;
     }
 
     private Optional<X509Certificate> readSignCert(final Collection<X509CertificateHolder> certs, final SignerInformation firstSigner) {
@@ -449,6 +472,44 @@ public class SecurityManager {
 
     private boolean isSelfSigned(X509Certificate cert) {
         return cert.getIssuerDN().equals(cert.getSubjectDN());
+    }
+
+    private static class CountingInputStream extends FilterInputStream {
+
+        private long count;
+
+        CountingInputStream(final InputStream in) {
+            super(in);
+        }
+
+        long getCount() {
+            return count;
+        }
+
+        @Override
+        public int read() throws IOException {
+            final int result = super.read();
+            if (result != -1) {
+                count++;
+            }
+            return result;
+        }
+
+        @Override
+        public int read(final byte[] b, final int off, final int len) throws IOException {
+            final int result = super.read(b, off, len);
+            if (result > 0) {
+                count += result;
+            }
+            return result;
+        }
+
+        @Override
+        public long skip(final long n) throws IOException {
+            final long result = super.skip(n);
+            count += result;
+            return result;
+        }
     }
 
     /**
