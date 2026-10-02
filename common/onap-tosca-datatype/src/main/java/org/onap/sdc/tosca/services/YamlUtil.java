@@ -29,6 +29,7 @@ import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
 import org.yaml.snakeyaml.introspector.Property;
 import org.yaml.snakeyaml.introspector.PropertyUtils;
 import org.yaml.snakeyaml.nodes.MappingNode;
@@ -71,7 +72,7 @@ public class YamlUtil {
      * @return The YAML Object
      */
     public static Object read(final InputStream yamlFileInputStream) {
-        return new Yaml().load(yamlFileInputStream);
+        return newYamlParser().load(yamlFileInputStream);
     }
 
     /**
@@ -87,11 +88,7 @@ public class YamlUtil {
         constructor.setPropertyUtils(getPropertyUtils());
         TypeDescription yamlFileDescription = new TypeDescription(typClass);
         constructor.addTypeDescription(yamlFileDescription);
-        T yamlObj = new Yaml(constructor, new Representer(new DumperOptions()), new DumperOptions(), getLoaderOptions()).load(yamlContent);
-
-        //noinspection ResultOfMethodCallIgnored
-        yamlObj.toString();
-        return yamlObj;
+        return new Yaml(constructor, new Representer(new DumperOptions()), new DumperOptions(), getLoaderOptions()).load(yamlContent);
     }
 
     public InputStream loadYamlFileIs(String yamlFullFileName) {
@@ -116,8 +113,6 @@ public class YamlUtil {
             //No Yaml Constructor takes only Constructor and LoaderOptions, that is why I had to pass anonymous Representer and DumperOptions objects
             T yamlObj = new Yaml(constructor, new Representer(new DumperOptions()), new DumperOptions(), getLoaderOptions()).load(yamlContent);
             if (yamlObj != null) {
-                //noinspection ResultOfMethodCallIgnored
-                yamlObj.toString();
                 return yamlObj;
             } else {
                 throw new RuntimeException();
@@ -135,11 +130,15 @@ public class YamlUtil {
         }
     }
 
-    private LoaderOptions getLoaderOptions() {
+    private static LoaderOptions getLoaderOptions() {
         LoaderOptions options = new LoaderOptions();
         options.setAllowDuplicateKeys(false);
-        options.setMaxAliasesForCollections(9999);
         return options;
+    }
+
+    private static Yaml newYamlParser() {
+        LoaderOptions options = getLoaderOptions();
+        return new Yaml(new SafeConstructor(options), new Representer(new DumperOptions()), new DumperOptions(), options);
     }
 
     /**
@@ -150,7 +149,7 @@ public class YamlUtil {
      * @return the constructor
      */
     public <T> Constructor getConstructor(Class<T> typClass) {
-        return new StrictMapAppenderConstructor(typClass);
+        return new StrictMapAppenderConstructor(typClass, getLoaderOptions());
     }
 
     /**
@@ -169,7 +168,7 @@ public class YamlUtil {
      * @return the map
      */
     public Map<String, LinkedHashMap<String, Object>> yamlToMap(InputStream yamlContent) {
-        return new Yaml().load(yamlContent);
+        return newYamlParser().load(yamlContent);
     }
 
     /**
@@ -197,7 +196,7 @@ public class YamlUtil {
      */
     public boolean isYamlFileContentValid(String yamlFullFileName) {
         try {
-            return new Yaml().load(yamlFullFileName) != null;
+            return newYamlParser().load(yamlFullFileName) != null;
         } catch (Exception exception) {
             return false;
         }

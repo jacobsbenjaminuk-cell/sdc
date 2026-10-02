@@ -20,7 +20,9 @@
 package org.onap.sdc.tosca.services;
 
 import java.util.Map;
+import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.constructor.Constructor;
+import org.yaml.snakeyaml.error.YAMLException;
 import org.yaml.snakeyaml.nodes.MappingNode;
 import org.yaml.snakeyaml.parser.ParserException;
 
@@ -32,7 +34,27 @@ public class StrictMapAppenderConstructor extends Constructor {
      * @param theRoot the the root
      */
     public StrictMapAppenderConstructor(Class<?> theRoot) {
-        super(theRoot);
+        this(theRoot, new LoaderOptions());
+    }
+
+    /**
+     * Instantiates a new Strict map appender constructor.
+     *
+     * @param theRoot       the the root
+     * @param loadingConfig the loading config
+     */
+    public StrictMapAppenderConstructor(Class<?> theRoot, LoaderOptions loadingConfig) {
+        super(theRoot, loadingConfig);
+    }
+
+    /**
+     * Blocks global YAML tags (e.g. !!javax.script.ScriptEngineManager) that would otherwise
+     * instantiate arbitrary classes while parsing untrusted documents. Beans declared through
+     * addTypeDescription still resolve via the tag registry, not through this method.
+     */
+    @Override
+    protected Class<?> getClassForName(String name) throws ClassNotFoundException {
+        throw new YAMLException("Global tag is not allowed: " + name);
     }
 
     @Override
