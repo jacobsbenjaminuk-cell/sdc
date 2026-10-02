@@ -3,9 +3,10 @@
 # Set defaults for environment variables
 export FE_URL="${FE_URL:-http://localhost:8181}"
 export PERMITTED_ANCESTORS="${PERMITTED_ANCESTORS:-}"
+export SIMULATOR_PASSWORD="${SIMULATOR_PASSWORD:-123123a}"
 
 # Generate webseal.conf from template using envsubst
-envsubst '${FE_URL} ${PERMITTED_ANCESTORS}' \
+envsubst '${FE_URL} ${PERMITTED_ANCESTORS} ${SIMULATOR_PASSWORD}' \
   < "$JETTY_BASE/config/sdc-simulator/webseal.conf.tpl" \
   > "$JETTY_BASE/config/sdc-simulator/webseal.conf"
 

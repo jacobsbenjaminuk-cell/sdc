@@ -87,7 +87,7 @@ public class User {
 	}
 	
 	public String getUserRef() {
-		return "<a href='?userId="+getUserId()+"&password="+getPassword()+"'>"+getFirstName()+" "+getLastName()+"</a>";
+		return getFirstName()+" "+getLastName();
 	}
 	
 	public String getUserCreateRef() {
@@ -97,7 +97,7 @@ public class User {
 	@Override
 	public String toString() {
 		return "User [firstName=" + firstName + ", lastName=" + lastName + ", email=" + email + ", userId=" + userId
-				+ ", role=" + role + ", password=" + password + "]";
+				+ ", role=" + role + "]";
 	}
 
 }

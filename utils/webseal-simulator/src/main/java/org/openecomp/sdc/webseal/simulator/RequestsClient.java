@@ -43,7 +43,12 @@ public class RequestsClient extends HttpServlet {
     @Override
     protected void doGet(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
 
-        String adminId = request.getParameter("adminId") != null ? request.getParameter("adminId") : "jh0003";
+        final User admin = SimulatorSession.getUser(request);
+        if (admin == null) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Log in to the simulator first");
+            return;
+        }
+        String adminId = admin.getUserId();
         String createAll = request.getParameter("all");
         String url = Conf.getInstance().getFeHost() + "/sdc1/feProxy/rest/v1/user";
 

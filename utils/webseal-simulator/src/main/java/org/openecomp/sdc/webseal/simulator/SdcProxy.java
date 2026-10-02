@@ -37,14 +37,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 import javax.net.ssl.SSLContext;
-import javax.servlet.RequestDispatcher;
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
 import javax.servlet.ServletInputStream;
-import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -83,8 +82,8 @@ public class SdcProxy extends HttpServlet {
     private static final Logger LOGGER = LoggerFactory.getLogger(SdcProxy.class);
 
     private static final long serialVersionUID = 1L;
-    private static final Set<String> RESERVED_HEADERS =
-        Arrays.stream(ReservedHeaders.values()).map(ReservedHeaders::getValue).collect(Collectors.toSet());
+    private static final Set<String> RESERVED_HEADERS = Arrays.stream(ReservedHeaders.values()).map(ReservedHeaders::getValue)
+        .collect(Collectors.toCollection(() -> new TreeSet<>(String.CASE_INSENSITIVE_ORDER)));
     private static final String USER_ID = "USER_ID";
     private static final String HTTP_IV_USER = "HTTP_IV_USER";
     private static final String SDC1 = "/sdc1";
@@ -120,29 +119,11 @@ public class SdcProxy extends HttpServlet {
     }
 
     @Override
-    public void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        String userId = request.getParameter("userId");
-        String password = request.getParameter("password");
-
-        // Already sign-in
-        if (userId == null) {
-            userId = request.getHeader(USER_ID);
+    public void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        if (!verifyContentType(request, response)) {
+            return;
         }
-
-        System.out.println("SdcProxy -> doPost userId=" + userId);
-        request.setAttribute("message", "OK");
-        if (password != null && getUser(userId, password) == null) {
-            MutableHttpServletRequest mutableRequest = new MutableHttpServletRequest(request);
-            RequestDispatcher view = request.getRequestDispatcher("login");
-            request.setAttribute("message", "ERROR: userid or password incorrect");
-            view.forward(mutableRequest, response);
-        } else {
-            if (!verifyContentType(request, response)) {
-                return;
-            }
-            request.setAttribute(HTTP_IV_USER, userId);
-            proxy(request, response, MethodEnum.POST);
-        }
+        proxy(request, response, MethodEnum.POST);
     }
 
     @Override
@@ -159,15 +140,12 @@ public class SdcProxy extends HttpServlet {
     }
 
     private void proxy(HttpServletRequest request, HttpServletResponse response, MethodEnum methodEnum) throws IOException {
-        String userIdHeader = getUseridFromRequest(request);
-        // new request - forward to login page
-        if (userIdHeader == null) {
-            LOGGER.debug("{} not provided. Redirecting to /login", USER_ID);
+        final User user = SimulatorSession.getUser(request);
+        if (user == null) {
+            LOGGER.debug("No simulator session. Redirecting to /login");
             response.sendRedirect("/login");
             return;
         }
-
-        final User user = getUser(userIdHeader);
 
         Map<String, String[]> requestParameters = request.getParameterMap();
         String uri = getUri(request, requestParameters);
@@ -210,19 +188,6 @@ public class SdcProxy extends HttpServlet {
             return false;
         }
         return true;
-    }
-
-    private User getUser(String userId, String password) {
-        User user = getUser(userId);
-        if (user.getPassword().equals(password)) {
-            return user;
-        }
-        return null;
-    }
-
-    private User getUser(String userId) {
-        return conf.getUsers().get(userId);
-
     }
 
     private List<String> getContextPaths() {
@@ -280,28 +245,6 @@ public class SdcProxy extends HttpServlet {
         }
         ContentType contentType = ContentType.parse(contentTypeStr);
         return ContentType.create(contentType.getMimeType());
-    }
-
-    private String getUseridFromRequest(HttpServletRequest request) {
-
-        String userIdHeader = request.getHeader(USER_ID);
-        if (userIdHeader != null) {
-            return userIdHeader;
-        }
-        Object o = request.getAttribute(HTTP_IV_USER);
-        if (o != null) {
-            return o.toString();
-        }
-        Cookie[] cookies = request.getCookies();
-
-        if (cookies != null) {
-            for (int i = 0; i < cookies.length; ++i) {
-                if (cookies[i].getName().equals(USER_ID)) {
-                    userIdHeader = cookies[i].getValue();
-                }
-            }
-        }
-        return userIdHeader;
     }
 
     private void addHeadersToMethod(HttpUriRequest proxyMethod, User user, HttpServletRequest request) {

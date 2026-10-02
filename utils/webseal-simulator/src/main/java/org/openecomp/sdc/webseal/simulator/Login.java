@@ -20,8 +20,11 @@
 
 package org.openecomp.sdc.webseal.simulator;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.security.MessageDigest;
 import java.util.Collection;
 import java.util.Iterator;
 import javax.servlet.ServletException;
@@ -41,10 +44,6 @@ public class Login extends HttpServlet {
     @Override
     protected void doGet(final HttpServletRequest request, final HttpServletResponse response) throws ServletException, IOException {
 
-        if (null != request.getParameter("userId")) {
-            doPost(request, response);
-            return;
-        }
         logger.info("about to build login page");
         response.setContentType("text/html");
         PrintWriter writer = response.getWriter();
@@ -104,7 +103,7 @@ public class Login extends HttpServlet {
         }
         writer.println("</table>");
 
-        writer.println("<a href='create?all=true' target='resultFrame'>Create All</a>");
+        writer.println("<a href='create?all=true' target='resultFrame'>Create All</a> (log in as an Admin first)");
         writer.println("<hr/><iframe name='resultFrame' width='400' height='300'></iframe>");
 
         writer.println("</body>");
@@ -122,9 +121,11 @@ public class Login extends HttpServlet {
         logger.info("Login -> doPost userId={}", userId);
         User user = getUser(userId, password);
         if (user == null) {
-            response.sendError(500, "ERROR: userId or password incorrect");
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "ERROR: userId or password incorrect");
         } else {
             logger.info("Login -> doPost redirect to /sdc1 (to proxy)");
+            SimulatorSession.login(request, user);
+            // Informational only: the single page application reads these with document.cookie. SdcProxy takes identity from the session.
             response.addCookie(new Cookie("HTTP_IV_USER", user.getUserId()));
             response.addCookie(new Cookie("USER_ID", user.getUserId()));
             response.addCookie(new Cookie("HTTP_CSP_FIRSTNAME", user.getFirstName()));
@@ -139,11 +140,14 @@ public class Login extends HttpServlet {
     }
 
     private User getUser(String userId, String password) {
-        User user = Conf.getInstance().getUsers().get(userId);
-        if (user == null) {
+        if (userId == null || password == null) {
             return null;
         }
-        if (!password.equals(user.getPassword())) {
+        User user = Conf.getInstance().getUsers().get(userId);
+        if (user == null || user.getPassword() == null) {
+            return null;
+        }
+        if (!MessageDigest.isEqual(password.getBytes(UTF_8), user.getPassword().getBytes(UTF_8))) {
             return null;
         }
         return user;
