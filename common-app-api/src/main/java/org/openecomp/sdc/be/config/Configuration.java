@@ -336,6 +336,8 @@ public class Configuration extends BasicConfiguration {
         private String getLatestVspUri;
         @ToString.Exclude
         private String healthCheckUri;
+        @ToString.Exclude
+        private BasicAuthConfig basicAuth;
     }
 
     @Getter

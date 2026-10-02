@@ -971,6 +971,10 @@ onboarding:
     getVspUri: "/onboarding-api/v1.0/vendor-software-products/%s/versions/%s" # /onboarding-api/v1.0/vendor-software-products/:vspId/versions/:vspVersionId
     getLatestVspUri: "/onboarding-api/v1.0/vendor-software-products/%s" # /onboarding-api/v1.0/vendor-software-products/:vspId
     healthCheckUri: "/onboarding-api/v1.0/healthcheck"
+    basicAuth:
+        enabled: true
+        userName: testName
+        userPass: testPass
 
 # #GSS IDNS
 switchoverDetector:

@@ -41,6 +41,10 @@ public class RestrictionAccessFilter extends SessionValidationFilter {
     private static final String CONFIG_FILE_PROPERTY = "configuration.yaml";
     private static final String CONFIG_SECTION = "authCookie";
 
+    static ISessionValidationFilterConfiguration cookieConfiguration() {
+        return Configuration.getInstance();
+    }
+
     @Override
     public ISessionValidationFilterConfiguration getFilterConfiguration() {
         return Configuration.getInstance();
