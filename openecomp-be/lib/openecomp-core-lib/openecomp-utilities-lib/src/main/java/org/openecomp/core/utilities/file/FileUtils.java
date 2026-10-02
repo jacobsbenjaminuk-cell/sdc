@@ -16,6 +16,7 @@
 package org.openecomp.core.utilities.file;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -172,6 +173,36 @@ public class FileUtils {
         }
         try {
             return IOUtils.toByteArray(input);
+        } catch (IOException exception) {
+            throw new RuntimeException("error while converting input stream to byte array", exception);
+        }
+    }
+
+    /**
+     * To byte array byte [ ] with a maximum size bound.
+     *
+     * @param input   the input
+     * @param maxSize the maximum number of bytes to read
+     * @return the byte [ ]
+     * @throws RuntimeException when the input exceeds {@code maxSize} bytes or cannot be read
+     */
+    public static byte[] toByteArray(final InputStream input, final long maxSize) {
+        if (input == null) {
+            return new byte[0];
+        }
+        try {
+            final ByteArrayOutputStream output = new ByteArrayOutputStream();
+            final byte[] buffer = new byte[8192];
+            long total = 0;
+            int bytesRead;
+            while ((bytesRead = input.read(buffer)) != -1) {
+                total += bytesRead;
+                if (total > maxSize) {
+                    throw new IOException(String.format("The input exceeds the maximum allowed size of %d bytes", maxSize));
+                }
+                output.write(buffer, 0, bytesRead);
+            }
+            return output.toByteArray();
         } catch (IOException exception) {
             throw new RuntimeException("error while converting input stream to byte array", exception);
         }

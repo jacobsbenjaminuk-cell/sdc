@@ -115,16 +115,21 @@ public abstract class AbstractValidationsServlet extends BeGenericServlet {
     public static void extractZipContents(Wrapper<String> yamlStringWrapper, File file) throws ZipException {
         final Map<String, byte[]> unzippedFolder = ZipUtils.readZip(file, false);
         String ymlName = unzippedFolder.keySet().iterator().next();
-        fillToscaTemplateFromZip(yamlStringWrapper, ymlName, file);
+        fillToscaTemplateFromUnzipped(yamlStringWrapper, ymlName, unzippedFolder);
+    }
+
+    private static void fillToscaTemplateFromUnzipped(final Wrapper<String> yamlStringWrapper, final String payloadName,
+                                                      final Map<String, byte[]> unzippedFolder) {
+        final byte[] yamlFileInBytes = unzippedFolder.get(payloadName);
+        final String yamlAsString = new String(yamlFileInBytes, StandardCharsets.UTF_8);
+        log.debug("received yaml: {}", yamlAsString);
+        yamlStringWrapper.setInnerElement(yamlAsString);
     }
 
     private static void fillToscaTemplateFromZip(final Wrapper<String> yamlStringWrapper, final String payloadName, final File file)
         throws ZipException {
         final Map<String, byte[]> unzippedFolder = ZipUtils.readZip(file, false);
-        final byte[] yamlFileInBytes = unzippedFolder.get(payloadName);
-        final String yamlAsString = new String(yamlFileInBytes, StandardCharsets.UTF_8);
-        log.debug("received yaml: {}", yamlAsString);
-        yamlStringWrapper.setInnerElement(yamlAsString);
+        fillToscaTemplateFromUnzipped(yamlStringWrapper, payloadName, unzippedFolder);
     }
 
     protected void init() {
@@ -251,9 +256,16 @@ public abstract class AbstractValidationsServlet extends BeGenericServlet {
     }
 
     protected void fillPayloadDataFromFile(Wrapper<Response> responseWrapper, UploadResourceInfo uploadResourceInfoWrapper, File file) {
+        if (file.length() > ZipUtils.getMaxCompressedSize()) {
+            log.info("Uploaded file '{}' exceeds the maximum allowed size", file.getName());
+            ResponseFormat responseFormat = getComponentsUtils().getResponseFormat(ActionStatus.INVALID_CONTENT);
+            Response errorResp = buildErrorResponse(responseFormat);
+            responseWrapper.setInnerElement(errorResp);
+            return;
+        }
         try (InputStream fileInputStream = new FileInputStream(file)) {
-            byte[] data = new byte[(int) file.length()];
-            if (fileInputStream.read(data) == -1) {
+            byte[] data = fileInputStream.readAllBytes();
+            if (data.length == 0) {
                 log.info(INVALID_JSON_WAS_RECEIVED);
                 ResponseFormat responseFormat = getComponentsUtils().getResponseFormat(ActionStatus.INVALID_CONTENT);
                 Response errorResp = buildErrorResponse(responseFormat);
@@ -1137,10 +1149,17 @@ public abstract class AbstractValidationsServlet extends BeGenericServlet {
     }
 
     protected void fillServicePayloadDataFromFile(Wrapper<Response> responseWrapper, UploadServiceInfo uploadServiceInfoWrapper, File file) {
+        if (file.length() > ZipUtils.getMaxCompressedSize()) {
+            log.info("Uploaded file '{}' exceeds the maximum allowed size", file.getName());
+            ResponseFormat responseFormat = getComponentsUtils().getResponseFormat(ActionStatus.INVALID_CONTENT);
+            Response errorResp = buildErrorResponse(responseFormat);
+            responseWrapper.setInnerElement(errorResp);
+            return;
+        }
         try (InputStream fileInputStream = new FileInputStream(file)) {
             log.debug("enter fillServicePayloadDataFromFile");
-            byte[] data = new byte[(int) file.length()];
-            if (fileInputStream.read(data) == -1) {
+            byte[] data = fileInputStream.readAllBytes();
+            if (data.length == 0) {
                 log.info(INVALID_JSON_WAS_RECEIVED);
                 ResponseFormat responseFormat = getComponentsUtils().getResponseFormat(ActionStatus.INVALID_CONTENT);
                 Response errorResp = buildErrorResponse(responseFormat);

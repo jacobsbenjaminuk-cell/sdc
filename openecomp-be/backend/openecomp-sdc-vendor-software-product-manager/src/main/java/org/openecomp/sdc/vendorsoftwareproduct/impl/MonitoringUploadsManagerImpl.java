@@ -36,6 +36,7 @@ import org.openecomp.sdc.common.errors.CoreException;
 import org.openecomp.sdc.common.errors.Messages;
 import org.openecomp.sdc.common.utils.CommonUtil;
 import org.openecomp.sdc.common.utils.SdcCommon;
+import org.openecomp.sdc.common.zip.ZipUtils;
 import org.openecomp.sdc.datatypes.error.ErrorLevel;
 import org.openecomp.sdc.datatypes.error.ErrorMessage;
 import org.openecomp.sdc.vendorsoftwareproduct.MonitoringUploadsManager;
@@ -80,7 +81,7 @@ public class MonitoringUploadsManagerImpl implements MonitoringUploadsManager {
         } else {
             Map<String, List<ErrorMessage>> errors = new HashMap<>();
             try {
-                byte[] uploadedFileData = FileUtils.toByteArray(object);
+                byte[] uploadedFileData = FileUtils.toByteArray(object, ZipUtils.getMaxCompressedSize());
                 final FileContentHandler upload = validateZip(vspId, version, uploadedFileData, errors);
                 if (type.equals(MonitoringUploadType.VES_EVENTS)) {
                     validateVesEventUpload(upload, errors);

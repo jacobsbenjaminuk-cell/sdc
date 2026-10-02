@@ -300,8 +300,8 @@ public class ServiceImportBusinessLogic {
         final Service serviceOriginal = serviceResponseFormatEither.left().value();
         Map<String, byte[]> csar = null;
         try {
-            csar = ZipUtils.readZip(fileToUpload.readAllBytes(), false);
-        } catch (final ZipException | IOException e) {
+            csar = ZipUtils.readZip(fileToUpload, false);
+        } catch (final ZipException e) {
             log.info("Failed to unzip received csar {}", serviceId, e);
         }
         if (csar == null) {

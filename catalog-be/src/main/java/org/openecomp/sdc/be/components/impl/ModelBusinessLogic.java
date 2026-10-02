@@ -18,8 +18,6 @@
  */
 package org.openecomp.sdc.be.components.impl;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
@@ -86,8 +84,7 @@ public class ModelBusinessLogic {
             throw ModelOperationExceptionSupplier.invalidModel(modelName).get();
         }
 
-        final var fileBytes = readBytes(modelImportsZip);
-        final Map<String, byte[]> zipFilesPathContentMap = unzipInMemory(fileBytes);
+        final Map<String, byte[]> zipFilesPathContentMap = unzipInMemory(modelImportsZip);
         if (zipFilesPathContentMap.isEmpty()) {
             throw ModelOperationExceptionSupplier.emptyModelImports().get();
         }
@@ -95,23 +92,10 @@ public class ModelBusinessLogic {
         modelOperation.createModelImports(modelName, zipFilesPathContentMap);
     }
 
-    private Map<String, byte[]> unzipInMemory(final byte[] fileBytes) {
+    private Map<String, byte[]> unzipInMemory(final InputStream modelImportsZip) {
         try {
-            return ZipUtils.readZip(fileBytes, false);
+            return ZipUtils.readZip(modelImportsZip, false);
         } catch (final ZipException e) {
-            throw ModelOperationExceptionSupplier.couldNotReadImports().get();
-        }
-    }
-
-    private byte[] readBytes(final InputStream modelImportsZip) {
-        try (final InputStream in = modelImportsZip; final ByteArrayOutputStream os = new ByteArrayOutputStream()) {
-            final var buffer = new byte[1024];
-            int len;
-            while ((len = in.read(buffer)) != -1) {
-                os.write(buffer, 0, len);
-            }
-            return os.toByteArray();
-        } catch (final IOException e) {
             LOGGER.debug("Could not read the model imports zip", e);
             throw ModelOperationExceptionSupplier.couldNotReadImports().get();
         }
