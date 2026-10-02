@@ -22,9 +22,11 @@ package org.openecomp.sdc.common.filters;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.Charset;
 import java.util.Arrays;
 import javax.servlet.ReadListener;
 import javax.servlet.ServletInputStream;
@@ -33,6 +35,7 @@ import javax.servlet.http.HttpServletRequestWrapper;
 import lombok.Getter;
 import org.openecomp.sdc.common.log.enums.EcompLoggerErrorCode;
 import org.openecomp.sdc.common.log.wrappers.Logger;
+import org.openecomp.sdc.exception.RequestBodyTooLargeException;
 
 /**
  * Provides mechanism to wrap request's InputStream and read it more than once.
@@ -40,28 +43,42 @@ import org.openecomp.sdc.common.log.wrappers.Logger;
 public class RequestWrapper extends HttpServletRequestWrapper {
 
     private static final Logger LOGGER = Logger.getLogger(RequestWrapper.class);
+    private static final int BUFFER_SIZE = 8192;
 
     @Getter
     private final String body;
 
-    public RequestWrapper(final HttpServletRequest request) throws IOException {
+    /**
+     * Reads and stores the request body.
+     *
+     * @param request     the request to wrap
+     * @param maxBodySize the maximum number of body bytes to read
+     * @throws RequestBodyTooLargeException if the body is larger than {@code maxBodySize}
+     */
+    public RequestWrapper(final HttpServletRequest request, final long maxBodySize) throws IOException {
         //So that other request method behave just like before
         super(request);
 
-        final StringBuilder stringBuilder = new StringBuilder();
-        try (final InputStream inputStream = request.getInputStream();
-            final BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream))) {
-            final char[] charBuffer = new char[128];
+        final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        try (final InputStream inputStream = request.getInputStream()) {
+            final byte[] buffer = new byte[BUFFER_SIZE];
+            long totalBytesRead = 0;
             int bytesRead;
-            while ((bytesRead = bufferedReader.read(charBuffer)) > 0) {
-                stringBuilder.append(charBuffer, 0, bytesRead);
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                totalBytesRead += bytesRead;
+                if (totalBytesRead > maxBodySize) {
+                    throw new RequestBodyTooLargeException(maxBodySize);
+                }
+                outputStream.write(buffer, 0, bytesRead);
             }
+        } catch (RequestBodyTooLargeException ex) {
+            throw ex;
         } catch (IOException ex) {
             LOGGER.warn(EcompLoggerErrorCode.UNKNOWN_ERROR, RequestWrapper.class.getName(), "Failed to read InputStream from request", ex);
             throw ex;
         }
         //Store request body content in 'body' variable
-        body = stringBuilder.toString();
+        body = outputStream.toString(Charset.defaultCharset());
     }
 
     @Override
