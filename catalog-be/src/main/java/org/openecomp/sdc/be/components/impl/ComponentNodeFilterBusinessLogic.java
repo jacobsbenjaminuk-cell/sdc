@@ -155,8 +155,10 @@ public class ComponentNodeFilterBusinessLogic extends BaseBusinessLogic {
     public Optional<CINodeFilterDataDefinition> addNodeFilter(final String componentId, final String componentInstanceId,
                                                               final FilterConstraintDto filterConstraint, final boolean shouldLock,
                                                               final ComponentTypeEnum componentTypeEnum,
-                                                              final NodeFilterConstraintType nodeFilterConstraintType) throws BusinessLogicException {
+                                                              final NodeFilterConstraintType nodeFilterConstraintType,
+                                                              final String userId) throws BusinessLogicException {
         final Component component = getComponent(componentId);
+        validateCanWorkOnComponent(component, userId);
         validateNodeFilter(component, componentInstanceId, filterConstraint);
         CINodeFilterDataDefinition nodeFilterDataDefinition = getComponentInstanceNodeFilterOrThrow(componentInstanceId, component);
         boolean wasLocked = false;
@@ -196,10 +198,12 @@ public class ComponentNodeFilterBusinessLogic extends BaseBusinessLogic {
 
     public Optional<CINodeFilterDataDefinition> deleteNodeFilter(final String componentId, final String componentInstanceId, final int position,
                                                                  final boolean shouldLock, final ComponentTypeEnum componentTypeEnum,
-                                                                 final NodeFilterConstraintType nodeFilterConstraintType)
+                                                                 final NodeFilterConstraintType nodeFilterConstraintType,
+                                                                 final String userId)
         throws BusinessLogicException {
 
         final Component component = getComponent(componentId);
+        validateCanWorkOnComponent(component, userId);
         CINodeFilterDataDefinition nodeFilterDataDefinition = getComponentInstanceNodeFilterOrThrow(componentInstanceId, component);
         boolean wasLocked = false;
         try {
@@ -290,15 +294,15 @@ public class ComponentNodeFilterBusinessLogic extends BaseBusinessLogic {
     public Optional<CINodeFilterDataDefinition> updateNodeFilter(final String componentId, final String componentInstanceId,
                                                                  final FilterConstraintDto filterConstraintDto, final ComponentTypeEnum componentTypeEnum,
                                                                  final NodeFilterConstraintType nodeFilterConstraintType,
-                                                                 final int index) throws BusinessLogicException {
+                                                                 final int index, final String userId) throws BusinessLogicException {
         final Optional<CINodeFilterDataDefinition> deleteActionResponse =
-            deleteNodeFilter(componentId, componentInstanceId, index, true, componentTypeEnum, nodeFilterConstraintType);
+            deleteNodeFilter(componentId, componentInstanceId, index, true, componentTypeEnum, nodeFilterConstraintType, userId);
         if (deleteActionResponse.isEmpty()) {
             throw new BusinessLogicException(
                 componentsUtils.getResponseFormat(ActionStatus.GENERAL_ERROR, "Failed to delete node filter capabilities"));
         }
         return addNodeFilter(componentId.toLowerCase(), componentInstanceId, filterConstraintDto, true,
-            componentTypeEnum, nodeFilterConstraintType);
+            componentTypeEnum, nodeFilterConstraintType, userId);
     }
 
     public StorageOperationStatus associateNodeFilterToComponentInstance(final String componentId,

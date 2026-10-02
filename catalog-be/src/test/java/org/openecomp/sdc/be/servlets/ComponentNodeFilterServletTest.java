@@ -27,6 +27,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -62,6 +63,7 @@ import org.openecomp.sdc.be.components.impl.ComponentInstanceBusinessLogic;
 import org.openecomp.sdc.be.components.impl.ComponentNodeFilterBusinessLogic;
 import org.openecomp.sdc.be.components.impl.ResourceImportManager;
 import org.openecomp.sdc.be.components.impl.exceptions.BusinessLogicException;
+import org.openecomp.sdc.be.components.impl.exceptions.ComponentException;
 import org.openecomp.sdc.be.components.validation.UserValidations;
 import org.openecomp.sdc.be.config.ConfigurationManager;
 import org.openecomp.sdc.be.config.SpringConfig;
@@ -76,6 +78,7 @@ import org.openecomp.sdc.be.datatypes.enums.NodeFilterConstraintType;
 import org.openecomp.sdc.be.impl.ComponentsUtils;
 import org.openecomp.sdc.be.impl.ServletUtils;
 import org.openecomp.sdc.be.impl.WebAppContextWrapper;
+import org.openecomp.sdc.be.servlets.exception.ComponentExceptionMapper;
 import org.openecomp.sdc.be.model.User;
 import org.openecomp.sdc.be.model.dto.FilterConstraintDto;
 import org.openecomp.sdc.be.ui.mapper.FilterConstraintMapper;
@@ -202,7 +205,7 @@ class ComponentNodeFilterServletTest extends JerseyTest {
 
         doReturn(Optional.of(ciNodeFilterDataDefinition)).when(componentNodeFilterBusinessLogic)
             .addNodeFilter(componentId, componentInstance, filterConstraintDto, true, ComponentTypeEnum.RESOURCE,
-                NodeFilterConstraintType.PROPERTIES);
+                NodeFilterConstraintType.PROPERTIES, USER_ID);
 
         final Response response = target()
             .path(path)
@@ -212,7 +215,7 @@ class ComponentNodeFilterServletTest extends JerseyTest {
 
         verify(componentNodeFilterBusinessLogic, times(1))
             .addNodeFilter(anyString(), anyString(), any(FilterConstraintDto.class), anyBoolean(), any(ComponentTypeEnum.class),
-                any(NodeFilterConstraintType.class)
+                any(NodeFilterConstraintType.class), eq(USER_ID)
             );
 
         assertThat(response.getStatus()).isEqualTo(HttpStatus.OK_200);
@@ -238,7 +241,7 @@ class ComponentNodeFilterServletTest extends JerseyTest {
         final FilterConstraintDto filterConstraintDto1 = new FilterConstraintMapper().mapFrom(uiConstraint1);
         when(componentNodeFilterBusinessLogic
             .addNodeFilter(componentId, componentInstance, filterConstraintDto1, true, ComponentTypeEnum.RESOURCE,
-                NodeFilterConstraintType.CAPABILITIES)
+                NodeFilterConstraintType.CAPABILITIES, USER_ID)
         ).thenReturn(Optional.of(ciNodeFilterDataDefinition));
         final Response response = target()
             .path(path)
@@ -248,7 +251,7 @@ class ComponentNodeFilterServletTest extends JerseyTest {
 
         verify(componentNodeFilterBusinessLogic, times(1))
             .addNodeFilter(componentId, componentInstance, filterConstraintDto1, true, ComponentTypeEnum.RESOURCE,
-                NodeFilterConstraintType.CAPABILITIES);
+                NodeFilterConstraintType.CAPABILITIES, USER_ID);
 
         assertThat(response.getStatus()).isEqualTo(HttpStatus.OK_200);
         verify(componentNodeFilterBusinessLogic,times(1)).validateUser(USER_ID);
@@ -326,7 +329,7 @@ class ComponentNodeFilterServletTest extends JerseyTest {
             .parseToConstraint(anyString(), any(User.class), eq(ComponentTypeEnum.RESOURCE));
         when(componentNodeFilterBusinessLogic
             .updateNodeFilter(componentId, componentInstance, filterConstraintDto, ComponentTypeEnum.RESOURCE,
-                NodeFilterConstraintType.PROPERTIES, 0)).thenReturn(Optional.of(ciNodeFilterDataDefinition));
+                NodeFilterConstraintType.PROPERTIES, 0, USER_ID)).thenReturn(Optional.of(ciNodeFilterDataDefinition));
         final Response response = target()
             .path(path)
             .request(MediaType.APPLICATION_JSON)
@@ -354,7 +357,7 @@ class ComponentNodeFilterServletTest extends JerseyTest {
 
         when(componentNodeFilterBusinessLogic
             .updateNodeFilter(componentId, componentInstance, filterConstraintDto,
-                ComponentTypeEnum.RESOURCE, NodeFilterConstraintType.CAPABILITIES, 0))
+                ComponentTypeEnum.RESOURCE, NodeFilterConstraintType.CAPABILITIES, 0, USER_ID))
             .thenReturn(Optional.of(ciNodeFilterDataDefinition));
 
         final Response response = target()
@@ -366,7 +369,7 @@ class ComponentNodeFilterServletTest extends JerseyTest {
         verify(componentNodeFilterBusinessLogic, times(1))
             .updateNodeFilter(anyString(), anyString(), any(FilterConstraintDto.class),
                 any(ComponentTypeEnum.class), any(NodeFilterConstraintType.class),
-                anyInt());
+                anyInt(), eq(USER_ID));
 
         assertThat(response.getStatus()).isEqualTo(HttpStatus.OK_200);
         verify(componentNodeFilterBusinessLogic,times(1)).validateUser(USER_ID);
@@ -442,7 +445,7 @@ class ComponentNodeFilterServletTest extends JerseyTest {
         when(componentsUtils.getResponseFormat(ActionStatus.OK)).thenReturn(responseFormat);
 
         when(componentNodeFilterBusinessLogic
-            .deleteNodeFilter(componentId, componentInstance, 0, true, ComponentTypeEnum.RESOURCE, NodeFilterConstraintType.PROPERTIES))
+            .deleteNodeFilter(componentId, componentInstance, 0, true, ComponentTypeEnum.RESOURCE, NodeFilterConstraintType.PROPERTIES, USER_ID))
             .thenReturn(Optional.of(ciNodeFilterDataDefinition));
 
         final Response response = target()
@@ -453,7 +456,7 @@ class ComponentNodeFilterServletTest extends JerseyTest {
             .delete(Response.class);
 
         verify(componentNodeFilterBusinessLogic, times(1))
-            .deleteNodeFilter(anyString(), anyString(), anyInt(), anyBoolean(), any(ComponentTypeEnum.class), any(NodeFilterConstraintType.class));
+            .deleteNodeFilter(anyString(), anyString(), anyInt(), anyBoolean(), any(ComponentTypeEnum.class), any(NodeFilterConstraintType.class), eq(USER_ID));
 
         assertThat(response.getStatus()).isEqualTo(HttpStatus.OK_200);
         verify(componentNodeFilterBusinessLogic,times(1)).validateUser(USER_ID);
@@ -474,6 +477,45 @@ class ComponentNodeFilterServletTest extends JerseyTest {
         assertThat(response.getStatus()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR_500);
     }
 
+    @Test
+    void updateNodeFilterRestrictedOperationTest() throws BusinessLogicException {
+        initComponentData();
+        final String path = String.format(V_1_CATALOG_S_S_COMPONENT_INSTANCE_S_S_S_NODE_FILTER, componentType, componentId, componentInstance,
+            NodeFilterConstraintType.PROPERTIES_PARAM_NAME, 0);
+        when(componentNodeFilterBusinessLogic.validateUser(USER_ID)).thenReturn(user);
+        doReturn(Optional.of(uiConstraint)).when(componentsUtils)
+            .parseToConstraint(anyString(), any(User.class), eq(ComponentTypeEnum.RESOURCE));
+        doThrow(new ComponentException(new ResponseFormat(HttpStatus.FORBIDDEN_403))).when(componentNodeFilterBusinessLogic)
+            .updateNodeFilter(componentId, componentInstance, filterConstraintDto, ComponentTypeEnum.RESOURCE,
+                NodeFilterConstraintType.PROPERTIES, 0, USER_ID);
+
+        final Response response = target()
+            .path(path)
+            .request(MediaType.APPLICATION_JSON)
+            .header(USER_ID_HEADER, USER_ID)
+            .put(Entity.entity(inputJson, MediaType.APPLICATION_JSON));
+
+        assertThat(response.getStatus()).isEqualTo(HttpStatus.FORBIDDEN_403);
+    }
+
+    @Test
+    void deleteNodeFilterRestrictedOperationTest() throws BusinessLogicException {
+        final String path = String.format(V_1_CATALOG_S_S_COMPONENT_INSTANCE_S_S_S_NODE_FILTER, componentType, componentId, componentInstance,
+            NodeFilterConstraintType.PROPERTIES_PARAM_NAME, 0);
+        when(componentNodeFilterBusinessLogic.validateUser(USER_ID)).thenReturn(user);
+        doThrow(new ComponentException(new ResponseFormat(HttpStatus.FORBIDDEN_403))).when(componentNodeFilterBusinessLogic)
+            .deleteNodeFilter(componentId, componentInstance, 0, true, ComponentTypeEnum.RESOURCE, NodeFilterConstraintType.PROPERTIES, USER_ID);
+
+        final Response response = target()
+            .path(path)
+            .request(MediaType.APPLICATION_JSON)
+            .accept(MediaType.APPLICATION_JSON)
+            .header(USER_ID_HEADER, USER_ID)
+            .delete(Response.class);
+
+        assertThat(response.getStatus()).isEqualTo(HttpStatus.FORBIDDEN_403);
+    }
+
     @Override
     protected ResourceConfig configure() {
         forceSet(TestProperties.CONTAINER_PORT, "0");
@@ -491,6 +533,7 @@ class ComponentNodeFilterServletTest extends JerseyTest {
                     bind(componentNodeFilterBusinessLogic).to(ComponentNodeFilterBusinessLogic.class);
                 }
             })
+            .register(new ComponentExceptionMapper(componentsUtils))
             .property("contextConfig", context);
     }
 
