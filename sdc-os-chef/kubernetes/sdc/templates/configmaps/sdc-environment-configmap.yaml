@@ -34,8 +34,7 @@ data:
                 "app_key": "x9UfO7JsDn8BESVX",
                 "inbox_name": "ECOMP-PORTAL-INBOX",
                 "ecomp_redirect_url": "http://portal.api.simpledemo.onap.org:8989/ECOMPPORTAL/login.htm",
-                "app_topic_name": "ECOMP-PORTAL-OUTBOX-SDC1",
-                "decryption_key": "AGLDdG4D04BKm2IxIWEr8o=="
+                "app_topic_name": "ECOMP-PORTAL-OUTBOX-SDC1"
             },
             "UEB": {
                 "PublicKey": "iPIxkpAMI8qTcQj8",

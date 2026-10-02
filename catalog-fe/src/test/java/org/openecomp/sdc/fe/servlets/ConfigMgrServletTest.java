@@ -100,4 +100,18 @@ public class ConfigMgrServletTest {
         Assert.assertEquals(wantedResult, config);
     }
 
+    @Test
+    public void shouldNotReturnAuthCookieSecurityKey() {
+        Configuration configuration = new Configuration();
+        Configuration.CookieConfig cookieConfig = new Configuration.CookieConfig();
+        cookieConfig.setCookieName("AuthenticationCookie");
+        cookieConfig.setSecurityKey("c2VjcmV0LWtleS0xMjM0NQ==");
+        configuration.setAuthCookie(cookieConfig);
+        Mockito.when(configManager.getConfiguration()).thenReturn(configuration);
+
+        String config = new ConfigMgrServlet().getConfig(request, "configuration");
+        Assert.assertTrue(config.contains("AuthenticationCookie"));
+        Assert.assertFalse(config.contains("securityKey"));
+        Assert.assertFalse(config.contains("c2VjcmV0LWtleS0xMjM0NQ=="));
+    }
 }

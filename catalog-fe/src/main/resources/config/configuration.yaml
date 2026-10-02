@@ -88,7 +88,7 @@ authCookie:
   cookieName: "AuthenticationCookie"
   path: /
   domain: ""
-  securityKey: "AGLDdG4D04BKm2IxIWEr8o=="
+  securityKey: ""
 
 version: 1.0
 released: 2012-11-30

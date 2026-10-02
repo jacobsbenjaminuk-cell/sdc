@@ -18,6 +18,12 @@ JAVA_OPTIONS="$JAVA_OPTIONS \
                -Djavax.net.ssl.trustStore=$JETTY_BASE/etc/org.onap.sdc.trust.jks \
                -Djavax.net.ssl.trustStorePassword=z+KEj;t+,KN^iimSiS89e#p0"
 
+# Write the Portal SDK cipher key supplied for this deployment
+if [ -n "$SDC_CIPHER_ENC_KEY" ]; then
+    mkdir -p "$JETTY_BASE/resources"
+    (umask 077 && printf 'cipher.enc.key=%s\n' "$SDC_CIPHER_ENC_KEY" > "$JETTY_BASE/resources/key.properties")
+fi
+
 cd $JETTY_HOME
 
 java $OTEL_OPTS $JAVA_OPTIONS -jar "${JETTY_HOME}/start.jar"

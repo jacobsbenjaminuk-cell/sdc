@@ -27,6 +27,7 @@ import org.openecomp.sdc.common.api.Constants;
 import org.openecomp.sdc.common.impl.ExternalConfiguration;
 import org.openecomp.sdc.common.listener.AppContextListener;
 import org.openecomp.sdc.common.log.wrappers.Logger;
+import org.openecomp.sdc.common.util.CipherKeyValidator;
 import org.openecomp.sdc.fe.config.ConfigurationManager;
 import org.openecomp.sdc.fe.impl.HealthCheckService;
 import org.openecomp.sdc.fe.impl.PluginStatusBL;
@@ -40,6 +41,7 @@ public class FEAppContextListener extends AppContextListener implements ServletC
 
     public void contextInitialized(ServletContextEvent context) {
         super.contextInitialized(context);
+        CipherKeyValidator.validateClasspathKey(FEAppContextListener.class.getClassLoader());
         ConfigurationManager configurationManager = new ConfigurationManager(ExternalConfiguration.getConfigurationSource());
         log.debug("loading configuration from configDir:{} appName:{}", ExternalConfiguration.getConfigDir(), ExternalConfiguration.getAppName());
         context.getServletContext().setAttribute(Constants.CONFIGURATION_MANAGER_ATTR, configurationManager);

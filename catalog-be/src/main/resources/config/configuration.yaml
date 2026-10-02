@@ -28,7 +28,7 @@ minToscaConformanceLevel: 3.0
 
 # access restriction
 authCookie:
-  securityKey: "AGLDdG4D04BKm2IxIWEr8o=="
+  securityKey: ""
   maxSessionTimeOut: 24*60*60*1000
   sessionIdleTimeOut: 2*60*60*1000
   cookieName: "AuthenticationCookie"

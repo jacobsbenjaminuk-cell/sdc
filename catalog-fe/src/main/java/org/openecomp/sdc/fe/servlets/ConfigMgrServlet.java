@@ -31,6 +31,7 @@ import org.openecomp.sdc.common.api.Constants;
 import org.openecomp.sdc.common.log.wrappers.Logger;
 import org.openecomp.sdc.common.rest.api.RestConfigurationInfo;
 import org.openecomp.sdc.common.servlets.BasicServlet;
+import org.openecomp.sdc.common.util.SecretRedactor;
 import org.openecomp.sdc.fe.config.Configuration;
 import org.openecomp.sdc.fe.config.ConfigurationManager;
 
@@ -54,8 +55,7 @@ public class ConfigMgrServlet extends BasicServlet {
             if (configuration == null) {
                 log.warn("Configuration of type {} was not found", Configuration.class);
             } else {
-                log.info("The value returned from getConfig is {}", configuration);
-                result = gson.toJson(configuration);
+                result = gson.toJson(SecretRedactor.redact(gson.toJsonTree(configuration)));
             }
         } else if (type.equals("rest")) {
             RestConfigurationInfo configuration = configurationManager.getRestClientConfiguration();

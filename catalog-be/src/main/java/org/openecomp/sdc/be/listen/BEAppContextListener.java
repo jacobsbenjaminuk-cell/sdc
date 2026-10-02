@@ -42,6 +42,7 @@ import org.openecomp.sdc.common.api.Constants;
 import org.openecomp.sdc.common.impl.ExternalConfiguration;
 import org.openecomp.sdc.common.listener.AppContextListener;
 import org.openecomp.sdc.common.log.wrappers.Logger;
+import org.openecomp.sdc.common.util.CipherKeyValidator;
 
 public class BEAppContextListener extends AppContextListener implements ServletContextListener {
 
@@ -50,6 +51,7 @@ public class BEAppContextListener extends AppContextListener implements ServletC
 
     public void contextInitialized(ServletContextEvent context) {
         super.contextInitialized(context);
+        CipherKeyValidator.validateClasspathKey(BEAppContextListener.class.getClassLoader());
         ConfigurationManager configurationManager = new ConfigurationManager(ExternalConfiguration.getConfigurationSource());
         log.debug("loading configuration from configDir: {} appName: {}", ExternalConfiguration.getConfigDir(), ExternalConfiguration.getAppName());
         context.getServletContext().setAttribute(Constants.CONFIGURATION_MANAGER_ATTR, configurationManager);
