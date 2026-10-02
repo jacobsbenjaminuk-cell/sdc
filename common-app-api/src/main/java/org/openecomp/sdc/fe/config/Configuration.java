@@ -77,10 +77,10 @@ public class Configuration extends BasicConfiguration {
     private List<List<String>> optionalHeaderFields;
     private List<String> forwardHeaderFields;
     /**
-     * User id assumed when a request carries no identity headers. The ONAP Portal used to supply them; with no portal deployed there is nothing to
-     * authenticate against, so requests are attributed to this user. Set it to empty to reject unidentified requests instead.
+     * Whether the user headers of an authenticating proxy (webseal, the simulator) identify the caller. Only turn this on when every request
+     * reaches the front end through such a proxy, since anyone who can reach the front end directly can set these headers.
      */
-    private String defaultUserId = "cs0008";
+    private boolean trustProxyIdentityHeaders;
     private String dataValidatorFilterExcludedUrls; // Comma separated list of excluded URLs by the DataValidatorFilter
     private String permittedAncestors; // Space separated list of permitted ancestors
 

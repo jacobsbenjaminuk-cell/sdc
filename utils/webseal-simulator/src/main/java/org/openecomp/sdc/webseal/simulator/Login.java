@@ -125,6 +125,7 @@ public class Login extends HttpServlet {
             response.sendError(500, "ERROR: userId or password incorrect");
         } else {
             logger.info("Login -> doPost redirect to /sdc1 (to proxy)");
+            request.getSession(true).setAttribute(SdcProxy.SESSION_USER, user.getUserId());
             response.addCookie(new Cookie("HTTP_IV_USER", user.getUserId()));
             response.addCookie(new Cookie("USER_ID", user.getUserId()));
             response.addCookie(new Cookie("HTTP_CSP_FIRSTNAME", user.getFirstName()));

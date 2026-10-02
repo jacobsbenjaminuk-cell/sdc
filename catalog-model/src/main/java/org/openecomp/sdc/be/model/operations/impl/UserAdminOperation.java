@@ -123,7 +123,8 @@ public class UserAdminOperation {
     private void validateUserExists(Wrapper<Either<User, ActionStatus>> resultWrapper, Wrapper<UserData> userWrapper, String id) {
         if (StringUtils.isBlank(id)) {
             log.warn("User userId is empty");
-            id = "cs0008";
+            resultWrapper.setInnerElement(Either.right(ActionStatus.USER_NOT_FOUND));
+            return;
         }
         id = id.toLowerCase();
         Either<UserData, JanusGraphOperationStatus> either = janusGraphGenericDao

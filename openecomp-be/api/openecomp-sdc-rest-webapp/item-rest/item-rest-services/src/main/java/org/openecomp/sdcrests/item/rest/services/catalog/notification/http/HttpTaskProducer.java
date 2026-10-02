@@ -48,6 +48,7 @@ public class HttpTaskProducer implements BiFunction<Collection<String>, ItemActi
     }
 
     private final String notifyCatalogUrl;
+    private final String authorization;
 
     /**
      * Initializes the producer from a provided configuration.
@@ -60,6 +61,7 @@ public class HttpTaskProducer implements BiFunction<Collection<String>, ItemActi
         String url = ensureEntryConfigured(config.getCatalogNotificationUrl(), "Notification URL");
         String port = getPortConfiguration(protocol, config);
         this.notifyCatalogUrl = String.format(url, protocol, host, port);
+        this.authorization = config.getCatalogBeAuthorization().orElse(null);
     }
 
     private static String ensureEntryConfigured(String value, String entryName) {
@@ -96,7 +98,7 @@ public class HttpTaskProducer implements BiFunction<Collection<String>, ItemActi
         String userId = SessionContextProviderFactory.getInstance().createInterface().get().getUser().getUserId();
         String notificationEndpoint = notifyCatalogUrl + getApiPath(action);
         LOGGER.debug("Catalog notification URL: {}", notificationEndpoint);
-        return new HttpNotificationTask(notificationEndpoint, userId, itemIds);
+        return new HttpNotificationTask(notificationEndpoint, userId, itemIds, authorization);
     }
 
     @Override

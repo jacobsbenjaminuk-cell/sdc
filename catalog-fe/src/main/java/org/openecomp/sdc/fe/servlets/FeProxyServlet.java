@@ -25,6 +25,7 @@ import com.google.common.annotations.VisibleForTesting;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Base64;
+import java.util.Optional;
 import javax.servlet.http.HttpServletRequest;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.commons.lang3.StringUtils;
@@ -42,6 +43,7 @@ import org.openecomp.sdc.fe.config.FeEcompErrorManager;
 import org.openecomp.sdc.fe.config.PluginsConfiguration;
 import org.openecomp.sdc.fe.config.PluginsConfiguration.Plugin;
 import org.openecomp.sdc.fe.impl.LogHandler;
+import org.openecomp.sdc.fe.impl.UserIdentity;
 import org.openecomp.sdc.fe.utils.BeProtocol;
 
 public class FeProxyServlet extends SSLProxyServlet {
@@ -98,12 +100,29 @@ public class FeProxyServlet extends SSLProxyServlet {
             log.error("Failed to retrieve configuration. Adding proxy header failed.");
             return;
         }
+        bindUserIdentity(clientRequest, proxyRequest, config);
         BasicAuthConfig basicAuth = config.getBasicAuth();
         if (basicAuth.isEnabled()) {
             proxyRequest.header(HttpHeader.AUTHORIZATION,
                 "Basic " + Base64.getEncoder().encodeToString((basicAuth.getUserName() + ":" + basicAuth.getUserPass()).getBytes()));
         }
         super.addProxyHeaders(clientRequest, proxyRequest);
+    }
+
+    /**
+     * The back ends take {@code USER_ID} as the caller's identity, so the value the browser sent is never forwarded. It is replaced with the user the
+     * front end authenticated, or dropped when there is none, and the proxy's own identity headers are removed so no later hop can trust them.
+     */
+    @VisibleForTesting
+    void bindUserIdentity(HttpServletRequest clientRequest, Request proxyRequest, Configuration config) {
+        proxyRequest.header(Constants.USER_ID_HEADER, null);
+        UserIdentity.PROXY_IDENTITY_HEADERS.forEach(header -> proxyRequest.header(header, null));
+        Optional<String> userId = UserIdentity.fromRequest(clientRequest, config);
+        if (userId.isPresent()) {
+            proxyRequest.header(Constants.USER_ID_HEADER, userId.get());
+        } else {
+            log.debug("No authenticated user for {}, forwarding without USER_ID", clientRequest.getRequestURI());
+        }
     }
 
     private void logFeRequest(HttpServletRequest httpRequest) {

@@ -122,6 +122,7 @@ import org.openecomp.sdc.common.log.enums.LogLevel;
 import org.openecomp.sdc.common.log.enums.Severity;
 import org.openecomp.sdc.common.log.wrappers.Logger;
 import org.openecomp.sdc.common.log.wrappers.LoggerSdcAudit;
+import org.openecomp.sdc.common.datastructure.UserContext;
 import org.openecomp.sdc.common.util.ThreadLocalsHolder;
 import org.openecomp.sdc.common.util.ValidationUtils;
 import org.openecomp.sdc.exception.ResponseFormat;
@@ -562,7 +563,7 @@ public class ComponentsUtils {
         log.trace(INSIDE_AUDITING_FOR_AUDIT_ACTION, actionEnum);
         ResourceVersionInfo currResourceVersionInfo;
         User modifier = new User();
-        modifier.setUserId(request.getHeader(Constants.USER_ID_HEADER));
+        modifier.setUserId(getAuthenticatedUserId());
         String artifactData = "";
         DistributionData distributionData = new DistributionData(request.getHeader(Constants.X_ECOMP_INSTANCE_ID_HEADER), request.getRequestURI());
         String requestId = request.getHeader(Constants.X_ECOMP_REQUEST_ID_HEADER);
@@ -581,6 +582,11 @@ public class ComponentsUtils {
         getAuditingManager().auditEvent(factory);
     }
 
+    private String getAuthenticatedUserId() {
+        final UserContext userContext = ThreadLocalsHolder.getUserContext();
+        return userContext == null ? null : userContext.getUserId();
+    }
+
     public boolean isExternalApiEvent(AuditingActionEnum auditingActionEnum) {
         return auditingActionEnum != null && auditingActionEnum.getAuditingEsType().equals(AuditingTypesConstants.EXTERNAL_API_EVENT_TYPE);
     }
@@ -590,7 +596,7 @@ public class ComponentsUtils {
         String invariantUuid = null;
         String serviceInstanceId = null;
         User modifier = new User();
-        modifier.setUserId(request.getHeader(Constants.USER_ID_HEADER));
+        modifier.setUserId(getAuthenticatedUserId());
         DistributionData distributionData = new DistributionData(request.getHeader(Constants.X_ECOMP_INSTANCE_ID_HEADER), request.getRequestURI());
         String requestId = request.getHeader(Constants.X_ECOMP_REQUEST_ID_HEADER);
         ResourceVersionInfo currResourceVersionInfo;
@@ -614,7 +620,7 @@ public class ComponentsUtils {
         String invariantUuid = null;
         String serviceInstanceId = null;
         User modifier = new User();
-        modifier.setUserId(request.getHeader(Constants.USER_ID_HEADER));
+        modifier.setUserId(getAuthenticatedUserId());
         DistributionData distributionData = new DistributionData(request.getHeader(Constants.X_ECOMP_INSTANCE_ID_HEADER), request.getRequestURI());
         String requestId = request.getHeader(Constants.X_ECOMP_REQUEST_ID_HEADER);
         if (null != service) {

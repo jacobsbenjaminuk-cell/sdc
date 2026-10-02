@@ -22,6 +22,7 @@
 package org.openecomp.sdcrests.vsp.rest.services;
 
 import static javax.ws.rs.core.HttpHeaders.ACCEPT;
+import static javax.ws.rs.core.HttpHeaders.AUTHORIZATION;
 import static javax.ws.rs.core.MediaType.APPLICATION_JSON;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -68,6 +69,7 @@ public class CatalogVspClientImpl implements CatalogVspClient {
         final Properties headers = new Properties();
         headers.put(Constants.USER_ID_HEADER, user);
         headers.put(ACCEPT, APPLICATION_JSON);
+        httpConfig.getCatalogBeAuthorization().ifPresent(authorization -> headers.put(AUTHORIZATION, authorization));
         String url = String.format(URL_GET_RESOURCE_BY_CSAR_UUID, httpConfig.getCatalogBeProtocol(),
             httpConfig.getCatalogBeFqdn(), httpConfig.getCatalogBeHttpPort(), vspId);
         final HttpResponse<String> httpResponse;

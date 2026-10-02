@@ -239,7 +239,7 @@ function healthCheck {
 
 	echo ""
 	echo ""
-	healthCheck_http_code=$(curl -k --noproxy "*" -o /dev/null -w '%{http_code}' -H "Accept: application/json" -H "Content-Type: application/json" -H "USER_ID: jh0003" https://${IP}:8443/sdc2/rest/v1/user/demo;)
+	healthCheck_http_code=$(curl -k --noproxy "*" -o /dev/null -w '%{http_code}' -H "Accept: application/json" -H "Content-Type: application/json" -u "${BASIC_AUTH_USER:-testName}:${BASIC_AUTH_PASS:-testPass}" -H "USER_ID: jh0003" https://${IP}:8443/sdc2/rest/v1/user/demo;)
 	if [[ ${healthCheck_http_code} != 200 ]]; then
 		echo "Error [${healthCheck_http_code}] while checking existence of user"
 		return ${healthCheck_http_code}

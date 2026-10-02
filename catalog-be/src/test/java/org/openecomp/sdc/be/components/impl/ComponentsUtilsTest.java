@@ -53,6 +53,7 @@ import org.openecomp.sdc.be.resources.data.auditing.model.ResourceCommonInfo;
 import org.openecomp.sdc.be.resources.data.auditing.model.ResourceVersionInfo;
 import org.openecomp.sdc.common.api.Constants;
 import org.openecomp.sdc.common.log.wrappers.LoggerSdcAudit;
+import org.openecomp.sdc.common.datastructure.UserContext;
 import org.openecomp.sdc.common.util.ThreadLocalsHolder;
 import org.openecomp.sdc.exception.ResponseFormat;
 
@@ -541,7 +542,7 @@ public class ComponentsUtilsTest {
         when(responseFormat.getStatus()).thenReturn(Integer.valueOf(STATUS_500));
         when(responseFormat.getFormattedMessage()).thenReturn(DESC_ERROR);
 
-        when(request.getHeader(Constants.USER_ID_HEADER)).thenReturn(USER_ID);
+        ThreadLocalsHolder.setUserContext(new UserContext(USER_ID));
         when(request.getHeader(Constants.X_ECOMP_INSTANCE_ID_HEADER)).thenReturn(DIST_CONSUMER_ID);
         when(request.getHeader(Constants.X_ECOMP_REQUEST_ID_HEADER)).thenReturn(REQUEST_ID);
         when(request.getRequestURI()).thenReturn(DIST_RESOURCE_URL);
@@ -568,7 +569,7 @@ public class ComponentsUtilsTest {
         when(responseFormat.getStatus()).thenReturn(Integer.valueOf(STATUS_500));
         when(responseFormat.getFormattedMessage()).thenReturn(DESC_ERROR);
 
-        when(request.getHeader(Constants.USER_ID_HEADER)).thenReturn(null);
+        ThreadLocalsHolder.setUserContext(null);
         when(request.getHeader(Constants.X_ECOMP_INSTANCE_ID_HEADER)).thenReturn(null);
         when(request.getHeader(Constants.X_ECOMP_REQUEST_ID_HEADER)).thenReturn(REQUEST_ID);
         when(request.getRequestURI()).thenReturn(null);
@@ -595,7 +596,7 @@ public class ComponentsUtilsTest {
         when(responseFormat.getStatus()).thenReturn(Integer.valueOf(STATUS_OK));
         when(responseFormat.getFormattedMessage()).thenReturn(DESCRIPTION);
 
-        when(request.getHeader(Constants.USER_ID_HEADER)).thenReturn(USER_ID);
+        ThreadLocalsHolder.setUserContext(new UserContext(USER_ID));
         when(request.getHeader(Constants.X_ECOMP_INSTANCE_ID_HEADER)).thenReturn(DIST_CONSUMER_ID);
         when(request.getHeader(Constants.X_ECOMP_REQUEST_ID_HEADER)).thenReturn(REQUEST_ID);
         when(request.getRequestURI()).thenReturn(DIST_RESOURCE_URL);
@@ -629,7 +630,7 @@ public class ComponentsUtilsTest {
         when(responseFormat.getStatus()).thenReturn(Integer.valueOf(STATUS_500));
         when(responseFormat.getFormattedMessage()).thenReturn(DESC_ERROR);
 
-        when(request.getHeader(Constants.USER_ID_HEADER)).thenReturn(USER_ID);
+        ThreadLocalsHolder.setUserContext(new UserContext(USER_ID));
         when(request.getHeader(Constants.X_ECOMP_INSTANCE_ID_HEADER)).thenReturn(DIST_CONSUMER_ID);
         when(request.getHeader(Constants.X_ECOMP_REQUEST_ID_HEADER)).thenReturn(REQUEST_ID);
         when(request.getRequestURI()).thenReturn(DIST_RESOURCE_URL);
@@ -653,7 +654,7 @@ public class ComponentsUtilsTest {
         when(responseFormat.getStatus()).thenReturn(Integer.valueOf(STATUS_500));
         when(responseFormat.getFormattedMessage()).thenReturn(DESC_ERROR);
 
-        when(request.getHeader(Constants.USER_ID_HEADER)).thenReturn(null);
+        ThreadLocalsHolder.setUserContext(null);
         when(request.getHeader(Constants.X_ECOMP_INSTANCE_ID_HEADER)).thenReturn(null);
         when(request.getHeader(Constants.X_ECOMP_REQUEST_ID_HEADER)).thenReturn(REQUEST_ID);
         when(request.getRequestURI()).thenReturn(null);
@@ -677,7 +678,7 @@ public class ComponentsUtilsTest {
         when(responseFormat.getStatus()).thenReturn(Integer.valueOf(STATUS_OK));
         when(responseFormat.getFormattedMessage()).thenReturn(DESCRIPTION);
 
-        when(request.getHeader(Constants.USER_ID_HEADER)).thenReturn(USER_ID);
+        ThreadLocalsHolder.setUserContext(new UserContext(USER_ID));
         when(request.getHeader(Constants.X_ECOMP_INSTANCE_ID_HEADER)).thenReturn(DIST_CONSUMER_ID);
         when(request.getHeader(Constants.X_ECOMP_REQUEST_ID_HEADER)).thenReturn(REQUEST_ID);
         when(request.getRequestURI()).thenReturn(DIST_RESOURCE_URL);
