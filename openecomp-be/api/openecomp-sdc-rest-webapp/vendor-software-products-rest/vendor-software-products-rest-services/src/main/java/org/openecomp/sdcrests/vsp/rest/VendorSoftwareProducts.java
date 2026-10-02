@@ -108,7 +108,8 @@ public interface VendorSoftwareProducts extends VspEntities {
         + "Currently supported values: 'ACTIVE', 'ARCHIVED'") @QueryParam("Status") String status,
                           @Parameter(description = "Category") @QueryParam("category") String category,
                           @Parameter(description = "Sub-category") @QueryParam("subCategory") String subCategory,
-                          @NotNull(message = USER_MISSING_ERROR_MSG) @HeaderParam(USER_ID_HEADER_PARAM) String user);
+                          @NotNull(message = USER_MISSING_ERROR_MSG) @HeaderParam(USER_ID_HEADER_PARAM) String user,
+                          @Context HttpServletRequest hreq);
 
     @GET
     @Path("/{vspId}/versions/{versionId}/orchestration-template")
