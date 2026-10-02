@@ -39,15 +39,17 @@ public final class CsrfToken {
     }
 
     public static String getOrCreate(final HttpSession session) {
-        final Object existing = session.getAttribute(SESSION_ATTRIBUTE);
-        if (existing instanceof String) {
-            return (String) existing;
+        synchronized (session) {
+            final Object existing = session.getAttribute(SESSION_ATTRIBUTE);
+            if (existing instanceof String) {
+                return (String) existing;
+            }
+            final byte[] bytes = new byte[TOKEN_BYTES];
+            RANDOM.nextBytes(bytes);
+            final String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+            session.setAttribute(SESSION_ATTRIBUTE, token);
+            return token;
         }
-        final byte[] bytes = new byte[TOKEN_BYTES];
-        RANDOM.nextBytes(bytes);
-        final String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-        session.setAttribute(SESSION_ATTRIBUTE, token);
-        return token;
     }
 
     public static boolean isValid(final HttpServletRequest request) {

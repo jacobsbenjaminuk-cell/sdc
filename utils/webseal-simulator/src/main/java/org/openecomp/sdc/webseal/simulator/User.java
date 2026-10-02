@@ -20,6 +20,11 @@
 
 package org.openecomp.sdc.webseal.simulator;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
+import java.net.URLEncoder;
+import org.apache.commons.text.StringEscapeUtils;
+
 public class User {
 
 	private String firstName;
@@ -87,7 +92,10 @@ public class User {
 	}
 	
 	public String getUserRef() {
-		return "<a href='?userId="+getUserId()+"&password="+getPassword()+"'>"+getFirstName()+" "+getLastName()+"</a>";
+		final String href = "?userId=" + URLEncoder.encode(String.valueOf(getUserId()), UTF_8)
+			+ "&password=" + URLEncoder.encode(String.valueOf(getPassword()), UTF_8);
+		return "<a href='" + StringEscapeUtils.escapeHtml4(href) + "'>"
+			+ StringEscapeUtils.escapeHtml4(getFirstName() + " " + getLastName()) + "</a>";
 	}
 	
 	@Override

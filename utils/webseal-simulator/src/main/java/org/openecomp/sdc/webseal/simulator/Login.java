@@ -99,8 +99,8 @@ public class Login extends HttpServlet {
             User user = iterator.next();
             writer.println("<tr>");
             writer.println("<td>" + user.getUserRef() + "</td>");
-            writer.println("<td>" + user.getUserId() + "</td>");
-            writer.println("<td>" + user.getRole() + "</td>");
+            writer.println("<td>" + StringEscapeUtils.escapeHtml4(user.getUserId()) + "</td>");
+            writer.println("<td>" + StringEscapeUtils.escapeHtml4(user.getRole()) + "</td>");
             writer.println("<td>" + createUserForm(csrfToken, "userId", user.getUserId(), "create") + "</td>");
             writer.println("</tr>");
         }

@@ -132,4 +132,13 @@ class RequestsClientTest {
         assertEquals("x1", json.get("userId").getAsString());
         assertEquals(5, json.size());
     }
+
+    @Test
+    void userRefEscapesConfiguredFields() {
+        final User user = new User("<script>x</script>", "b", "c@d", "a'b", "Designer", "p&w");
+
+        final String ref = user.getUserRef();
+
+        assertEquals("<a href='?userId=a%27b&amp;password=p%26w'>&lt;script&gt;x&lt;/script&gt; b</a>", ref);
+    }
 }
