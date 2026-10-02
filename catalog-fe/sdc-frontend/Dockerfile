@@ -41,8 +41,7 @@ COPY --chown=onap:onap artifacts/files/onboardingfe/* $JETTY_FOLDER/config/onboa
 COPY --chown=onap:onap artifacts/files/startdConfig/* $JETTY_FOLDER/start.d/
 COPY --chown=onap:onap artifacts/scripts/env_variables.sh $JETTY_FOLDER/
 
-# Add keystore and truststore files
-COPY --chown=onap:onap artifacts/files/org.onap.sdc.p12 $JETTY_FOLDER/etc/
+# Add truststore file
 COPY --chown=onap:onap artifacts/files/org.onap.sdc.trust.jks $JETTY_FOLDER/etc/
 
 # Set permissions, run HTTP module setup, and configure Jetty rewrite

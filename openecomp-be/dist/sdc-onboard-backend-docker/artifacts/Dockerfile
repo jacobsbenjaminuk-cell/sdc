@@ -47,7 +47,6 @@ RUN chmod 770 $JETTY_FOLDER/startup.sh && \
 
 #Copy configuration files
 COPY --chown=onap:onap files/logback.xml $JETTY_FOLDER/config/onboarding-be/
-COPY --chown=onap:onap files/org.onap.sdc.p12 $JETTY_FOLDER/etc/
 COPY --chown=onap:onap files/org.onap.sdc.trust.jks $JETTY_FOLDER/etc/
 COPY --chown=onap:onap files/base_template.yaml $JETTY_BASE/resources/
 COPY --chown=onap:onap files/base_template.env $JETTY_BASE/resources/

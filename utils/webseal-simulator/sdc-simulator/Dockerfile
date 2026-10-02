@@ -39,9 +39,8 @@ COPY --chown=onap:onap files/https.ini $JETTY_FOLDER/start.d/https.ini
 COPY --chown=onap:onap files/ssl.ini $JETTY_FOLDER/start.d/ssl.ini
 COPY --chown=onap:onap files/rewrite-root-to-sdc1.xml $JETTY_FOLDER/etc/rewrite-root-to-sdc1.xml
 
-# Copy keystores
+# Copy truststore
 COPY --chown=onap:onap files/org.onap.sdc.trust.jks $JETTY_FOLDER/etc/
-COPY --chown=onap:onap files/org.onap.sdc.p12 $JETTY_FOLDER/etc/
 
 ADD --chown=onap:onap WSSimulator*.war $JETTY_FOLDER/webapps/
 COPY --chown=onap:onap startup.sh $JETTY_FOLDER/
