@@ -11,6 +11,10 @@ case "$SDC_USER" in
         echo "SDC_USER must contain only letters, digits and underscores" >&2
         exit 1
         ;;
+    [Cc][Aa][Ss][Ss][Aa][Nn][Dd][Rr][Aa])
+        echo "SDC_USER must not be the Cassandra superuser" >&2
+        exit 1
+        ;;
 esac
 export DC_NAME="SDC-CS-integration-test"
 export cqlversion="3.4.4"
