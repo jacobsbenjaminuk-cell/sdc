@@ -249,6 +249,7 @@ public class OutputsBusinessLogic extends BaseBusinessLogic {
             throw new ByActionStatusComponentException(componentsUtils.convertFromStorageResponse(componentEither.right().value()));
         }
         final org.openecomp.sdc.be.model.Component component = componentEither.left().value();
+        validateCanWorkOnComponent(component, userId);
         // Validate outputId is child of the component
         final Optional<OutputDefinition> optionalOutput = component.getOutputs().stream().
             // filter by ID

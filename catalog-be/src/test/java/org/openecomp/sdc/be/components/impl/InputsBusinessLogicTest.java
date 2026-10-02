@@ -23,7 +23,9 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -756,6 +758,48 @@ public class InputsBusinessLogicTest {
 
         testInstance.deleteInput(COMPONENT_ID, USER_ID, inputId);
         verify(propertyDeclarationOrchestrator, times(1)).unDeclarePropertiesAsInputs(service, listInput);
+    }
+
+    @Test
+    public void test_deleteInput_fail_componentNotCheckedOut() throws Exception {
+        final InputDefinition input = setUpListInput();
+        final String inputId = COMPONENT_ID + "." + input.getName();
+        input.setUniqueId(inputId);
+        service.setInputs(Collections.singletonList(input));
+        service.setLifecycleState(LifecycleStateEnum.CERTIFIED);
+
+        when(toscaOperationFacadeMock.getToscaElement(eq(COMPONENT_ID), any(ComponentParametersView.class))).thenReturn(Either.left(service));
+
+        try {
+            testInstance.deleteInput(COMPONENT_ID, USER_ID, inputId);
+        } catch (ComponentException e) {
+            assertEquals(ActionStatus.RESTRICTED_OPERATION, e.getActionStatus());
+            verify(graphLockOperation, never()).lockComponent(anyString(), any(NodeTypeEnum.class));
+            verify(toscaOperationFacadeMock, never()).deleteInputOfResource(any(), anyString());
+            return;
+        }
+        fail();
+    }
+
+    @Test
+    public void test_deleteInput_fail_componentCheckedOutByOtherUser() throws Exception {
+        final InputDefinition input = setUpListInput();
+        final String inputId = COMPONENT_ID + "." + input.getName();
+        input.setUniqueId(inputId);
+        service.setInputs(Collections.singletonList(input));
+        service.setLastUpdaterUserId("otherUserId");
+
+        when(toscaOperationFacadeMock.getToscaElement(eq(COMPONENT_ID), any(ComponentParametersView.class))).thenReturn(Either.left(service));
+
+        try {
+            testInstance.deleteInput(COMPONENT_ID, USER_ID, inputId);
+        } catch (ComponentException e) {
+            assertEquals(ActionStatus.RESTRICTED_OPERATION, e.getActionStatus());
+            verify(graphLockOperation, never()).lockComponent(anyString(), any(NodeTypeEnum.class));
+            verify(toscaOperationFacadeMock, never()).deleteInputOfResource(any(), anyString());
+            return;
+        }
+        fail();
     }
 
 
