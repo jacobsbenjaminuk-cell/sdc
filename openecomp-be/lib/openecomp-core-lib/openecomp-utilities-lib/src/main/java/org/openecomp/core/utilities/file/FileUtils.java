@@ -22,6 +22,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Enumeration;
@@ -239,7 +240,7 @@ public class FileUtils {
             }
             try {
                 ZipUtils.checkForZipSlipInRead(zipEntry);
-            } catch (final ZipException e) {
+            } catch (final ZipException | InvalidPathException e) {
                 throw new IOException(e.getMessage(), e);
             }
             final var entryName = zipEntry.getName();

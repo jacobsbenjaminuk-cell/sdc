@@ -128,6 +128,16 @@ public class FileUtilsTest {
         FileUtils.getFileContentMapFromZip(new ByteArrayInputStream(createZip(1, 1, true)));
     }
 
+    @Test(expected = IOException.class)
+    public void testGetFileContentMapFromZipInvalidEntryName() throws IOException {
+        final var outputStream = new ByteArrayOutputStream();
+        try (final var zipOutputStream = new ZipOutputStream(outputStream)) {
+            zipOutputStream.putNextEntry(new ZipEntry("file\u0000.txt"));
+            zipOutputStream.closeEntry();
+        }
+        FileUtils.getFileContentMapFromZip(new ByteArrayInputStream(outputStream.toByteArray()));
+    }
+
     private static byte[] createZip(final int entries, final int entrySize, final boolean zipSlip) throws IOException {
         final var outputStream = new ByteArrayOutputStream();
         try (final var zipOutputStream = new ZipOutputStream(outputStream)) {
