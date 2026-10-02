@@ -6,7 +6,7 @@ ARG JETTY_FOLDER=/app/jetty
 # Create onap user/group, install dependencies, and create Jetty folder
 RUN addgroup -g 101 -S onap && \
     adduser -u 1000 -S -G onap -h /home/onap onap && \
-    apk add --no-cache curl jq && \
+    apk add --no-cache curl jq gettext && \
     mkdir -p $JETTY_FOLDER && chown onap:onap $JETTY_FOLDER
 ENV HOME=/home/onap
 

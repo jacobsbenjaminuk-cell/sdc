@@ -15,8 +15,6 @@ export truststore_path=
 export truststore_password= 
 export CATALOG_FACADE_HOST= 
 export CATALOG_FACADE_PORT= 
-export BASIC_AUTH_USERNAME=testName
-export BASIC_AUTH_PASSWORD=testPass
 export SECURITY_KEY= 
 ########### Apply env variables to the existing files ###########
 

@@ -36,9 +36,9 @@ healthCheckSocketTimeoutInMs: 5000
 healthCheckIntervalInSeconds: 5
 
 basicAuth:
-  enabled: true
-  userName: testName
-  userPass: testPass
+  enabled: ${BASIC_AUTH_ENABLED}
+  userName: '${BASIC_AUTH_USERNAME}'
+  userPass: '${BASIC_AUTH_PASSWORD}'
 
 onboarding:
     hostFe: sdc-FE
