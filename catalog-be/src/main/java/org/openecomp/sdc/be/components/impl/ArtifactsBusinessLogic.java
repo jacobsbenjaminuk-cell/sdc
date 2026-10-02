@@ -3692,6 +3692,36 @@ public class ArtifactsBusinessLogic extends BaseBusinessLogic {
         return Either.left(artifactInfo);
     }
 
+    private Either<ArtifactDefinition, ResponseFormat> validateAndUpdateOperationArtifact(String componentId, String userId,
+                                                                                          ComponentTypeEnum componentType,
+                                                                                          ArtifactOperationInfo operation, String artifactId,
+                                                                                          String interfaceType, String operationUuid,
+                                                                                          ArtifactDefinition artifactInfo) {
+        AuditingActionEnum auditingAction = detectAuditingType(operation, null);
+        Component lockedComponent = null;
+        boolean failed = true;
+        try {
+            if (userId == null) {
+                throw new ByActionStatusComponentException(ActionStatus.MISSING_INFORMATION);
+            }
+            User user = validateUserExists(userId, auditingAction, componentId, artifactId, componentType, false);
+            validateUserRole(user, auditingAction, componentId, artifactId, componentType, operation);
+            Component component = validateComponentExists(componentId, auditingAction, user, artifactId, componentType, null);
+            validateWorkOnComponent(component, userId, auditingAction, user, artifactId, operation);
+            lockComponent(componentType, artifactId, auditingAction, user, component);
+            lockedComponent = component;
+            Either<ArtifactDefinition, ResponseFormat> result = updateOperationArtifact(componentId, interfaceType, operationUuid, artifactInfo);
+            failed = result.isRight();
+            return result;
+        } catch (ComponentException e) {
+            return Either.right(e.getResponseFormat());
+        } finally {
+            if (lockedComponent != null) {
+                unlockComponent(failed, lockedComponent);
+            }
+        }
+    }
+
     /**
      * updates an artifact on a component by UUID
      *
@@ -3750,13 +3780,15 @@ public class ArtifactsBusinessLogic extends BaseBusinessLogic {
                 if (errorWrapper.isEmpty()) {
                     final List<ArtifactDefinition> existingDeploymentArtifacts = getDeploymentArtifacts(toscaComponentEither.left().value(), null);
                     for (ArtifactDefinition artifactDefinition : existingDeploymentArtifacts) {
-                        if (artifactInfo.getArtifactName().equalsIgnoreCase(artifactDefinition.getArtifactName())) {
+                        if (artifactInfo.getArtifactName() != null && artifactInfo.getArtifactName()
+                            .equalsIgnoreCase(artifactDefinition.getArtifactName())) {
                             existingArtifactInfo = artifactDefinition;
                             break;
                         }
                     }
                     if (existingArtifactInfo != null) {
-                        return updateOperationArtifact(componentId, interfaceName, operationUUID, existingArtifactInfo);
+                        return validateAndUpdateOperationArtifact(componentId, userId, componentType, operation, artifactUUID, interfaceName,
+                            operationUUID, existingArtifactInfo);
                     }
                 }
             }

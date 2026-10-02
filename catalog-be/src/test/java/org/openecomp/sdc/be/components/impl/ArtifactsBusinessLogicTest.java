@@ -61,6 +61,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import javax.servlet.http.HttpServletRequest;
 import mockit.Deencapsulation;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.collections.CollectionUtils;
@@ -131,7 +132,9 @@ import org.openecomp.sdc.be.model.operations.impl.ArtifactOperation;
 import org.openecomp.sdc.be.model.operations.impl.ArtifactTypeOperation;
 import org.openecomp.sdc.be.model.operations.impl.UserAdminOperation;
 import org.openecomp.sdc.be.resources.data.DAOArtifactData;
+import org.openecomp.sdc.be.resources.data.ResourceMetadataData;
 import org.openecomp.sdc.be.resources.data.auditing.AuditingActionEnum;
+import org.openecomp.sdc.be.resources.data.auditing.model.ResourceCommonInfo;
 import org.openecomp.sdc.be.servlets.RepresentationUtils;
 import org.openecomp.sdc.be.tosca.CsarUtils;
 import org.openecomp.sdc.be.tosca.ToscaExportHandler;
@@ -139,6 +142,7 @@ import org.openecomp.sdc.be.user.Role;
 import org.openecomp.sdc.be.user.UserBusinessLogic;
 import org.openecomp.sdc.common.api.ArtifactGroupTypeEnum;
 import org.openecomp.sdc.common.api.ArtifactTypeEnum;
+import org.openecomp.sdc.common.api.Constants;
 import org.openecomp.sdc.common.datastructure.Wrapper;
 import org.openecomp.sdc.common.util.GeneralUtility;
 import org.openecomp.sdc.exception.ResponseFormat;
@@ -2440,6 +2444,105 @@ public class ArtifactsBusinessLogicTest extends BaseBusinessLogicMock {
 
         byte[] result = artifactBL.downloadRsrcArtifactByNames(serviceName, version, resourceName, version, artifactName);
         Assert.assertEquals(esArtifactData.getDataAsArray(), result);
+    }
+
+    @Test
+    public void updateArtifactOnInterfaceOperationByResourceUUID_existingArtifact_rejectsUserWhoDoesNotOwnCheckout() {
+        final ArtifactsBusinessLogic testSubject = getInterfaceOperationArtifactTestSubject("ownerId");
+        final HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
+        when(request.getHeader(Constants.USER_ID_HEADER)).thenReturn("attackerId");
+        when(userValidations.validateUserExists("attackerId")).thenReturn(new User("Other", "Designer", "attackerId", null,
+            Role.DESIGNER.name(), null));
+        when(userValidations.isSameUser("attackerId", "ownerId")).thenReturn(false);
+
+        final Either<ArtifactDefinition, ResponseFormat> result = testSubject.updateArtifactOnInterfaceOperationByResourceUUID(
+            "{\"artifactName\":\"existing.yml\"}", request, ComponentTypeEnum.RESOURCE, "componentUuid", "interfaceId", "operationId",
+            "artifactUuid", new ResourceCommonInfo("resources"), new ArtifactOperationInfo(true, false, ArtifactOperationEnum.UPDATE));
+
+        assertThat(result.isRight()).isTrue();
+        assertEquals(ResponseFormatManager.getInstance().getResponseFormat(ActionStatus.RESTRICTED_OPERATION).getMessageId(),
+            result.right().value().getMessageId());
+        verify(interfaceOperation, Mockito.never()).updateInterfaces(any(Component.class), anyList());
+        verify(graphLockOperation, Mockito.never()).lockComponent(anyString(), any(NodeTypeEnum.class));
+    }
+
+    @Test
+    public void updateArtifactOnInterfaceOperationByResourceUUID_existingArtifact_rejectsUnknownUser() {
+        final ArtifactsBusinessLogic testSubject = getInterfaceOperationArtifactTestSubject("ownerId");
+        final HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
+        when(request.getHeader(Constants.USER_ID_HEADER)).thenReturn("unknownId");
+        when(userValidations.validateUserExists("unknownId"))
+            .thenThrow(new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION));
+
+        final Either<ArtifactDefinition, ResponseFormat> result = testSubject.updateArtifactOnInterfaceOperationByResourceUUID(
+            "{\"artifactName\":\"existing.yml\"}", request, ComponentTypeEnum.RESOURCE, "componentUuid", "interfaceId", "operationId",
+            "artifactUuid", new ResourceCommonInfo("resources"), new ArtifactOperationInfo(true, false, ArtifactOperationEnum.UPDATE));
+
+        assertThat(result.isRight()).isTrue();
+        verify(interfaceOperation, Mockito.never()).updateInterfaces(any(Component.class), anyList());
+    }
+
+    @Test
+    public void updateArtifactOnInterfaceOperationByResourceUUID_existingArtifact_updatesForCheckoutOwnerUnderLock() {
+        final ArtifactsBusinessLogic testSubject = getInterfaceOperationArtifactTestSubject("ownerId");
+        final HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
+        when(request.getHeader(Constants.USER_ID_HEADER)).thenReturn("ownerId");
+        when(userValidations.validateUserExists("ownerId")).thenReturn(new User("Owner", "Designer", "ownerId", null,
+            Role.DESIGNER.name(), null));
+        when(userValidations.isSameUser("ownerId", "ownerId")).thenReturn(true);
+        when(graphLockOperation.lockComponent(eq("componentId"), any(NodeTypeEnum.class))).thenReturn(StorageOperationStatus.OK);
+        when(interfaceOperation.updateInterfaces(any(Component.class), anyList())).thenReturn(Either.left(new ArrayList<>()));
+
+        final Either<ArtifactDefinition, ResponseFormat> result = testSubject.updateArtifactOnInterfaceOperationByResourceUUID(
+            "{\"artifactName\":\"existing.yml\"}", request, ComponentTypeEnum.RESOURCE, "componentUuid", "interfaceId", "operationId",
+            "artifactUuid", new ResourceCommonInfo("resources"), new ArtifactOperationInfo(true, false, ArtifactOperationEnum.UPDATE));
+
+        assertThat(result.isLeft()).isTrue();
+        assertEquals("existing.yml", result.left().value().getArtifactName());
+        verify(interfaceOperation).updateInterfaces(any(Component.class), anyList());
+        verify(graphLockOperation).lockComponent(eq("componentId"), any(NodeTypeEnum.class));
+        verify(graphLockOperation).unlockComponent(eq("componentId"), any(NodeTypeEnum.class));
+    }
+
+    private ArtifactsBusinessLogic getInterfaceOperationArtifactTestSubject(final String checkoutOwnerId) {
+        final ArtifactDefinition existingArtifact = new ArtifactDefinition();
+        existingArtifact.setArtifactName("existing.yml");
+        existingArtifact.setUniqueId("existingArtifactId");
+        final Map<String, ArtifactDefinition> deploymentArtifacts = new HashMap<>();
+        deploymentArtifacts.put("existing", existingArtifact);
+
+        final Operation operation = new Operation();
+        operation.setUniqueId("operationId");
+        operation.setImplementation(new ArtifactDefinition());
+        final Map<String, Operation> operations = new HashMap<>();
+        operations.put("op", operation);
+        final InterfaceDefinition interfaceDefinition = new InterfaceDefinition();
+        interfaceDefinition.setUniqueId("interfaceId");
+        interfaceDefinition.setType("interfaceType");
+        interfaceDefinition.setOperationsMap(operations);
+        final Map<String, InterfaceDefinition> interfaces = new HashMap<>();
+        interfaces.put("interfaceType", interfaceDefinition);
+
+        final ResourceMetadataDataDefinition metadata = new ResourceMetadataDataDefinition();
+        metadata.setUniqueId("componentId");
+        metadata.setName("checkedOutResource");
+        metadata.setState(LifecycleStateEnum.NOT_CERTIFIED_CHECKOUT.name());
+        metadata.setLastUpdaterUserId(checkoutOwnerId);
+        final Resource checkedOutResource = new Resource(new ResourceMetadataDefinition(metadata));
+        checkedOutResource.setDeploymentArtifacts(deploymentArtifacts);
+        checkedOutResource.setInterfaces(interfaces);
+
+        when(toscaOperationFacade.getLatestComponentMetadataByUuid("componentUuid", JsonParseFlagEnum.ParseMetadata, true))
+            .thenReturn(Either.left(new ResourceMetadataData(metadata)));
+        when(toscaOperationFacade.getToscaElement("componentId")).thenReturn(Either.left(checkedOutResource));
+        when(toscaOperationFacade.getToscaFullElement("componentId")).thenReturn(Either.left(checkedOutResource));
+
+        final ArtifactsBusinessLogic testSubject = getTestSubject();
+        testSubject.setToscaOperationFacade(toscaOperationFacade);
+        testSubject.setUserValidations(userValidations);
+        testSubject.setGraphLockOperation(graphLockOperation);
+        testSubject.setJanusGraphDao(janusGraphDao);
+        return testSubject;
     }
 
     private ArtifactsBusinessLogic getTestSubject() {
