@@ -1308,19 +1308,17 @@ public class ToscaOperationFacade {
      * @return max counter of component instance Id's, null if not found
      */
     private Integer getMaxCounterFromNamesAndIds(final Component containerComponent, final String normalizedName) {
-        final Pattern COUNTER_PATTERN = Pattern.compile(Pattern.quote(normalizedName) + "[\\s_:-]?\\d+$");
+        final Pattern COUNTER_PATTERN = Pattern.compile(Pattern.quote(normalizedName) + "[\\s_:-]?(\\d+)$");
         final List<String> countersInNames = containerComponent.getComponentInstances().stream()
             .filter(ci -> ci.getNormalizedName() != null && ci.getNormalizedName().startsWith(normalizedName))
             .filter(ci -> !ci.getNormalizedName().equals(normalizedName))
             .map(ComponentInstance::getNormalizedName)
-            .map(COUNTER_PATTERN::matcher).filter(Matcher::find).map(matcher -> matcher.group(0))
-            .map(nn -> nn.replaceAll("\\D", ""))
+            .map(COUNTER_PATTERN::matcher).filter(Matcher::find).map(matcher -> matcher.group(1))
             .collect(Collectors.toList());
         final List<String> countersInIds = containerComponent.getComponentInstances().stream()
             .filter(ci -> ci.getUniqueId() != null && ci.getUniqueId().contains(normalizedName))
             .map(ComponentInstance::getUniqueId)
-            .map(COUNTER_PATTERN::matcher).filter(Matcher::find).map(matcher -> matcher.group(0))
-            .map(nn -> nn.replaceAll("\\D", ""))
+            .map(COUNTER_PATTERN::matcher).filter(Matcher::find).map(matcher -> matcher.group(1))
             .collect(Collectors.toList());
         final List<String> namesAndIdsList = new ArrayList<>(countersInNames);
         namesAndIdsList.addAll(countersInIds);
