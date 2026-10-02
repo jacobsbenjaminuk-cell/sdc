@@ -23,8 +23,8 @@
          "portal_app_name": "Ipwxi2oLvDxctMA1royaRw1W0jhucLx+grHzci3ePIA="
       },
       "UEB": {
-         "PublicKey": "iPIxkpAMI8qTcQj8",
-         "SecretKey": "Ehq3WyT4bkif4zwgEbvshGal",
+         "PublicKey": "public",
+         "SecretKey": "secret",
          "fqdn": ["10.0.11.1", "10.0.11.1"]
       },
       "Kafka": {

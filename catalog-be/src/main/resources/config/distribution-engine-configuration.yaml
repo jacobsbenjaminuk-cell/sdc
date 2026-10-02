@@ -3,11 +3,9 @@ uebServers:
    - uebsb92sfdc.it.att.com
    - uebsb93sfdc.it.att.com
 
-# prev Kansas City Sandbox uebPublicKey: 8F3MDAtMSBwwpSMy 
-uebPublicKey: sSJc5qiBnKy2qrlc
+uebPublicKey: ${UEB_PUBLIC_KEY}
 
-# prev Kansas City Sandbox uebSecretKey: gzFmsTxSCtO5RQfAccM6PqqX
-uebSecretKey: 4ZRPzNJfEUK0sSNBvccd2m7X
+uebSecretKey: ${UEB_SECRET_KEY}
 
 distributionNotifTopicName: ASDC-DISTR-NOTIF-TOPIC
 distributionStatusTopicName: ASDC-DISTR-STATUS-TOPIC
@@ -64,7 +62,7 @@ aaiConfig:
          connectTimeoutMs: 1000
       clientCertificate:
          keyStore: /app/jetty/opt/base/be/etc/non-prod.jks
-         keyStorePassword: hmXYcznAljMSisdy8zgcag==
+         keyStorePassword: ${AAI_KEYSTORE_PASSWORD}
       headers:
          X-FromAppId: asdc
       numOfRetries: 3
@@ -81,6 +79,6 @@ msoConfig:
           connectTimeoutMs: 500
        basicAuthorization:
           userName: asdc
-          password: OTLEp5lfVhYdyw5EAtTUBQ==
+          password: ${MSO_BASIC_AUTH_PASSWORD}
        numOfRetries: 3
        

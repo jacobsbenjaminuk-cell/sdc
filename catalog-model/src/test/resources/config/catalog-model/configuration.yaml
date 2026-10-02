@@ -381,7 +381,7 @@ dmaapConsumerConfiguration:
     timeLimitForNotificationHandleMs: 0
     credential:
         username: m09875@sdc.att.com
-        password: hmXYcznAljMSisdy8zgcag==
+        password: XyCUPhFx9u70aklYGo6OiA==
         
 dmeConfiguration:
     lookupUriFormat: "http://DME2RESOLVE/service=%s/version=1.0.0/envContext=%s/routeOffer=DEFAULT"

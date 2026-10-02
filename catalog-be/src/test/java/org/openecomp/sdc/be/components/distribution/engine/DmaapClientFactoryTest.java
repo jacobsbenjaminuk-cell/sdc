@@ -44,7 +44,7 @@ public class DmaapClientFactoryTest {
 		String filePath = "src/test/resources/config/mock.txt";
 
 		Credential credential = new Credential();
-		credential.setPassword("hmXYcznAljMSisdy8zgcag==");
+		credential.setPassword("XyCUPhFx9u70aklYGo6OiA==");
 		credential.setUsername("mock");
 		parameters.setCredential(credential);
 		parameters.setLatitude(new Double(32452));
@@ -91,7 +91,7 @@ public class DmaapClientFactoryTest {
 		String filePath = "src/test/resources/config/mock.txt";
 
 		Credential credential = new Credential();
-		credential.setPassword("hmXYcznAljMSisdy8zgcag==");
+		credential.setPassword("XyCUPhFx9u70aklYGo6OiA==");
 		credential.setUsername("mock");
 		parameters.setCredential(credential);
 		parameters.setLatitude(new Double(32452));
