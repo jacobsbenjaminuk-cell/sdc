@@ -35,7 +35,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import javax.inject.Inject;
 import javax.servlet.ServletContext;
 import javax.servlet.http.HttpServletRequest;
@@ -57,8 +56,8 @@ import org.glassfish.jersey.media.multipart.FormDataContentDisposition;
 import org.glassfish.jersey.media.multipart.FormDataParam;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.keycloak.representations.AccessToken;
 import org.openecomp.sdc.be.components.impl.ComponentInstanceBusinessLogic;
+import org.openecomp.sdc.be.components.impl.ComponentTenantValidator;
 import org.openecomp.sdc.be.components.impl.CsarValidationUtils;
 import org.openecomp.sdc.be.components.impl.ImportUtils;
 import org.openecomp.sdc.be.components.impl.ResourceBusinessLogic;
@@ -87,7 +86,6 @@ import org.openecomp.sdc.common.log.wrappers.Logger;
 import org.openecomp.sdc.common.util.ValidationUtils;
 import org.openecomp.sdc.common.zip.exception.ZipException;
 import org.openecomp.sdc.exception.ResponseFormat;
-import org.openecomp.sdc.common.util.Multitenancy;
 import org.springframework.stereotype.Controller;
 
 @Loggable(prepend = true, value = Loggable.DEBUG, trim = false)
@@ -101,6 +99,7 @@ public class ResourcesServlet extends AbstractValidationsServlet {
     private static final LoggerSupportability loggerSupportability = LoggerSupportability.getLogger(ResourcesServlet.class.getName());
     private static final String START_HANDLE_REQUEST_OF = "Start handle request of {}";
     private static final String MODIFIER_ID_IS = "modifier id is {}";
+    private static final String UNAUTHORIZED_TENANT = "Unauthorized Tenant";
     private final ResourceBusinessLogic resourceBusinessLogic;
 
     @Inject
@@ -149,33 +148,17 @@ public class ResourcesServlet extends AbstractValidationsServlet {
                     response = buildErrorResponse(convertResponse.right().value());
                     return response;
                 }
-                Multitenancy keyaccess = new Multitenancy();
                 Resource resource = convertResponse.left().value();
-                if (keyaccess.multiTenancyCheck())
-                {
-                        AccessToken.Access realmAccess = keyaccess.getAccessToken(request).getRealmAccess();
-                        Set<String> realmroles = realmAccess.getRoles();
-                        boolean match = realmroles.contains(resource.getTenant());
-                        if (match) {
-                            Resource createdResource = resourceBusinessLogic.createResource(resource, AuditingActionEnum.CREATE_RESOURCE, modifier, null, null);
-                            Object representation = RepresentationUtils.toRepresentation(createdResource);
-                            response = buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.CREATED), representation);
-                            responseWrapper.setInnerElement(response);
-                            loggerSupportability
-                                    .log(LoggerSupportabilityActions.CREATE_RESOURCE, resource.getComponentMetadataForSupportLog(), StatusCode.COMPLETE,
-                                            "Resource successfully created user {}", userId);
-                        } else {
-                            return Response.status(401, "Unauthorized Tenant").build();
-                        }
-                } else {
-                    Resource createdResource = resourceBusinessLogic.createResource(resource, AuditingActionEnum.CREATE_RESOURCE, modifier, null, null);
-                    Object representation = RepresentationUtils.toRepresentation(createdResource);
-                    response = buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.CREATED), representation);
-                    responseWrapper.setInnerElement(response);
-                    loggerSupportability
-                            .log(LoggerSupportabilityActions.CREATE_RESOURCE, resource.getComponentMetadataForSupportLog(), StatusCode.COMPLETE,
-                                    "Resource successfully created user {}", userId);
+                if (!ComponentTenantValidator.canAssignTenant(request, resource.getTenant())) {
+                    return Response.status(401, UNAUTHORIZED_TENANT).build();
                 }
+                Resource createdResource = resourceBusinessLogic.createResource(resource, AuditingActionEnum.CREATE_RESOURCE, modifier, null, null);
+                Object representation = RepresentationUtils.toRepresentation(createdResource);
+                response = buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.CREATED), representation);
+                responseWrapper.setInnerElement(response);
+                loggerSupportability
+                    .log(LoggerSupportabilityActions.CREATE_RESOURCE, resource.getComponentMetadataForSupportLog(), StatusCode.COMPLETE,
+                        "Resource successfully created user {}", userId);
             }
             return responseWrapper.getInnerElement();
         } catch (final IOException | ZipException e) {
@@ -205,6 +188,13 @@ public class ResourcesServlet extends AbstractValidationsServlet {
         Wrapper<String> yamlStringWrapper = new Wrapper<>();
         ResourceAuthorityTypeEnum resourceAuthorityEnum = ResourceAuthorityTypeEnum.USER_TYPE_UI;
         commonGeneralValidations(responseWrapper, userWrapper, uploadResourceInfoWrapper, resourceAuthorityEnum, userId, data);
+        if (!responseWrapper.isEmpty()) {
+            return;
+        }
+        if (!ComponentTenantValidator.canAssignTenant(request, uploadResourceInfoWrapper.getInnerElement().getTenant())) {
+            responseWrapper.setInnerElement(Response.status(401, UNAUTHORIZED_TENANT).build());
+            return;
+        }
         if (!CsarValidationUtils.isCsarPayloadName(uploadResourceInfoWrapper.getInnerElement().getPayloadName())) {
             fillPayload(responseWrapper, uploadResourceInfoWrapper, yamlStringWrapper, userWrapper.getInnerElement(), data, resourceAuthorityEnum,
                 null);
@@ -416,7 +406,8 @@ public class ResourcesServlet extends AbstractValidationsServlet {
         String url = request.getMethod() + " " + request.getRequestURI();
         log.debug("(get) Start handle request of {}", url);
         try {
-            List<Resource> resources = resourceBusinessLogic.getAllCertifiedResources(true, HighestFilterEnum.HIGHEST_ONLY, userId);
+            List<Resource> resources = ComponentTenantValidator
+                .filterByTenant(request, resourceBusinessLogic.getAllCertifiedResources(true, HighestFilterEnum.HIGHEST_ONLY, userId), Resource::getTenant);
             return buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.OK), RepresentationUtils.toRepresentation(resources));
         } catch (IOException e) {
             BeEcompErrorManager.getInstance().logBeRestApiGeneralError("Get Certified Abstract Resources");
@@ -434,7 +425,8 @@ public class ResourcesServlet extends AbstractValidationsServlet {
         String url = request.getMethod() + " " + request.getRequestURI();
         log.debug("(get) Start handle request of {}", url);
         try {
-            List<Resource> resouces = resourceBusinessLogic.getAllCertifiedResources(false, HighestFilterEnum.ALL, userId);
+            List<Resource> resouces = ComponentTenantValidator
+                .filterByTenant(request, resourceBusinessLogic.getAllCertifiedResources(false, HighestFilterEnum.ALL, userId), Resource::getTenant);
             return buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.OK), RepresentationUtils.toRepresentation(resouces));
         } catch (IOException e) {
             BeEcompErrorManager.getInstance().logBeRestApiGeneralError("Get Certified Non Abstract Resources");

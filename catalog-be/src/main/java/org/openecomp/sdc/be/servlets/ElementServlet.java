@@ -33,8 +33,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.servlet.ServletContext;
 import javax.servlet.http.HttpServletRequest;
@@ -51,6 +49,7 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import org.openecomp.sdc.be.components.impl.ArtifactsBusinessLogic;
+import org.openecomp.sdc.be.components.impl.ComponentTenantValidator;
 import org.openecomp.sdc.be.components.impl.ElementBusinessLogic;
 import org.openecomp.sdc.be.components.impl.ModelBusinessLogic;
 import org.openecomp.sdc.be.components.scheduledtasks.ComponentsCleanBusinessLogic;
@@ -79,10 +78,8 @@ import org.openecomp.sdc.be.ui.model.UiCategories;
 import org.openecomp.sdc.be.user.UserBusinessLogic;
 import org.openecomp.sdc.common.api.Constants;
 import org.openecomp.sdc.common.log.wrappers.Logger;
-import org.openecomp.sdc.common.util.Multitenancy;
 import org.openecomp.sdc.exception.ResponseFormat;
 import org.springframework.stereotype.Controller;
-import org.keycloak.representations.AccessToken;
 @Path("/v1/")
 /**
  *
@@ -512,23 +509,10 @@ public class ElementServlet extends BeGenericServlet {
                 log.debug("failed to get followed resources services ");
                 return buildErrorResponse(followedResourcesServices.right().value());
             }
-            Multitenancy keyaccess= new Multitenancy();
-            if (keyaccess.multiTenancyCheck()) {
-                AccessToken.Access realmAccess = keyaccess.getAccessToken(request).getRealmAccess();
-                Set<String> realmroles = realmAccess.getRoles();
-                Map<String, List<? extends Component>> dataResponse = new HashMap<>();
-               followedResourcesServices.left().value().entrySet().stream()
-                        .forEach(component->{component.setValue(component.getValue().stream().filter(cm->realmroles.stream()
-                                .anyMatch(role->cm.getTenant().equals(role))).collect(Collectors.toList()));
-                            dataResponse.put(component.getKey(), component.getValue());
-                        });
-                Object data = RepresentationUtils.toRepresentation(dataResponse);
-                return buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.OK), data);
-            }
-            else{
-                Object data = RepresentationUtils.toRepresentation(followedResourcesServices.left().value());
-                return buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.OK), data);
-            }
+            Map<String, List<Component>> followed = new HashMap<>();
+            followedResourcesServices.left().value().forEach((key, components) -> followed.put(key, new ArrayList<>(components)));
+            Object data = RepresentationUtils.toRepresentation(ComponentTenantValidator.filterByTenant(request, followed, Component::getTenant));
+            return buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.OK), data);
         } catch (Exception e) {
             BeEcompErrorManager.getInstance().logBeRestApiGeneralError("Get Followed Resources / Services Categories");
             log.debug("Getting followed resources/services failed with exception", e);
@@ -559,7 +543,8 @@ public class ElementServlet extends BeGenericServlet {
                 log.debug("failed to get catalog data");
                 return buildErrorResponse(catalogData.right().value());
             }
-            Object data = RepresentationUtils.toRepresentation(catalogData.left().value());
+            Object data = RepresentationUtils
+                .toRepresentation(ComponentTenantValidator.filterByTenant(request, catalogData.left().value(), CatalogComponent::getTenant));
             return buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.OK), data);
         } catch (Exception e) {
             BeEcompErrorManager.getInstance().logBeRestApiGeneralError("Get Catalog Components");
