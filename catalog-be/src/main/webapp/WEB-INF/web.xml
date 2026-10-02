@@ -169,7 +169,7 @@
         <filter-class>org.openecomp.sdc.be.filters.MultitenancyFilter</filter-class>
         <init-param>
             <param-name>keycloak.config.skipPattern</param-name>
-            <param-value>/sdc2/rest/(healthCheck|v1/user(/.*)?|v1/consumers(/.*)?|v1/catalog/lock|v1/catalog/model(/.*)?|v1/catalog/upload/.*|v1/catalog/uploadType/.*)</param-value>
+            <param-value>/sdc2/rest/(healthCheck|v1/user(/.*)?|v1/consumers(/.*)?|v1/catalog/lock|v1/catalog/notif/vsp/.*|v1/catalog/model(/.*)?|v1/catalog/upload/.*|v1/catalog/uploadType/.*)</param-value>
         </init-param>
         <init-param>
             <param-name>keycloak.config.optionalAuthPattern</param-name>

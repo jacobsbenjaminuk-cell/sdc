@@ -50,6 +50,7 @@ import javax.ws.rs.core.Response;
 import org.glassfish.jersey.media.multipart.FormDataContentDisposition;
 import org.glassfish.jersey.media.multipart.FormDataParam;
 import org.openecomp.sdc.be.components.impl.ComponentInstanceBusinessLogic;
+import org.openecomp.sdc.be.components.impl.ComponentTenantValidator;
 import org.openecomp.sdc.be.components.impl.ModelBusinessLogic;
 import org.openecomp.sdc.be.components.impl.ResourceImportManager;
 import org.openecomp.sdc.be.config.BeEcompErrorManager;
@@ -125,6 +126,10 @@ public class ResourceUploadServlet extends AbstractValidationsServlet {
             validateAuthorityType(responseWrapper, resourceAuthority);
             ResourceAuthorityTypeEnum resourceAuthorityEnum = ResourceAuthorityTypeEnum.findByUrlPath(resourceAuthority);
             commonGeneralValidations(responseWrapper, userWrapper, uploadResourceInfoWrapper, resourceAuthorityEnum, userId, resourceInfoJsonString);
+            if (responseWrapper.isEmpty()
+                && !ComponentTenantValidator.canAssignOptionalTenant(request, uploadResourceInfoWrapper.getInnerElement().getTenant())) {
+                return Response.status(401, "Unauthorized Tenant").build();
+            }
             final String modelNameToBeAssociated = uploadResourceInfoWrapper.getInnerElement().getModel();
             if (modelNameToBeAssociated != null) {
                 log.debug("Model Name to be validated {}", modelNameToBeAssociated);

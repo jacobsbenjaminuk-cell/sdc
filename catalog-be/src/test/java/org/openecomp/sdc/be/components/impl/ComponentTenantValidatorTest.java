@@ -49,6 +49,7 @@ import org.openecomp.sdc.be.dao.jsongraph.types.JsonParseFlagEnum;
 import org.openecomp.sdc.be.datatypes.enums.ComponentTypeEnum;
 import org.openecomp.sdc.be.model.Component;
 import org.openecomp.sdc.be.model.ComponentParametersView;
+import org.openecomp.sdc.be.model.Resource;
 import org.openecomp.sdc.be.model.Service;
 import org.openecomp.sdc.be.model.jsonjanusgraph.operations.ToscaOperationFacade;
 import org.openecomp.sdc.be.model.operations.api.StorageOperationStatus;
@@ -163,6 +164,21 @@ class ComponentTenantValidatorTest {
         when(toscaOperationFacade.getComponentByNameAndVersion(ComponentTypeEnum.SERVICE, "svc", "1.0", JsonParseFlagEnum.ParseMetadata))
             .thenReturn(Either.left(other));
         assertFalse(validator.isPathAccessAllowed(TENANT_A, Map.of("serviceName", List.of("svc"), "version", List.of("1.0"))));
+    }
+
+    @Test
+    void csarUuidOfOtherTenantIsDenied() {
+        Resource other = new Resource();
+        other.setTenant("tenantB");
+        when(toscaOperationFacade.getLatestComponentByCsarOrName(ComponentTypeEnum.RESOURCE, "csar-b", "", JsonParseFlagEnum.ParseMetadata))
+            .thenReturn(Either.left(other));
+        assertFalse(validator.isPathAccessAllowed(TENANT_A, Map.of("csaruuid", List.of("csar-b"))));
+    }
+
+    @Test
+    void optionalTenantAssignmentAllowedWhenMultitenancyDisabled() {
+        assertTrue(ComponentTenantValidator.canAssignOptionalTenant(mock(HttpServletRequest.class), "tenantB"));
+        assertTrue(ComponentTenantValidator.canAssignOptionalTenant(mock(HttpServletRequest.class), null));
     }
 
     @Test

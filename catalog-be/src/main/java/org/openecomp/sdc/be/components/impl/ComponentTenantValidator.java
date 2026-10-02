@@ -62,6 +62,7 @@ public class ComponentTenantValidator {
         "componentUniqueId", "originComponentUid");
     static final List<String> COMPONENT_UUID_PARAMS = List.of("serviceUUID", "uuid", "componentUuid");
     static final String DISTRIBUTION_ID_PARAM = "did";
+    static final String CSAR_UUID_PARAM = "csaruuid";
     private static final Logger log = Logger.getLogger(ComponentTenantValidator.class);
     private final ToscaOperationFacade toscaOperationFacade;
     private final AuditCassandraDao auditCassandraDao;
@@ -98,6 +99,13 @@ public class ComponentTenantValidator {
      */
     public static boolean canAssignTenant(HttpServletRequest request, String tenant) {
         return !isMultitenancyEnabled() || (tenant != null && getCallerTenants(request).contains(tenant));
+    }
+
+    /**
+     * Like {@link #canAssignTenant} but also accepts a component with no tenant, for paths that may run without a caller.
+     */
+    public static boolean canAssignOptionalTenant(HttpServletRequest request, String tenant) {
+        return !isMultitenancyEnabled() || isTenantAllowed(tenant, getCallerTenants(request));
     }
 
     public static <T> List<T> filterByTenant(HttpServletRequest request, List<T> items, Function<T, String> tenantOf) {
@@ -146,6 +154,12 @@ public class ComponentTenantValidator {
             if (!isNameAndVersionAllowed(callerTenants, pathParams, ComponentTypeEnum.RESOURCE, "resourceName", "version", "resourceVersion")
                 || !isNameAndVersionAllowed(callerTenants, pathParams, ComponentTypeEnum.SERVICE, "serviceName", "version", "serviceVersion")) {
                 return false;
+            }
+            for (String csarUuid : values(pathParams, CSAR_UUID_PARAM)) {
+                if (!isAllowed(callerTenants,
+                    () -> toscaOperationFacade.getLatestComponentByCsarOrName(ComponentTypeEnum.RESOURCE, csarUuid, "", JsonParseFlagEnum.ParseMetadata))) {
+                    return false;
+                }
             }
             for (String did : values(pathParams, DISTRIBUTION_ID_PARAM)) {
                 if (!isDistributionAllowed(callerTenants, did)) {
