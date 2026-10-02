@@ -13,11 +13,11 @@ while [ $is_up -eq 0 ] && [ $retry_num -le 100 ]; do
     echo "Checking if cqlsh can connect to Cassandra..."
     
     # Try connecting with default credentials
-    echo "exit" | cqlsh -u cassandra -p cassandra $CASSANDRA_IP $CASSANDRA_PORT --cqlversion="$cqlversion" >/dev/null 2>&1
+    echo "exit" | cqlsh $CQLSH_SSL -u cassandra -p cassandra $CASSANDRA_IP $CASSANDRA_PORT --cqlversion="$cqlversion" >/dev/null 2>&1
     res1=$?
 
     # Try connecting with the provided password
-    echo "exit" | cqlsh -u cassandra -p "$CASSANDRA_PASS" $CASSANDRA_IP $CASSANDRA_PORT --cqlversion="$cqlversion" >/dev/null 2>&1
+    echo "exit" | cqlsh $CQLSH_SSL -u cassandra -p "$CASSANDRA_PASS" $CASSANDRA_IP $CASSANDRA_PORT --cqlversion="$cqlversion" >/dev/null 2>&1
     res2=$?
 
     if [ $res1 -eq 0 ] || [ $res2 -eq 0 ]; then
@@ -33,7 +33,7 @@ done
 
 if [ $res1 -eq 0 ] && [ $res2 -ne 0 ] && [ $is_up -eq 1 ]; then
     echo "Modifying Cassandra password"
-    echo "ALTER USER cassandra WITH PASSWORD '$CASSANDRA_PASS';" | cqlsh -u cassandra -p cassandra $CASSANDRA_IP $CASSANDRA_PORT --cqlversion="$cqlversion"
+    echo "ALTER USER cassandra WITH PASSWORD '$CASSANDRA_PASS';" | cqlsh $CQLSH_SSL -u cassandra -p cassandra $CASSANDRA_IP $CASSANDRA_PORT --cqlversion="$cqlversion"
 elif [ $res1 -ne 0 ] && [ $res2 -eq 0 ] && [ $is_up -eq 1 ]; then
     echo "Cassandra password already modified"
 else

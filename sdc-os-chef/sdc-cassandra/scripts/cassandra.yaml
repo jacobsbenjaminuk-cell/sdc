@@ -74,7 +74,7 @@ authenticator: PasswordAuthenticator
 # - AllowAllAuthorizer allows any action to any user - set it to disable authorization.
 # - CassandraAuthorizer stores permissions in system_auth.permissions table. Please
 #   increase system_auth keyspace replication factor if you use this authorizer.
-authorizer: AllowAllAuthorizer
+authorizer: CassandraAuthorizer
 
 # Validity period for permissions cache (fetching permissions can be an
 # expensive operation depending on the authorizer, CassandraAuthorizer is
@@ -776,12 +776,16 @@ request_scheduler: org.apache.cassandra.scheduler.NoScheduler
 # the keystore and truststore.  For instructions on generating these files, see:
 # http://download.oracle.com/javase/6/docs/technotes/guides/security/jsse/JSSERefGuide.html#CreateKeystore
 #
+# internode_encryption, keystore, keystore_password, truststore and
+# truststore_password are set at container start by render_cassandra_yaml.sh
+# from CS_INTERNODE_ENCRYPTION, CS_KEYSTORE_PATH, CS_KEYSTORE_PASSWORD,
+# CS_TRUSTSTORE_PATH and CS_TRUSTSTORE_PASSWORD.
 server_encryption_options:
     internode_encryption: none
     keystore: /etc/cassandra/cs_trust/.keystore
-    keystore_password: Aa123456
+    keystore_password: ''
     truststore: /etc/cassandra/cs_trust/.truststore
-    truststore_password: Aa123456
+    truststore_password: ''
     # More advanced defaults below:
     # protocol: TLS
     # algorithm: SunX509
@@ -790,10 +794,13 @@ server_encryption_options:
     # require_client_auth: false
 
 # enable or disable client/server encryption.
+# enabled, keystore and keystore_password are set at container start by
+# render_cassandra_yaml.sh from CS_CLIENT_ENCRYPTION_ENABLED, CS_KEYSTORE_PATH
+# and CS_KEYSTORE_PASSWORD.
 client_encryption_options:
     enabled: false
     keystore: /etc/cassandra/cs_trust/.keystore
-    keystore_password: Aa123456
+    keystore_password: ''
     # require_client_auth: false
     # Set trustore and truststore_password if require_client_auth is true
     # truststore: conf/.truststore

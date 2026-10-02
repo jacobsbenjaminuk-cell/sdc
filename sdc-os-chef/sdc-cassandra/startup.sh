@@ -1,11 +1,11 @@
 #!/bin/sh
 
 cd /root/scripts
-cp -pr /root/scripts/cassandra.yaml /etc/cassandra/cassandra.yaml
+sh /root/scripts/render_cassandra_yaml.sh /root/scripts/cassandra.yaml /etc/cassandra/cassandra.yaml || exit 1
 cp -pr /root/scripts/cassandra-rackdc.properties /etc/cassandra/cassandra-rackdc.properties
 
 rc=$?
-if [[ $rc != 0 ]]; then exit $rc; fi
+if [ $rc != 0 ]; then exit $rc; fi
 
 echo "########### starting cassandra ###########"
 
