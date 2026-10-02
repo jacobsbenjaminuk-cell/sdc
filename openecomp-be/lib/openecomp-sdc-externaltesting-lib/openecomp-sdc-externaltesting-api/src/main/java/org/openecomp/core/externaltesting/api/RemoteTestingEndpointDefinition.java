@@ -17,8 +17,10 @@
 package org.openecomp.core.externaltesting.api;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.regex.Pattern;
 import lombok.Data;
+import lombok.ToString;
 
 @Data
 public class RemoteTestingEndpointDefinition {
@@ -27,11 +29,14 @@ public class RemoteTestingEndpointDefinition {
     private String title;
     private String url;
     private String id;
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    @ToString.Exclude
     private String apiKey;
     private String scenarioFilter;
 
     // a compact way to specify and endpoint to ease docker configuration.
     @JsonIgnore
+    @ToString.Exclude
     private String config;
 
     private Pattern scenarioFilterPattern;

@@ -175,8 +175,8 @@ public class ExternalTestingManagerImpl implements ExternalTestingManager {
             accessConfig = yamlUtil.yamlToObject(fileInput, TestingAccessConfig.class);
 
             if (logger.isInfoEnabled()) {
-                String s = new ObjectMapper().writeValueAsString(accessConfig);
-                logger.info("loaded external testing config {}", s);
+                String s = new ObjectMapper().writeValueAsString(accessConfig.getClient());
+                logger.info("loaded external testing client config {}", s);
             }
 
             endpoints =

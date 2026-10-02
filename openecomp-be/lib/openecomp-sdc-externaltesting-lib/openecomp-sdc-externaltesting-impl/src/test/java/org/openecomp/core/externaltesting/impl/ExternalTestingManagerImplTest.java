@@ -16,6 +16,9 @@
 
 package org.openecomp.core.externaltesting.impl;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
@@ -54,6 +57,7 @@ import org.openecomp.sdc.vendorsoftwareproduct.OrchestrationTemplateCandidateMan
 import org.openecomp.sdc.vendorsoftwareproduct.VendorSoftwareProductManager;
 import org.openecomp.sdc.versioning.VersioningManager;
 import org.openecomp.sdc.versioning.dao.types.Version;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -251,6 +255,34 @@ public class ExternalTestingManagerImplTest {
       Assert.assertNotNull(e.getDetail());
       Assert.assertNotEquals(0, e.getHttpStatus());
       Assert.assertNotNull(e.getMessageCode());
+    }
+  }
+
+  @Test
+  public void testApiKeyNotExposed() throws IOException {
+    Logger implLogger = (Logger) LoggerFactory.getLogger(ExternalTestingManagerImpl.class);
+    ListAppender<ILoggingEvent> appender = new ListAppender<>();
+    appender.start();
+    implLogger.addAppender(appender);
+    try {
+      ExternalTestingManager m = configTestManager(true);
+
+      List<RemoteTestingEndpointDefinition> endpoints = m.getEndpoints();
+      Optional<RemoteTestingEndpointDefinition> vtp =
+          endpoints.stream().filter(e -> "vtp".equals(e.getId())).findFirst();
+      Assert.assertTrue(vtp.isPresent());
+      Assert.assertEquals("api key still loaded for outbound calls", "FOO", vtp.get().getApiKey());
+
+      String json = new ObjectMapper().writeValueAsString(endpoints);
+      Assert.assertFalse("api key serialised: " + json, json.contains("apiKey"));
+      Assert.assertFalse("api key serialised: " + json, json.contains("FOO"));
+
+      for (ILoggingEvent event : appender.list) {
+        Assert.assertFalse("api key logged: " + event.getFormattedMessage(),
+            event.getFormattedMessage().contains("FOO"));
+      }
+    } finally {
+      implLogger.detachAppender(appender);
     }
   }
 
