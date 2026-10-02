@@ -26,3 +26,16 @@ else
     echo "Going to create $SDC_USER"
     echo "create user $SDC_USER with password '$SDC_PASSWORD' nosuperuser;" | cqlsh -u cassandra -p $CS_PASSWORD $CASSANDRA_IP $CASSANDRA_PORT --cqlversion="$cqlversion"
 fi
+
+CQLSH_ADMIN="cqlsh -u cassandra -p $CS_PASSWORD $CASSANDRA_IP $CASSANDRA_PORT --cqlversion=$cqlversion"
+
+echo "Granting $SDC_USER permission to create keyspaces"
+echo "grant create on all keyspaces to $SDC_USER;" | $CQLSH_ADMIN || exit 1
+
+existing_keyspaces=$(echo "select keyspace_name from system_schema.keyspaces;" | $CQLSH_ADMIN | tr -d ' \r')
+for keyspace in dox zusammen_dox sdcaudit sdcartifact sdccomponent sdcrepository sdctitan; do
+    if echo "$existing_keyspaces" | grep -qx "$keyspace"; then
+        echo "Granting $SDC_USER all permissions on existing keyspace $keyspace"
+        echo "grant all permissions on keyspace $keyspace to $SDC_USER;" | $CQLSH_ADMIN || exit 1
+    fi
+done
