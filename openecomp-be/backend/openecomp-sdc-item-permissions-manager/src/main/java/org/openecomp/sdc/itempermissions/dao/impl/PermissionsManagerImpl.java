@@ -66,6 +66,12 @@ public class PermissionsManagerImpl implements PermissionsManager {
 
     @Override
     public Collection<ItemPermissionsEntity> listItemPermissions(String itemId) {
+        String currentUser = SessionContextProviderFactory.getInstance().createInterface().get().getUser().getUserId();
+        if (!permissionsServices.getUserItemPermission(itemId, currentUser).isPresent()) {
+            throw new CoreException(
+                new ErrorCode.ErrorCodeBuilder().withMessage(Messages.PERMISSIONS_ERROR.getErrorMessage()).withId(Messages.PERMISSIONS_ERROR.name())
+                    .withCategory(ErrorCategory.SECURITY).build());
+        }
         return permissionsServices.listItemPermissions(itemId);
     }
 

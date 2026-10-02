@@ -20,15 +20,18 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.openecomp.sdc.itempermissions.notifications.NotificationConstants.ITEM_ID_PROP;
 import static org.openecomp.sdc.itempermissions.notifications.NotificationConstants.PERMISSION_CHANGED;
 import static org.openecomp.sdc.itempermissions.notifications.NotificationConstants.PERMISSION_GRANTED;
 import static org.openecomp.sdc.itempermissions.notifications.NotificationConstants.PERMISSION_ITEM;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -45,6 +48,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.openecomp.sdc.common.errors.CoreException;
 import org.openecomp.sdc.common.session.SessionContextProviderFactory;
 import org.openecomp.sdc.itempermissions.PermissionsServices;
+import org.openecomp.sdc.itempermissions.type.ItemPermissionsEntity;
 import org.openecomp.sdc.notification.dtos.Event;
 import org.openecomp.sdc.notification.services.NotificationPropagationManager;
 import org.openecomp.sdc.notification.services.SubscriptionService;
@@ -116,6 +120,23 @@ class PermissionsManagerImplTest {
         for (String removedUsersId : removedUsersIds) {
             verifyCallsToNotificationsFramework(removedUsersId, false);
         }
+    }
+
+    @Test
+    void testListItemPermissionsWhenCallerHasPermission() {
+        doReturn(Optional.of(PERMISSION)).when(permissionsServicesMock).getUserItemPermission(ITEM1_ID, USER);
+        Collection<ItemPermissionsEntity> expected = Collections.singletonList(new ItemPermissionsEntity());
+        doReturn(expected).when(permissionsServicesMock).listItemPermissions(ITEM1_ID);
+
+        assertEquals(expected, permissionsManager.listItemPermissions(ITEM1_ID));
+    }
+
+    @Test
+    void testListItemPermissionsWhenCallerHasNoPermission() {
+        doReturn(Optional.empty()).when(permissionsServicesMock).getUserItemPermission(ITEM1_ID, USER);
+
+        Assertions.assertThrows(CoreException.class, () -> permissionsManager.listItemPermissions(ITEM1_ID));
+        verify(permissionsServicesMock, never()).listItemPermissions(ITEM1_ID);
     }
 
     @Test
