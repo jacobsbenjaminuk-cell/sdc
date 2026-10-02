@@ -38,6 +38,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -53,6 +54,8 @@ import javax.ws.rs.core.Response;
 import org.apache.commons.collections4.MapUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.cxf.jaxrs.ext.multipart.Attachment;
+import org.openecomp.core.utilities.file.FileSizeLimitExceededException;
+import org.openecomp.core.utilities.file.FileUtils;
 import org.openecomp.sdc.activitylog.ActivityLogManager;
 import org.openecomp.sdc.activitylog.ActivityLogManagerFactory;
 import org.openecomp.sdc.activitylog.dao.type.ActivityLogEntity;
@@ -63,6 +66,7 @@ import org.openecomp.sdc.be.csar.storage.ArtifactStorageManager;
 import org.openecomp.sdc.be.csar.storage.PackageSizeReducer;
 import org.openecomp.sdc.be.csar.storage.StorageFactory;
 import org.openecomp.sdc.be.csar.storage.exception.ArtifactStorageException;
+import org.openecomp.sdc.common.errors.CoreException;
 import org.openecomp.sdc.common.util.ValidationUtils;
 import org.openecomp.sdc.common.utils.SdcCommon;
 import org.openecomp.sdc.datatypes.error.ErrorLevel;
@@ -75,6 +79,7 @@ import org.openecomp.sdc.vendorsoftwareproduct.VendorSoftwareProductManager;
 import org.openecomp.sdc.vendorsoftwareproduct.VspManagerFactory;
 import org.openecomp.sdc.vendorsoftwareproduct.dao.type.VspDetails;
 import org.openecomp.sdc.vendorsoftwareproduct.dao.type.VspUploadStatus;
+import org.openecomp.sdc.vendorsoftwareproduct.errors.UploadTooLargeErrorBuilder;
 import org.openecomp.sdc.vendorsoftwareproduct.impl.onboarding.OnboardingPackageProcessor;
 import org.openecomp.sdc.vendorsoftwareproduct.impl.onboarding.validation.CnfPackageValidator;
 import org.openecomp.sdc.vendorsoftwareproduct.types.OnboardPackageInfo;
@@ -152,7 +157,7 @@ public class OrchestrationTemplateCandidateImpl implements OrchestrationTemplate
                 artifactInfo = handleArtifactStorage(vspId, versionId, filename, dataHandler, artifactStorageManager);
                 fileToUploadBytes = artifactInfo.getBytes();
             } else {
-                fileToUploadBytes = fileToUpload.getObject(byte[].class);
+                fileToUploadBytes = readPackage(dataHandler);
             }
 
             vspUploadStatus = orchestrationTemplateCandidateUploadManager.putUploadInValidation(vspId, versionId, user);
@@ -211,6 +216,16 @@ public class OrchestrationTemplateCandidateImpl implements OrchestrationTemplate
         }
 
         return vspUploadStatusOpt.get();
+    }
+
+    private byte[] readPackage(final DataHandler dataHandler) {
+        try (final InputStream packageInputStream = dataHandler.getInputStream()) {
+            return FileUtils.toByteArray(packageInputStream, FileUtils.getMaxUploadSize());
+        } catch (final FileSizeLimitExceededException e) {
+            throw new CoreException(new UploadTooLargeErrorBuilder(e.getMaxSize()).build(), e);
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private ArtifactInfo handleArtifactStorage(final String vspId, final String versionId, final String filename,

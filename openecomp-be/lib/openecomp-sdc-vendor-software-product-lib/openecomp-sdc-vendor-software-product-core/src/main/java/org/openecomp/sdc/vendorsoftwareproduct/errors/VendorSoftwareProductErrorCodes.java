@@ -25,6 +25,7 @@ public class VendorSoftwareProductErrorCodes {
     public static final String VFC_INVALID = "VFC_INVALID";
     public static final String FAILED_TO_CREATE_VSP = "FAILED_TO_CREATE_VSP";
     public static final String UPLOAD_INVALID = "UPLOAD_INVALID";
+    public static final String UPLOAD_TOO_LARGE = "UPLOAD_TOO_LARGE";
     public static final String PACKAGE_NOT_FOUND = "PACKAGE_NOT_FOUND";
     public static final String PACKAGE_INVALID = "PACKAGE_INVALID";
     public static final String VSP_COMPOSITION_EDIT_NOT_ALLOWED = "VSP_COMPOSITION_EDIT_NOT_ALLOWED";

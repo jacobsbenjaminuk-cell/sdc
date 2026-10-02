@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import org.openecomp.core.dao.UniqueValueDao;
 import org.openecomp.core.util.UniqueValueUtil;
+import org.openecomp.core.utilities.file.FileSizeLimitExceededException;
 import org.openecomp.core.utilities.file.FileUtils;
 import org.openecomp.sdc.common.errors.CoreException;
 import org.openecomp.sdc.common.errors.ErrorCode;
@@ -32,6 +33,7 @@ import org.openecomp.sdc.vendorsoftwareproduct.dao.ProcessDao;
 import org.openecomp.sdc.vendorsoftwareproduct.dao.type.ProcessEntity;
 import org.openecomp.sdc.vendorsoftwareproduct.dao.type.VspDetails;
 import org.openecomp.sdc.vendorsoftwareproduct.errors.UploadInvalidErrorBuilder;
+import org.openecomp.sdc.vendorsoftwareproduct.errors.UploadTooLargeErrorBuilder;
 import org.openecomp.sdc.versioning.VersioningUtil;
 import org.openecomp.sdc.versioning.dao.types.Version;
 import org.openecomp.sdc.versioning.errors.VersioningErrorCodes;
@@ -136,7 +138,9 @@ public class ProcessManagerImpl implements ProcessManager {
             throw new CoreException(new UploadInvalidErrorBuilder().build());
         }
         try {
-            return ByteBuffer.wrap(FileUtils.toByteArray(artifactInputStream));
+            return ByteBuffer.wrap(FileUtils.toByteArray(artifactInputStream, FileUtils.getMaxUploadSize()));
+        } catch (FileSizeLimitExceededException exception) {
+            throw new CoreException(new UploadTooLargeErrorBuilder(exception.getMaxSize()).build(), exception);
         } catch (RuntimeException exception) {
             throw new CoreException(new UploadInvalidErrorBuilder().build(), exception);
         }
