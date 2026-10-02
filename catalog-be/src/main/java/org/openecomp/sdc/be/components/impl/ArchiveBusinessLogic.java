@@ -25,6 +25,8 @@ import static org.openecomp.sdc.common.datastructure.FunctionalInterfaces.wrapWi
 
 import com.google.common.annotations.VisibleForTesting;
 import fj.data.Either;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -34,8 +36,10 @@ import java.util.stream.Collectors;
 import org.openecomp.sdc.be.catalog.enums.ChangeTypeEnum;
 import org.openecomp.sdc.be.components.impl.exceptions.ByActionStatusComponentException;
 import org.openecomp.sdc.be.components.validation.AccessValidations;
+import org.openecomp.sdc.be.config.ConfigurationManager;
 import org.openecomp.sdc.be.dao.api.ActionStatus;
 import org.openecomp.sdc.be.dao.janusgraph.JanusGraphDao;
+import org.openecomp.sdc.be.dao.jsongraph.types.JsonParseFlagEnum;
 import org.openecomp.sdc.be.datatypes.enums.ComponentTypeEnum;
 import org.openecomp.sdc.be.datatypes.enums.OriginTypeEnum;
 import org.openecomp.sdc.be.facade.operations.CatalogOperation;
@@ -48,6 +52,7 @@ import org.openecomp.sdc.be.model.jsonjanusgraph.operations.ArchiveOperation;
 import org.openecomp.sdc.be.model.jsonjanusgraph.operations.ToscaOperationFacade;
 import org.openecomp.sdc.be.model.operations.api.StorageOperationStatus;
 import org.openecomp.sdc.be.resources.data.auditing.AuditingActionEnum;
+import org.openecomp.sdc.be.user.Role;
 import org.openecomp.sdc.common.log.enums.EcompLoggerErrorCode;
 import org.openecomp.sdc.common.log.wrappers.Logger;
 import org.openecomp.sdc.exception.ResponseFormat;
@@ -75,6 +80,7 @@ public class ArchiveBusinessLogic {
 
     public void archiveComponent(String containerComponentType, String userId, String componentId) {
         User user = accessValidations.userIsAdminOrDesigner(userId, containerComponentType + "_ARCHIVE");
+        validateUserOwnsComponent(user, componentId);
         Either<List<String>, ActionStatus> result = this.archiveOperation.archiveComponent(componentId);
         if (result.isRight()) {
             ActionStatus status = result.right().value();
@@ -90,6 +96,7 @@ public class ArchiveBusinessLogic {
 
     public void restoreComponent(String containerComponentType, String userId, String componentId) {
         User user = accessValidations.userIsAdminOrDesigner(userId, containerComponentType + "_RESTORE");
+        validateUserOwnsComponent(user, componentId);
         Either<List<String>, ActionStatus> result = this.archiveOperation.restoreComponent(componentId);
         if (result.isRight()) {
             throw new ByActionStatusComponentException(result.right().value(), componentId);
@@ -99,15 +106,42 @@ public class ArchiveBusinessLogic {
         wrapWithTryCatch(() -> sendNotificationToFacade(componentId, ChangeTypeEnum.RESTORE));
     }
 
-    public List<String> onVspArchive(String userId, List<String> csarUuids) {
-        return this.onVspArchiveOrRestore(userId, csarUuids, ArchiveOperation.Action.ARCHIVE);
+    private void validateUserOwnsComponent(User user, String componentId) {
+        if (Role.ADMIN.name().equals(user.getRole())) {
+            return;
+        }
+        Component component = toscaOperationFacade.getToscaElement(componentId, JsonParseFlagEnum.ParseMetadata).left().on(status -> {
+            if (status == StorageOperationStatus.NOT_FOUND) {
+                throw new ByActionStatusComponentException(ActionStatus.RESOURCE_NOT_FOUND, componentId);
+            }
+            throw new ByActionStatusComponentException(ActionStatus.GENERAL_ERROR);
+        });
+        String userId = user.getUserId();
+        if (!userId.equals(component.getCreatorUserId()) && !userId.equals(component.getLastUpdaterUserId())) {
+            log.debug("User {} is not the creator or last updater of component {}", userId, componentId);
+            throw new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION);
+        }
     }
 
-    public List<String> onVspRestore(String userId, List<String> csarUuids) {
-        return this.onVspArchiveOrRestore(userId, csarUuids, ArchiveOperation.Action.RESTORE);
+    public List<String> onVspArchive(String userId, String notificationToken, List<String> csarUuids) {
+        return this.onVspArchiveOrRestore(userId, notificationToken, csarUuids, ArchiveOperation.Action.ARCHIVE);
     }
 
-    private List<String> onVspArchiveOrRestore(String userId, List<String> csarUuids, ArchiveOperation.Action action) {
+    public List<String> onVspRestore(String userId, String notificationToken, List<String> csarUuids) {
+        return this.onVspArchiveOrRestore(userId, notificationToken, csarUuids, ArchiveOperation.Action.RESTORE);
+    }
+
+    private void validateVspNotificationToken(String notificationToken) {
+        String expectedToken = ConfigurationManager.getConfigurationManager().getConfiguration().getVspNotificationToken();
+        if (expectedToken == null || expectedToken.isEmpty() || notificationToken == null || !MessageDigest
+            .isEqual(expectedToken.getBytes(StandardCharsets.UTF_8), notificationToken.getBytes(StandardCharsets.UTF_8))) {
+            log.debug("VSP notification rejected: missing or invalid notification token");
+            throw new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION);
+        }
+    }
+
+    private List<String> onVspArchiveOrRestore(String userId, String notificationToken, List<String> csarUuids, ArchiveOperation.Action action) {
+        validateVspNotificationToken(notificationToken);
         accessValidations.userIsAdminOrDesigner(userId, action.name() + "_VSP");
         ActionStatus actionStatus;
         List<String> failedCsarIDs = new LinkedList<>();

@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -70,6 +71,7 @@ import org.openecomp.sdc.be.dao.janusgraph.JanusGraphGenericDao;
 import org.openecomp.sdc.be.dao.janusgraph.JanusGraphOperationStatus;
 import org.openecomp.sdc.be.dao.jsongraph.GraphVertex;
 import org.openecomp.sdc.be.dao.jsongraph.types.EdgeLabelEnum;
+import org.openecomp.sdc.be.dao.jsongraph.types.JsonParseFlagEnum;
 import org.openecomp.sdc.be.datatypes.enums.ComponentTypeEnum;
 import org.openecomp.sdc.be.datatypes.enums.GraphPropertyEnum;
 import org.openecomp.sdc.be.datatypes.enums.JsonPresentationFields;
@@ -118,6 +120,7 @@ class ArchiveEndpointTest extends JerseyTest {
     private static final ServletContext servletContext = mock(ServletContext.class);
     private static final String CSAR_UUID1 = "123456789abcdefgh";
     private static final String CSAR_UUID2 = "987654321abcdefgh";
+    private static final String VSP_NOTIFICATION_TOKEN = "vsp-notification-token";
 
     private static final WebAppContextWrapper webAppContextWrapper = mock(WebAppContextWrapper.class);
     private static final WebApplicationContext webApplicationContext = mock(WebApplicationContext.class);
@@ -329,6 +332,8 @@ class ArchiveEndpointTest extends JerseyTest {
 
         ComponentException ce = new ByResponseFormatComponentException(responseFormat);
         doThrow(ce).when(accessValidationsMock).userIsAdminOrDesigner(eq(otherUser.getUserId()), any());
+        when(accessValidationsMock.userIsAdminOrDesigner(eq(designerUser.getUserId()), any())).thenReturn(designerUser);
+        when(accessValidationsMock.userIsAdminOrDesigner(eq(adminUser.getUserId()), any())).thenReturn(adminUser);
 
         //Needed for error configuration
         when(notFoundResponseFormat.getStatus()).thenReturn(HttpStatus.NOT_FOUND.value());
@@ -349,6 +354,7 @@ class ArchiveEndpointTest extends JerseyTest {
 
         org.openecomp.sdc.be.config.Configuration configuration = new org.openecomp.sdc.be.config.Configuration();
         configuration.setJanusGraphInMemoryGraph(true);
+        configuration.setVspNotificationToken(VSP_NOTIFICATION_TOKEN);
 
         HeatDeploymentArtifactTimeout heatDeploymentArtifactTimeout = new HeatDeploymentArtifactTimeout();
         heatDeploymentArtifactTimeout.setDefaultMinutes(30);
@@ -377,6 +383,7 @@ class ArchiveEndpointTest extends JerseyTest {
     void archiveAndGetArchivedService_SingleService() {
         Component serviceComponent = mock(Component.class);
         final String serviceUniqueId = serviceVertex.getUniqueId();
+        givenComponentOwnedBy(serviceUniqueId, designerUser.getUserId());
         when(toscaOperationFacade.getToscaElement(serviceUniqueId)).thenReturn(Either.left(serviceComponent));
         when(catalogOperations.updateCatalog(ChangeTypeEnum.ARCHIVE, serviceComponent)).thenReturn(ActionStatus.OK);
         archiveService(serviceUniqueId, HttpStatus.OK.value());
@@ -388,6 +395,7 @@ class ArchiveEndpointTest extends JerseyTest {
     void archiveAndGetArchivedResource_SingleResource() {
         Component component = mock(Component.class);
         final String uniqueId = resourceVertex.getUniqueId();
+        givenComponentOwnedBy(uniqueId, designerUser.getUserId());
         when(toscaOperationFacade.getToscaElement(uniqueId)).thenReturn(Either.left(component));
         when(catalogOperations.updateCatalog(ChangeTypeEnum.ARCHIVE, component)).thenReturn(ActionStatus.OK);
         archiveResource(uniqueId, HttpStatus.OK.value());
@@ -398,6 +406,7 @@ class ArchiveEndpointTest extends JerseyTest {
     @Test
     void attemptArchiveCheckedOutService() {
         checkoutComponent(serviceVertex);
+        givenComponentOwnedBy(serviceVertex.getUniqueId(), designerUser.getUserId());
         archiveService(serviceVertex.getUniqueId(), HttpStatus.CONFLICT.value());
     }
 
@@ -412,6 +421,7 @@ class ArchiveEndpointTest extends JerseyTest {
             .request(MediaType.APPLICATION_JSON)
             .accept(MediaType.APPLICATION_JSON)
             .header(Constants.USER_ID_HEADER, designerUser.getUserId())
+            .header(ArchiveEndpoint.VSP_NOTIFICATION_TOKEN_HEADER, VSP_NOTIFICATION_TOKEN)
             .post(Entity.json(csarIds));
 
         assertThat(response.getStatus()).isEqualTo(HttpStatus.OK.value());
@@ -429,6 +439,7 @@ class ArchiveEndpointTest extends JerseyTest {
             .request(MediaType.APPLICATION_JSON)
             .accept(MediaType.APPLICATION_JSON)
             .header(Constants.USER_ID_HEADER, designerUser.getUserId())
+            .header(ArchiveEndpoint.VSP_NOTIFICATION_TOKEN_HEADER, VSP_NOTIFICATION_TOKEN)
             .post(Entity.json(csarIds));
 
         assertThat(response.getStatus()).isEqualTo(HttpStatus.OK.value());
@@ -440,12 +451,85 @@ class ArchiveEndpointTest extends JerseyTest {
      */
     @Test
     void archiveWithInvalidUid() {
+        givenComponentNotFound("fakeUid");
         archiveService("fakeUid", HttpStatus.NOT_FOUND.value());
     }
 
     @Test
     void restoreWithInvalidUid() {
+        givenComponentNotFound("fakeUid");
         restoreService("fakeUid", HttpStatus.NOT_FOUND.value());
+    }
+
+    @Test
+    void archiveServiceByDesignerWhoDoesNotOwnIt() {
+        givenComponentOwnedBy(serviceVertex.getUniqueId(), adminUser.getUserId());
+        archiveService(serviceVertex.getUniqueId(), HttpStatus.UNAUTHORIZED.value());
+        assertOnGetArchivedComponents(null, 0);
+    }
+
+    @Test
+    void restoreResourceByDesignerWhoDoesNotOwnIt() {
+        givenComponentOwnedBy(resourceVertex.getUniqueId(), adminUser.getUserId());
+        restoreResource(resourceVertex.getUniqueId(), HttpStatus.UNAUTHORIZED.value());
+    }
+
+    @Test
+    void archiveServiceByAdminWhoDoesNotOwnIt() {
+        Component serviceComponent = mock(Component.class);
+        final String serviceUniqueId = serviceVertex.getUniqueId();
+        givenComponentOwnedBy(serviceUniqueId, designerUser.getUserId());
+        when(toscaOperationFacade.getToscaElement(serviceUniqueId)).thenReturn(Either.left(serviceComponent));
+        when(catalogOperations.updateCatalog(ChangeTypeEnum.ARCHIVE, serviceComponent)).thenReturn(ActionStatus.OK);
+        String path = String.format("/v1/catalog/services/%s/archive", serviceUniqueId);
+        Response response = target()
+            .path(path)
+            .request()
+            .accept(MediaType.APPLICATION_JSON)
+            .header(Constants.USER_ID_HEADER, adminUser.getUserId())
+            .post(null);
+
+        assertThat(response.getStatus()).isEqualTo(HttpStatus.OK.value());
+        assertOnGetArchivedComponents(ComponentTypeEnum.SERVICE_PARAM_NAME, 1);
+    }
+
+    @Test
+    void onArchivedVspsWithoutNotificationToken() {
+        Response response = postVspNotification("/v1/catalog/notif/vsp/archived", null);
+        assertThat(response.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
+        assertOnVertexProp(resourceVertex.getUniqueId(), false);
+    }
+
+    @Test
+    void onRestoredVspsWithWrongNotificationToken() {
+        Response response = postVspNotification("/v1/catalog/notif/vsp/restored", "wrong-token");
+        assertThat(response.getStatus()).isEqualTo(HttpStatus.UNAUTHORIZED.value());
+        assertOnVertexProp(resourceVertexVspArchived.getUniqueId(), true);
+    }
+
+    private Response postVspNotification(String path, String token) {
+        List<String> csarIds = new LinkedList<>();
+        csarIds.add(CSAR_UUID1);
+        csarIds.add(CSAR_UUID2);
+        return target()
+            .path(path)
+            .request(MediaType.APPLICATION_JSON)
+            .accept(MediaType.APPLICATION_JSON)
+            .header(Constants.USER_ID_HEADER, designerUser.getUserId())
+            .header(ArchiveEndpoint.VSP_NOTIFICATION_TOKEN_HEADER, token)
+            .post(Entity.json(csarIds));
+    }
+
+    private void givenComponentOwnedBy(String componentId, String ownerUserId) {
+        Component component = mock(Component.class);
+        when(component.getCreatorUserId()).thenReturn(ownerUserId);
+        when(component.getLastUpdaterUserId()).thenReturn(ownerUserId);
+        doReturn(Either.left(component)).when(toscaOperationFacade).getToscaElement(componentId, JsonParseFlagEnum.ParseMetadata);
+    }
+
+    private void givenComponentNotFound(String componentId) {
+        doReturn(Either.right(StorageOperationStatus.NOT_FOUND)).when(toscaOperationFacade)
+            .getToscaElement(componentId, JsonParseFlagEnum.ParseMetadata);
     }
 
     @Test

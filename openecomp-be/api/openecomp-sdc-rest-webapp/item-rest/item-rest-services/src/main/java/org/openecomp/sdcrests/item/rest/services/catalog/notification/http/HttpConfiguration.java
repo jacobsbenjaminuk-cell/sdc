@@ -39,4 +39,6 @@ public class HttpConfiguration {
     private String catalogBeSslPort;
     private String catalogBeFqdn;
     private String catalogNotificationUrl;
+    @ToString.Exclude
+    private String catalogNotificationToken;
 }

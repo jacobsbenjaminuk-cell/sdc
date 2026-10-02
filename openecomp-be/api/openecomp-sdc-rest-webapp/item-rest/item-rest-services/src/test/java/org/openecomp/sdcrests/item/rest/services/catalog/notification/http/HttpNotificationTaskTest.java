@@ -147,4 +147,14 @@ public class HttpNotificationTaskTest {
         assertEquals(DONE, task.call());
         verify(postRequestedFor(urlEqualTo(NOTIFICATION_PATH)).withHeader("USER_ID", new EqualToPattern(USER_ID)));
     }
+
+    @Test
+    public void notificationTokenSentToServer() {
+        final String token = UUID.randomUUID().toString();
+        stubFor(post(NOTIFICATION_PATH).willReturn(aResponse().withStatus(200)));
+        HttpNotificationTask task = new HttpNotificationTask(endpoint, USER_ID, token, Collections.emptyList());
+        assertEquals(DONE, task.call());
+        verify(postRequestedFor(urlEqualTo(NOTIFICATION_PATH))
+                       .withHeader(HttpNotificationTask.NOTIFICATION_TOKEN_HEADER_PARAM, new EqualToPattern(token)));
+    }
 }

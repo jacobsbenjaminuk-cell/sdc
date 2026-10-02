@@ -120,6 +120,10 @@ basicAuth:
   userPass: "testPass"
   excludedUrls: ""
 
+# shared secret the onboarding service sends with VSP archive/restore notifications (/v1/catalog/notif/vsp/*);
+# notifications are rejected while this is empty. Must match catalogNotificationToken in the onboarding configuration.
+vspNotificationToken: ""
+
 cassandraConfig:
     cassandraHosts: [192.168.33.10]
     cassandraPort: 9042

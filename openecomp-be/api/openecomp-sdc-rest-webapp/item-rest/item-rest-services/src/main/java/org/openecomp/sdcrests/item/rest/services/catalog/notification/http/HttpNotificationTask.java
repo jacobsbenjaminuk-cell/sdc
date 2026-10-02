@@ -53,13 +53,21 @@ class HttpNotificationTask implements Callable<AsyncNotifier.NextAction> {
     private static final Logger LOGGER = LoggerFactory.getLogger(HttpNotificationTask.class);
     private static final String APPLICATION_JSON = ContentType.APPLICATION_JSON.getMimeType();
     private static final String USER_ID_HEADER_PARAM = "USER_ID";
+    static final String NOTIFICATION_TOKEN_HEADER_PARAM = "X-SDC-VSP-NOTIFICATION-TOKEN";
     private final String endpoint;
     private final String userId;
+    @ToString.Exclude
+    private final String notificationToken;
     private volatile Collection<String> itemIds;
 
     HttpNotificationTask(String endpoint, String userId, Collection<String> itemIds) {
+        this(endpoint, userId, null, itemIds);
+    }
+
+    HttpNotificationTask(String endpoint, String userId, String notificationToken, Collection<String> itemIds) {
         this.endpoint = endpoint;
         this.userId = userId;
+        this.notificationToken = notificationToken;
         this.itemIds = itemIds;
     }
 
@@ -88,6 +96,9 @@ class HttpNotificationTask implements Callable<AsyncNotifier.NextAction> {
         request.addHeader(HttpHeaders.ACCEPT, APPLICATION_JSON);
         request.addHeader(HttpHeaders.CONTENT_TYPE, APPLICATION_JSON);
         request.addHeader(USER_ID_HEADER_PARAM, userId);
+        if (notificationToken != null) {
+            request.addHeader(NOTIFICATION_TOKEN_HEADER_PARAM, notificationToken);
+        }
         HttpEntity entity = new StringEntity(JsonUtil.object2Json(itemIds));
         request.setEntity(entity);
         return request;
