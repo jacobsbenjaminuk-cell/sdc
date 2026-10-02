@@ -78,6 +78,74 @@ public class PermissionsFilterTest {
         Mockito.verify(filterChain, Mockito.times(1)).doFilter(Mockito.any(), Mockito.any());
     }
 
+    @Test
+    public void testDoFilterBlocksItemActionWithoutPermission() throws ServletException, IOException {
+        assertItemRequestBlocked(HttpMethod.PUT, "/v1.0/items/item1/actions");
+    }
+
+    @Test
+    public void testDoFilterBlocksVersionCreationWithoutPermission() throws ServletException, IOException {
+        assertItemRequestBlocked(HttpMethod.POST, "/v1.0/items/item1/versions/version1");
+    }
+
+    @Test
+    public void testDoFilterBlocksVersionActionWithoutPermission() throws ServletException, IOException {
+        assertItemRequestBlocked(HttpMethod.PUT, "/v1.0/items/item1/versions/version1/actions");
+    }
+
+    @Test
+    public void testDoFilterBlocksConflictResolutionWithoutPermission() throws ServletException, IOException {
+        assertItemRequestBlocked(HttpMethod.PUT, "/v1.0/items/item1/versions/version1/conflicts/conflict1");
+    }
+
+    @Test
+    public void testDoFilterPassesItemActionWithPermission() throws ServletException, IOException {
+        HttpServletRequest httpServletRequest = Mockito.spy(HttpServletRequest.class);
+        HttpServletResponse httpServletResponse = Mockito.spy(HttpServletResponse.class);
+        FilterChain filterChain = Mockito.mock(FilterChain.class);
+
+        initializeMocking(httpServletRequest, httpServletResponse, filterChain);
+        Mockito.when(httpServletRequest.getMethod()).thenReturn(HttpMethod.PUT);
+        Mockito.when(httpServletRequest.getPathInfo()).thenReturn("/v1.0/items/item1/actions");
+        Mockito.when(permissionsServicesMock.isAllowed("item1", "cs0008", "Edit_Item")).thenReturn(true);
+
+        permissionsFilter.doFilter(httpServletRequest, httpServletResponse, filterChain);
+
+        Mockito.verify(filterChain, Mockito.times(1)).doFilter(Mockito.any(), Mockito.any());
+    }
+
+    @Test
+    public void testDoFilterSkipsItemRead() throws ServletException, IOException {
+        HttpServletRequest httpServletRequest = Mockito.spy(HttpServletRequest.class);
+        HttpServletResponse httpServletResponse = Mockito.spy(HttpServletResponse.class);
+        FilterChain filterChain = Mockito.mock(FilterChain.class);
+
+        initializeMocking(httpServletRequest, httpServletResponse, filterChain);
+        Mockito.when(httpServletRequest.getMethod()).thenReturn(HttpMethod.GET);
+        Mockito.when(httpServletRequest.getPathInfo()).thenReturn("/v1.0/items/item1/versions");
+
+        permissionsFilter.doFilter(httpServletRequest, httpServletResponse, filterChain);
+
+        Mockito.verify(filterChain, Mockito.times(1)).doFilter(Mockito.any(), Mockito.any());
+        Mockito.verify(permissionsServicesMock, Mockito.never()).isAllowed(Mockito.anyString(), Mockito.anyString(), Mockito.anyString());
+    }
+
+    private void assertItemRequestBlocked(String method, String pathInfo) throws ServletException, IOException {
+        HttpServletRequest httpServletRequest = Mockito.spy(HttpServletRequest.class);
+        HttpServletResponse httpServletResponse = Mockito.spy(HttpServletResponse.class);
+        FilterChain filterChain = Mockito.mock(FilterChain.class);
+
+        initializeMocking(httpServletRequest, httpServletResponse, filterChain);
+        Mockito.when(httpServletRequest.getMethod()).thenReturn(method);
+        Mockito.when(httpServletRequest.getPathInfo()).thenReturn(pathInfo);
+
+        permissionsFilter.doFilter(httpServletRequest, httpServletResponse, filterChain);
+
+        Mockito.verify(permissionsServicesMock).isAllowed("item1", "cs0008", "Edit_Item");
+        Mockito.verify(httpServletResponse).setStatus(HttpServletResponse.SC_FORBIDDEN);
+        Mockito.verify(filterChain, Mockito.never()).doFilter(Mockito.any(), Mockito.any());
+    }
+
     private void initializeMocking(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse,
                                    FilterChain filterChain) throws ServletException, IOException {
         PrintWriter printWriter = new PrintWriter(new ByteArrayOutputStream());
