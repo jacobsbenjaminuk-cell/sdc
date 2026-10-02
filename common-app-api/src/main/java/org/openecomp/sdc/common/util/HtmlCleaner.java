@@ -81,7 +81,7 @@ public class HtmlCleaner {
             return input;
         }
         for (String tag : tagsToRemove) {
-            stripStr = stripStr.replaceAll(tag, "");
+            stripStr = stripStr.replace(tag, "");
         }
         return stripStr;
     }
