@@ -248,7 +248,8 @@ public class MultitenancyFilter implements Filter {
      * carry no tenant roles and only see components that have no tenant.
      */
     private boolean isAnonymousOptionalAuth(HttpServletRequest request) {
-        if (optionalAuthPattern == null || request.getHeader("Authorization") != null) {
+        String authorization = request.getHeader("Authorization");
+        if (optionalAuthPattern == null || (authorization != null && authorization.regionMatches(true, 0, "Bearer ", 0, 7))) {
             return false;
         }
         String requestPath = request.getRequestURI().substring(request.getContextPath().length());
