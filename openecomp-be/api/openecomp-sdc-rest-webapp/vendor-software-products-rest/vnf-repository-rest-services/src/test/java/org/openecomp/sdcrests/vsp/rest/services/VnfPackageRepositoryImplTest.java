@@ -17,15 +17,19 @@
 package org.openecomp.sdcrests.vsp.rest.services;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.anyUrl;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
+import static com.github.tomakehurst.wiremock.client.WireMock.resetAllRequests;
 import static com.github.tomakehurst.wiremock.client.WireMock.stubFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
+import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.verify;
 import static com.github.tomakehurst.wiremock.core.WireMockConfiguration.wireMockConfig;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import com.github.tomakehurst.wiremock.junit.WireMockRule;
@@ -50,6 +54,9 @@ public class VnfPackageRepositoryImplTest {
 
     private static final String GET_PATH = "/get";
     private static final String DOWNLOAD_PATH = "/download";
+    private static final String DOWNLOAD_TEMPLATE_PATH = "/csars/%s/files";
+    private static final List<String> INVALID_CSAR_IDS = Arrays.asList(null, "", "../../admin", "abc?x=1", "abc#frag", "a/b", "a%2Fb",
+        "a b", "a.b", "abc\r\nSet-Cookie:x", "0123456789012345678901234567890123456789012345678901234567890123x");
 
     @ClassRule
     public static final WireMockRule wireMockRule = new WireMockRule(wireMockConfig().dynamicPort());
@@ -139,12 +146,54 @@ public class VnfPackageRepositoryImplTest {
         verify(getRequestedFor(urlEqualTo(DOWNLOAD_PATH)));
     }
 
+    @Test
+    public void downloadVnfsRejectsInvalidCsarIdWithoutRemoteCall() {
+        resetAllRequests();
+        VnfPackageRepositoryImpl repository = new VnfPackageRepositoryImpl(new DynamicConfiguration(wireMockRule.port(), DOWNLOAD_TEMPLATE_PATH));
+        for (String csarId : INVALID_CSAR_IDS) {
+            Response response = repository.downloadVnfPackage(VSP, VERSION, csarId, USER);
+            assertEquals("Expected 400 for csarId " + csarId, 400, response.getStatus());
+            assertNull(response.getHeaderString("Content-Disposition"));
+        }
+        verify(0, getRequestedFor(anyUrl()));
+    }
+
+    @Test
+    public void importVnfsRejectsInvalidCsarIdWithoutRemoteCall() {
+        resetAllRequests();
+        VnfPackageRepositoryImpl repository = new VnfPackageRepositoryImpl(new DynamicConfiguration(wireMockRule.port(), DOWNLOAD_TEMPLATE_PATH));
+        for (String csarId : INVALID_CSAR_IDS) {
+            Response response = repository.importVnfPackage(VSP, VERSION, csarId, USER);
+            assertEquals("Expected 400 for csarId " + csarId, 400, response.getStatus());
+        }
+        verify(0, getRequestedFor(anyUrl()));
+    }
+
+    @Test
+    public void downloadVnfsPlacesCsarIdInTemplatedPath() {
+        final String csarId = "4d8ea9d3-1f4c-4b8a-9c3e-0a1b2c3d4e5f";
+        final String expectedPath = String.format(DOWNLOAD_TEMPLATE_PATH, csarId);
+        final byte[] body = "csar content".getBytes(StandardCharsets.ISO_8859_1);
+        stubFor(get(expectedPath).willReturn(aResponse().withStatus(200).withBody(body)));
+        VnfPackageRepositoryImpl repository = new VnfPackageRepositoryImpl(new DynamicConfiguration(wireMockRule.port(), DOWNLOAD_TEMPLATE_PATH));
+        Response response = repository.downloadVnfPackage(VSP, VERSION, csarId, USER);
+        assertEquals(200, response.getStatus());
+        assertEquals("attachment; filename=temp_" + csarId + ".csar", response.getHeaderString("Content-Disposition"));
+        verify(getRequestedFor(urlPathEqualTo(expectedPath)));
+    }
+
     private static class DynamicConfiguration implements VnfPackageRepositoryImpl.Configuration {
 
         private final int port;
+        private final String downloadPath;
 
         private DynamicConfiguration(int port) {
+            this(port, DOWNLOAD_PATH);
+        }
+
+        private DynamicConfiguration(int port, String downloadPath) {
             this.port = port;
+            this.downloadPath = downloadPath;
         }
 
         @Override
@@ -154,7 +203,7 @@ public class VnfPackageRepositoryImplTest {
 
         @Override
         public String getDownloadUri() {
-            return toUri(DOWNLOAD_PATH);
+            return toUri(downloadPath);
         }
 
         private String toUri(String path) {

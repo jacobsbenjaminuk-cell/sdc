@@ -29,15 +29,18 @@ import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.regex.Pattern;
 import javax.inject.Named;
 import javax.net.ssl.SSLContext;
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.core.Response;
+import javax.ws.rs.core.UriBuilder;
 import org.onap.config.api.ConfigurationManager;
 import org.onap.config.api.JettySSLUtils;
 import org.openecomp.core.utilities.orchestration.OnboardingTypesEnum;
 import org.openecomp.sdc.common.errors.CoreException;
+import org.openecomp.sdc.common.errors.ErrorCategory;
 import org.openecomp.sdc.common.errors.ErrorCode;
 import org.openecomp.sdc.common.errors.ErrorCodeAndMessage;
 import org.openecomp.sdc.common.errors.GeneralErrorBuilder;
@@ -74,6 +77,8 @@ public class VnfPackageRepositoryImpl implements VnfPackageRepository {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(VnfPackageRepositoryImpl.class);
     private static final Client CLIENT = trustSSLClient();
+    private static final Pattern CSAR_ID_PATTERN = Pattern.compile("^[A-Za-z0-9_-]{1,64}$");
+    private static final String CSAR_ID_TEMPLATE = "{csarId}";
 
     private static Client trustSSLClient() {
         try {
@@ -112,8 +117,11 @@ public class VnfPackageRepositoryImpl implements VnfPackageRepository {
 
     @Override
     public Response importVnfPackage(String vspId, String versionId, String csarId, String user) {
+        if (!isValidCsarId(csarId)) {
+            return generateInvalidCsarIdError();
+        }
         LOGGER.debug("Import VNF Packages from Repository: {}", csarId);
-        final String downloadPackageUri = String.format(config.getDownloadUri(), csarId);
+        final String downloadPackageUri = buildDownloadUri(csarId);
         Response remoteResponse = CLIENT.target(downloadPackageUri).request().get();
         if (remoteResponse.getStatus() != Response.Status.OK.getStatusCode()) {
             return handleUnexpectedStatus("downloading VNF package", downloadPackageUri, remoteResponse);
@@ -145,8 +153,11 @@ public class VnfPackageRepositoryImpl implements VnfPackageRepository {
 
     @Override
     public Response downloadVnfPackage(String vspId, String versionId, String csarId, String user) {
+        if (!isValidCsarId(csarId)) {
+            return generateInvalidCsarIdError();
+        }
         LOGGER.debug("Download VNF package from repository: csarId={}", csarId);
-        final String downloadPackageUri = String.format(config.getDownloadUri(), csarId);
+        final String downloadPackageUri = buildDownloadUri(csarId);
         Response remoteResponse = CLIENT.target(downloadPackageUri).request().get();
         if (remoteResponse.getStatus() != Response.Status.OK.getStatusCode()) {
             return handleUnexpectedStatus("downloading VNF package", downloadPackageUri, remoteResponse);
@@ -156,6 +167,20 @@ public class VnfPackageRepositoryImpl implements VnfPackageRepository {
         response.header(CONTENT_DISPOSITION, "attachment; filename=" + formatFilename(csarId));
         LOGGER.debug("Response from VNF Repository for download package is success. URI={}", downloadPackageUri);
         return response.build();
+    }
+
+    private String buildDownloadUri(String csarId) {
+        return UriBuilder.fromUri(String.format(config.getDownloadUri(), CSAR_ID_TEMPLATE)).build(csarId).toString();
+    }
+
+    private static boolean isValidCsarId(String csarId) {
+        return csarId != null && CSAR_ID_PATTERN.matcher(csarId).matches();
+    }
+
+    private static Response generateInvalidCsarIdError() {
+        ErrorCode error = new ErrorCode.ErrorCodeBuilder().withId("INVALID_CSAR_ID").withCategory(ErrorCategory.VALIDATION)
+            .withMessage("Invalid CSAR ID: only letters, digits, '-' and '_' are allowed (up to 64 characters)").build();
+        return Response.status(Response.Status.BAD_REQUEST).entity(new ErrorCodeAndMessage(Response.Status.BAD_REQUEST, error)).build();
     }
 
     private Version getVersion(String vspId, String versionId) {
