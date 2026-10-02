@@ -48,7 +48,7 @@ aaiConfig:
          connectTimeoutMs: 1000
       clientCertificate:
          keyStore: /opt/app/jetty/base/be/etc/non-prod.jks
-         keyStorePassword: hmXYcznAljMSisdy8zgcag==
+         keyStorePassword: ${AAI_KEYSTORE_PASSWORD}
       headers:
          X-FromAppId: asdc
       numOfRetries: 3
@@ -65,5 +65,5 @@ msoConfig:
           connectTimeoutMs: 500
        basicAuthorization:
           userName: asdc
-          password: OTLEp5lfVhYdyw5EAtTUBQ==
+          password: ${MSO_BASIC_AUTH_PASSWORD}
        numOfRetries: 3
