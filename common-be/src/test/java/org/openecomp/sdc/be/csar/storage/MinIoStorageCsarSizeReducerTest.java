@@ -24,21 +24,34 @@ package org.openecomp.sdc.be.csar.storage;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.when;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.zip.CRC32;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.openecomp.sdc.be.csar.storage.exception.CsarSizeReducerException;
 import org.openecomp.sdc.common.zip.ZipUtils;
 import org.openecomp.sdc.common.zip.exception.ZipException;
 
@@ -48,6 +61,8 @@ class MinIoStorageCsarSizeReducerTest {
     private CsarPackageReducerConfiguration csarPackageReducerConfiguration;
     @InjectMocks
     private MinIoStorageCsarSizeReducer minIoStorageCsarSizeReducer;
+    @TempDir
+    Path tempDir;
 
     @BeforeEach
     void setUp() {
@@ -63,6 +78,7 @@ class MinIoStorageCsarSizeReducerTest {
         when(csarPackageReducerConfiguration.getSizeLimit()).thenReturn(sizeLimit);
         when(csarPackageReducerConfiguration.getFoldersToStrip()).thenReturn(Set.of(pathToReduce1, pathToReduce2));
         when(csarPackageReducerConfiguration.getThresholdEntries()).thenReturn(10000);
+        when(csarPackageReducerConfiguration.getMaxUncompressedSize()).thenReturn(10_000_000L);
 
         final var csarPath = Path.of("src/test/resources/csarSizeReducer/" + fileName);
 
@@ -92,6 +108,118 @@ class MinIoStorageCsarSizeReducerTest {
                     break;
             }
         }
+    }
+
+    @Test
+    void entryLargerThanSizeLimitIsStrippedEvenWhenItsDeclaredSizeIsSmallTest() throws IOException, ZipException {
+        mockConfiguration(1_000L, 10_000_000L);
+        final var entries = new LinkedHashMap<String, byte[]>();
+        entries.put("Definitions/main.yaml", "tosca_definitions_version: tosca_simple_yaml_1_3".getBytes(StandardCharsets.UTF_8));
+        entries.put("Files/bomb.txt", new byte[1_000_000]);
+        final Path csarPath = tempDir.resolve("declared-small.csar");
+        Files.write(csarPath, setDeclaredUncompressedSize(createZip(entries), "Files/bomb.txt", 1));
+
+        final Map<String, byte[]> reducedCsar = ZipUtils.readZip(minIoStorageCsarSizeReducer.reduce(csarPath), false);
+
+        assertArrayEquals(entries.get("Definitions/main.yaml"), reducedCsar.get("Definitions/main.yaml"));
+        assertArrayEquals(new byte[0], reducedCsar.get("Files/bomb.txt"));
+        assertTrue(minIoStorageCsarSizeReducer.getReduced().get());
+    }
+
+    @Test
+    void unsignedPackageExceedingMaxUncompressedSizeIsRejectedTest() throws IOException {
+        mockConfiguration(1_000_000L, 2_000_000L);
+        final var entries = new LinkedHashMap<String, byte[]>();
+        for (int i = 0; i < 3; i++) {
+            entries.put("Files/file" + i + ".txt", new byte[900_000]);
+        }
+        final Path csarPath = tempDir.resolve("unsigned-bomb.csar");
+        Files.write(csarPath, createZip(entries));
+
+        assertThrows(CsarSizeReducerException.class, () -> minIoStorageCsarSizeReducer.reduce(csarPath));
+        assertOnlyFileLeftIs(csarPath);
+    }
+
+    @Test
+    void signedPackageWithOversizedSignatureIsRejectedTest() throws IOException {
+        mockConfiguration(1_000_000L, 2_000_000L);
+        final var innerEntries = new LinkedHashMap<String, byte[]>();
+        innerEntries.put("Definitions/main.yaml", "tosca_definitions_version: tosca_simple_yaml_1_3".getBytes(StandardCharsets.UTF_8));
+        final var entries = new LinkedHashMap<String, byte[]>();
+        entries.put("package.csar", createZip(innerEntries));
+        entries.put("package.cms", new byte[5_000_000]);
+        final Path csarPath = tempDir.resolve("signed-cms-bomb.zip");
+        Files.write(csarPath, createZip(entries));
+
+        assertThrows(CsarSizeReducerException.class, () -> minIoStorageCsarSizeReducer.reduce(csarPath));
+        assertOnlyFileLeftIs(csarPath);
+    }
+
+    @Test
+    void signedPackageWithOversizedNestedCsarIsRejectedTest() throws IOException {
+        mockConfiguration(1_000_000L, 2_000_000L);
+        final var innerEntries = new LinkedHashMap<String, byte[]>();
+        innerEntries.put("Files/images/disk.img", new byte[5_000_000]);
+        final var entries = new LinkedHashMap<String, byte[]>();
+        entries.put("package.csar", createZip(innerEntries, ZipEntry.STORED));
+        entries.put("package.cms", "signature".getBytes(StandardCharsets.UTF_8));
+        final Path csarPath = tempDir.resolve("signed-csar-bomb.zip");
+        Files.write(csarPath, createZip(entries));
+
+        assertThrows(CsarSizeReducerException.class, () -> minIoStorageCsarSizeReducer.reduce(csarPath));
+        assertOnlyFileLeftIs(csarPath);
+    }
+
+    private void mockConfiguration(final long sizeLimit, final long maxUncompressedSize) {
+        when(csarPackageReducerConfiguration.getSizeLimit()).thenReturn(sizeLimit);
+        when(csarPackageReducerConfiguration.getFoldersToStrip()).thenReturn(Set.of(Path.of("Files/images")));
+        when(csarPackageReducerConfiguration.getThresholdEntries()).thenReturn(10000);
+        when(csarPackageReducerConfiguration.getMaxUncompressedSize()).thenReturn(maxUncompressedSize);
+    }
+
+    private void assertOnlyFileLeftIs(final Path expectedFile) throws IOException {
+        try (final var files = Files.list(tempDir)) {
+            assertArrayEquals(new Object[]{expectedFile}, files.toArray(), "Temporary files should be deleted");
+        }
+    }
+
+    private static byte[] createZip(final Map<String, byte[]> entries) throws IOException {
+        return createZip(entries, ZipEntry.DEFLATED);
+    }
+
+    private static byte[] createZip(final Map<String, byte[]> entries, final int method) throws IOException {
+        final var outputStream = new ByteArrayOutputStream();
+        try (final var zos = new ZipOutputStream(outputStream)) {
+            zos.setMethod(method);
+            for (final Entry<String, byte[]> entry : entries.entrySet()) {
+                final var zipEntry = new ZipEntry(entry.getKey());
+                if (method == ZipEntry.STORED) {
+                    final var crc = new CRC32();
+                    crc.update(entry.getValue());
+                    zipEntry.setSize(entry.getValue().length);
+                    zipEntry.setCrc(crc.getValue());
+                }
+                zos.putNextEntry(zipEntry);
+                zos.write(entry.getValue());
+                zos.closeEntry();
+            }
+        }
+        return outputStream.toByteArray();
+    }
+
+    private static byte[] setDeclaredUncompressedSize(final byte[] zip, final String entryName, final int declaredSize) {
+        final var buffer = ByteBuffer.wrap(zip).order(ByteOrder.LITTLE_ENDIAN);
+        for (int offset = 0; offset < zip.length - 46; offset++) {
+            if (buffer.getInt(offset) == 0x02014b50) {
+                final int nameLength = Short.toUnsignedInt(buffer.getShort(offset + 28));
+                final var name = new String(zip, offset + 46, nameLength, StandardCharsets.UTF_8);
+                if (name.equals(entryName)) {
+                    buffer.putInt(offset + 24, declaredSize);
+                    return zip;
+                }
+            }
+        }
+        throw new IllegalArgumentException("Central directory entry not found: " + entryName);
     }
 
     private void verifyCSAR(final Path pathToReduce1, final Path pathToReduce2, final long sizeLimit, final Map<String, byte[]> reducedCsar,
