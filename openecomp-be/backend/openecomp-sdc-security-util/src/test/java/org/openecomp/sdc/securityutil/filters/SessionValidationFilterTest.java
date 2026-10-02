@@ -23,6 +23,7 @@ package org.openecomp.sdc.securityutil.filters;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -32,6 +33,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 import javax.servlet.FilterChain;
 import javax.servlet.FilterConfig;
 import javax.servlet.ServletException;
+import javax.servlet.ServletRequest;
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -43,6 +45,7 @@ import org.openecomp.sdc.securityutil.RepresentationUtils;
 import org.openecomp.sdc.securityutil.filters.ResponceWrapper;
 import org.openecomp.sdc.securityutil.filters.SampleFilter;
 
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
@@ -161,12 +164,28 @@ public class SessionValidationFilterTest {
 
         when(request.getCookies()).thenReturn(new Cookie[]{cookie});
         sessionValidationFilter.doFilter(request, response, filterChain);
-        Mockito.verify(filterChain, times(1)).doFilter(request, response);
+        assertAuthenticatedUserForwarded("kuku");
     }
 
-//    test validate contains
     @Test
-    public void requestThatPassFilterWithCookieNameAsPartOfOtherString() throws IOException, ServletException, CipherUtilException {
+    public void userIdHeaderIsReplacedByCookieUser() throws IOException, ServletException, CipherUtilException {
+        when(request.getPathInfo()).thenReturn("/resource");
+        when(request.getHeader("USER_ID")).thenReturn("jh0003");
+        AuthenticationCookie authenticationCookie = new AuthenticationCookie("kuku");
+        Cookie cookie = new Cookie(sessionValidationFilter.getFilterConfiguration().getCookieName(), AuthenticationCookieUtils.getEncryptedCookie(authenticationCookie, sessionValidationFilter.getFilterConfiguration()));
+        when(request.getCookies()).thenReturn(new Cookie[]{cookie});
+        sessionValidationFilter.doFilter(request, response, filterChain);
+        assertAuthenticatedUserForwarded("kuku");
+    }
+
+    private void assertAuthenticatedUserForwarded(String userId) throws IOException, ServletException {
+        ArgumentCaptor<ServletRequest> forwarded = ArgumentCaptor.forClass(ServletRequest.class);
+        Mockito.verify(filterChain, times(1)).doFilter(forwarded.capture(), Mockito.eq(response));
+        assertEquals(userId, ((HttpServletRequest) forwarded.getValue()).getHeader("USER_ID"));
+    }
+
+    @Test
+    public void cookieNameMustMatchExactly() throws IOException, ServletException, CipherUtilException {
         when(request.getPathInfo()).thenReturn("/resource");
 
         AuthenticationCookie authenticationCookie = new AuthenticationCookie("kuku");
@@ -174,7 +193,21 @@ public class SessionValidationFilterTest {
 
         when(request.getCookies()).thenReturn(new Cookie[]{cookie});
         sessionValidationFilter.doFilter(request, response, filterChain);
-        Mockito.verify(filterChain, times(1)).doFilter(request, response);
+        Mockito.verify(response, times(1)).sendRedirect(sessionValidationFilter.getFilterConfiguration().getRedirectURL());
+        Mockito.verify(filterChain, Mockito.never()).doFilter(Mockito.any(), Mockito.any());
+    }
+
+    @Test
+    public void multipleAuthenticationCookiesAreRejected() throws IOException, ServletException, CipherUtilException {
+        when(request.getPathInfo()).thenReturn("/resource");
+        String cookieName = sessionValidationFilter.getFilterConfiguration().getCookieName();
+        Cookie first = new Cookie(cookieName, AuthenticationCookieUtils.getEncryptedCookie(new AuthenticationCookie("kuku"), sessionValidationFilter.getFilterConfiguration()));
+        Cookie second = new Cookie(cookieName, AuthenticationCookieUtils.getEncryptedCookie(new AuthenticationCookie("jh0003"), sessionValidationFilter.getFilterConfiguration()));
+
+        when(request.getCookies()).thenReturn(new Cookie[]{first, second});
+        sessionValidationFilter.doFilter(request, response, filterChain);
+        Mockito.verify(response, times(1)).sendRedirect(sessionValidationFilter.getFilterConfiguration().getRedirectURL());
+        Mockito.verify(filterChain, Mockito.never()).doFilter(Mockito.any(), Mockito.any());
     }
 
 }

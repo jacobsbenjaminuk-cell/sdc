@@ -25,6 +25,7 @@ import org.eclipse.jetty.http.HttpFields;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mockito.InOrder;
 import org.mockito.Mockito;
 import org.openecomp.sdc.common.api.Constants;
 import org.openecomp.sdc.fe.config.Configuration;
@@ -267,6 +268,37 @@ public class FeProxyServletTest {
 	}
 	
 	/* class for testing only exposes the protected method.*/
+	@Test
+	public void testClientUserIdIsReplacedByAuthenticatedIdentity() {
+		HttpServletRequest clientRequest = Mockito.mock(HttpServletRequest.class);
+		Request forwarded = Mockito.mock(Request.class);
+		when(configuration.isTrustProxyIdentityHeaders()).thenReturn(true);
+		when(clientRequest.getHeader(Constants.USER_ID_HEADER)).thenReturn("jh0003");
+		when(clientRequest.getHeader("HTTP_IV_USER")).thenReturn("cs0008");
+
+		feProxy.bindUserIdentity(clientRequest, forwarded, configuration);
+
+		InOrder inOrder = Mockito.inOrder(forwarded);
+		inOrder.verify(forwarded).header(Constants.USER_ID_HEADER, null);
+		inOrder.verify(forwarded).header(Constants.USER_ID_HEADER, "cs0008");
+		Mockito.verify(forwarded, Mockito.never()).header(Constants.USER_ID_HEADER, "jh0003");
+	}
+
+	@Test
+	public void testClientUserIdIsDroppedWithoutAuthenticatedIdentity() {
+		HttpServletRequest clientRequest = Mockito.mock(HttpServletRequest.class);
+		Request forwarded = Mockito.mock(Request.class);
+		when(configuration.isTrustProxyIdentityHeaders()).thenReturn(false);
+		when(clientRequest.getHeader(Constants.USER_ID_HEADER)).thenReturn("jh0003");
+		when(clientRequest.getHeader("HTTP_IV_USER")).thenReturn("jh0003");
+
+		feProxy.bindUserIdentity(clientRequest, forwarded, configuration);
+
+		Mockito.verify(forwarded).header(Constants.USER_ID_HEADER, null);
+		Mockito.verify(forwarded).header("HTTP_IV_USER", null);
+		Mockito.verify(forwarded, Mockito.never()).header(Constants.USER_ID_HEADER, "jh0003");
+	}
+
 	public static class FeProxyServletForTest extends FeProxyServlet{
 		private static final long serialVersionUID = 1L;
 		@Override

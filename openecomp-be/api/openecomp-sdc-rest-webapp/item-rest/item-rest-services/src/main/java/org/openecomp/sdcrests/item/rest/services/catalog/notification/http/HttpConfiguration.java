@@ -15,11 +15,15 @@
  */
 package org.openecomp.sdcrests.item.rest.services.catalog.notification.http;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.Optional;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Represents configuration for sending notifications to the Catalog side.
@@ -31,7 +35,7 @@ import lombok.ToString;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-@ToString
+@ToString(exclude = "catalogBeUserPass")
 public class HttpConfiguration {
 
     private String catalogBeProtocol;
@@ -39,4 +43,17 @@ public class HttpConfiguration {
     private String catalogBeSslPort;
     private String catalogBeFqdn;
     private String catalogNotificationUrl;
+    /**
+     * The catalog back end only accepts a USER_ID from callers that present its basic auth credentials.
+     */
+    private String catalogBeUserName;
+    private String catalogBeUserPass;
+
+    public Optional<String> getCatalogBeAuthorization() {
+        if (StringUtils.isEmpty(catalogBeUserName) || catalogBeUserPass == null) {
+            return Optional.empty();
+        }
+        final String credentials = catalogBeUserName + ":" + catalogBeUserPass;
+        return Optional.of("Basic " + Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8)));
+    }
 }

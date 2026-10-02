@@ -114,11 +114,12 @@ neo4j:
     user: neo4j
     password: "12345"
 
+# USER_ID is only trusted on requests carrying these credentials, so leaving this disabled rejects every user request.
 basicAuth:
-  enabled: false
+  enabled: true
   userName: "testName"
   userPass: "testPass"
-  excludedUrls: ""
+  excludedUrls: "/sdc2/rest/healthCheck"
 
 cassandraConfig:
     cassandraHosts: [192.168.33.10]

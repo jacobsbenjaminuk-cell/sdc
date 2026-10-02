@@ -82,7 +82,7 @@ users:
     bob: passwd
 
 basicAuth:
-  enabled: false
+  enabled: true
   userName: testName
   userPass: testPass
   excludedUrls: "/sdc2/rest/healthCheck"

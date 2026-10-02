@@ -21,7 +21,11 @@ package org.openecomp.sdc.securityutil.filters;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -33,6 +37,7 @@ import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletRequestWrapper;
 import javax.servlet.http.HttpServletResponse;
 import org.apache.commons.lang3.StringUtils;
 import org.onap.logging.ref.slf4j.ONAPLogConstants;
@@ -121,6 +126,12 @@ public abstract class SessionValidationFilter implements Filter {
         // request processing
         if (isContinueProcessing) {
             cookies = extractAuthenticationCookies(httpRequest.getCookies());
+            if (cookies.size() != 1) {
+                log.debug("SessionValidationFilter: {} authentication cookies in request {}, redirecting request to portal", cookies.size(),
+                    httpRequest.getRequestURL());
+                httpResponse.sendRedirect(filterConfiguration.getRedirectURL());
+                return;
+            }
             extractedCookie = cookies.get(0);
             isContinueProcessing = processRequest(httpRequest, httpResponse, extractedCookie);
         }
@@ -136,7 +147,59 @@ public abstract class SessionValidationFilter implements Filter {
             long durationMil = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
             log.debug("SessionValidationFilter: Validation ended, running time for URL {} is: {} seconds {} miliseconds", httpRequest.getPathInfo(),
                 durationSec, durationMil);
-            filterChain.doFilter(servletRequest, httpResponse);
+            final String userId = getAuthenticatedUserId(extractedCookie);
+            if (userId == null) {
+                log.debug("SessionValidationFilter: Cookie from request {} names no user, redirecting request to portal", httpRequest.getRequestURL());
+                httpResponse.sendRedirect(filterConfiguration.getRedirectURL());
+                return;
+            }
+            MDC.put(PARTNER_NAME, userId);
+            filterChain.doFilter(new AuthenticatedUserRequest(httpRequest, userId), httpResponse);
+        }
+    }
+
+    private String getAuthenticatedUserId(Cookie cookie) {
+        try {
+            return StringUtils.trimToNull(AuthenticationCookieUtils.getAuthenticationCookie(cookie, filterConfiguration).getUserID());
+        } catch (CipherUtilException e) {
+            log.debug("SessionValidationFilter: Cookie decryption error : {}", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * Presents the user of the validated session cookie as {@code USER_ID}, whatever the client sent in that header, so everything after this filter
+     * sees the authenticated identity.
+     */
+    static final class AuthenticatedUserRequest extends HttpServletRequestWrapper {
+
+        private final String userId;
+
+        AuthenticatedUserRequest(HttpServletRequest request, String userId) {
+            super(request);
+            this.userId = userId;
+        }
+
+        @Override
+        public String getHeader(String name) {
+            return USER_ID_HEADER.equalsIgnoreCase(name) ? userId : super.getHeader(name);
+        }
+
+        @Override
+        public Enumeration<String> getHeaders(String name) {
+            return USER_ID_HEADER.equalsIgnoreCase(name) ? Collections.enumeration(List.of(userId)) : super.getHeaders(name);
+        }
+
+        @Override
+        public Enumeration<String> getHeaderNames() {
+            final Set<String> names = new LinkedHashSet<>();
+            final Enumeration<String> original = super.getHeaderNames();
+            if (original != null) {
+                names.addAll(Collections.list(original));
+            }
+            names.removeIf(USER_ID_HEADER::equalsIgnoreCase);
+            names.add(USER_ID_HEADER);
+            return Collections.enumeration(names);
         }
     }
 
@@ -223,9 +286,8 @@ public abstract class SessionValidationFilter implements Filter {
         return authenticationCookies;
     }
 
-    // use contains for matching due issue with ecomp portal ( change cookie name, add prefix ), temp solution
     private boolean isCookieNameMatch(String actualCookieName, Cookie c) {
-        return c.getName().contains(actualCookieName);
+        return c.getName().equals(actualCookieName);
     }
 
     private boolean isUrlFromWhiteList(HttpServletRequest httpRequest) {

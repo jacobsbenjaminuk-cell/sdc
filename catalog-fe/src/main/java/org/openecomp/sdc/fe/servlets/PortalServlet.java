@@ -44,6 +44,7 @@ import org.openecomp.sdc.fe.Constants;
 import org.openecomp.sdc.fe.config.Configuration;
 import org.openecomp.sdc.fe.config.ConfigurationManager;
 import org.openecomp.sdc.fe.config.FeEcompErrorManager;
+import org.openecomp.sdc.fe.impl.UserIdentity;
 
 /**
  * Root resource (exposed at "/" path)
@@ -121,8 +122,8 @@ public class PortalServlet extends HttpServlet {
         MutableHttpServletRequest mutableRequest = new MutableHttpServletRequest(request);
         // Get configuration object (reads data from configuration.yaml)
         Configuration configuration = getConfiguration(request);
-        // Check if we got header from webseal
-        String userId = request.getHeader(Constants.WEBSEAL_USER_ID_HEADER);
+        // Identity comes from a trusted authenticating proxy or the ONAP Portal cookie; there is no default user
+        String userId = UserIdentity.fromProxyHeaders(request, configuration).orElse(null);
         if (null == userId) {
             // Authentication via ecomp portal
             try {
@@ -134,12 +135,8 @@ public class PortalServlet extends HttpServlet {
             }
         }
         if (StringUtils.isEmpty(userId)) {
-            userId = configuration.getDefaultUserId();
-            if (StringUtils.isEmpty(userId)) {
-                response.sendError(HttpServletResponse.SC_USE_PROXY, MISSING_HEADERS_MSG);
-                return;
-            }
-            log.info("Request carries no identity headers and no portal cookie, falling back to default user {}", userId);
+            response.sendError(HttpServletResponse.SC_USE_PROXY, MISSING_HEADERS_MSG);
+            return;
         }
         // Replace webseal header with open source header
         mutableRequest.putHeader(Constants.USER_ID, userId);
@@ -151,7 +148,10 @@ public class PortalServlet extends HttpServlet {
         List<List<String>> identificationHeaderFields = configuration.getIdentificationHeaderFields();
         for (List<String> possibleHeadersToRecieve : identificationHeaderFields) {
             String allowedHeaderToPass = possibleHeadersToRecieve.get(0);
-            setNewHeader(possibleHeadersToRecieve, allowedHeaderToPass, request, mutableRequest);
+            // USER_ID was settled above; a request header must not replace it
+            if (!Constants.USER_ID.equals(allowedHeaderToPass)) {
+                setNewHeader(possibleHeadersToRecieve, allowedHeaderToPass, request, mutableRequest);
+            }
         }
         // Getting optional headers from configuration.yaml
 
@@ -167,7 +167,7 @@ public class PortalServlet extends HttpServlet {
 
         // Via ecomp portal do not need to check the headers.
         boolean allHeadersExist = true;
-        if (null != request.getHeader(Constants.WEBSEAL_USER_ID_HEADER)) {
+        if (UserIdentity.fromProxyHeaders(request, configuration).isPresent()) {
             allHeadersExist = checkHeaders(mutableRequest);
         }
         if (allHeadersExist) {
@@ -248,13 +248,26 @@ public class PortalServlet extends HttpServlet {
      * @param request
      * @param headers
      */
+    /**
+     * The front end reads this cookie back to decide who the user is, so it is sealed with an authenticated cipher; the portal cipher used for the
+     * other cookies can be edited without the key.
+     */
+    private String sealUserId(final HttpServletRequest request, final String userId) {
+        try {
+            return UserIdentity.seal(userId, getConfiguration(request));
+        } catch (final org.onap.sdc.security.CipherUtilException e) {
+            throw new IllegalStateException("Failed to seal the USER_ID cookie", e);
+        }
+    }
+
     private void addCookies(final HttpServletResponse response, final HttpServletRequest request, final String[] headers)
         throws CipherUtilException {
         for (var i = 0; i < headers.length; i++) {
             final var currHeader = ValidationUtils.sanitizeInputString(headers[i]);
             final var headerValue = ValidationUtils.sanitizeInputString(request.getHeader(currHeader));
             if (headerValue != null) {
-                final var cookie = new Cookie(currHeader, CipherUtil.encryptPKC(headerValue));
+                final var cookieValue = Constants.USER_ID.equals(currHeader) ? sealUserId(request, headerValue) : CipherUtil.encryptPKC(headerValue);
+                final var cookie = new Cookie(currHeader, cookieValue);
                 cookie.setSecure(true);
                 response.addCookie(cookie);
             }

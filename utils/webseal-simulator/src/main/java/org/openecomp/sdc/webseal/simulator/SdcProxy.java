@@ -48,6 +48,7 @@ import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
@@ -85,6 +86,7 @@ public class SdcProxy extends HttpServlet {
     private static final long serialVersionUID = 1L;
     private static final Set<String> RESERVED_HEADERS =
         Arrays.stream(ReservedHeaders.values()).map(ReservedHeaders::getValue).collect(Collectors.toSet());
+    static final String SESSION_USER = "simulator.userId";
     private static final String USER_ID = "USER_ID";
     private static final String HTTP_IV_USER = "HTTP_IV_USER";
     private static final String SDC1 = "/sdc1";
@@ -126,7 +128,7 @@ public class SdcProxy extends HttpServlet {
 
         // Already sign-in
         if (userId == null) {
-            userId = request.getHeader(USER_ID);
+            userId = getSessionUser(request);
         }
 
         System.out.println("SdcProxy -> doPost userId=" + userId);
@@ -283,25 +285,20 @@ public class SdcProxy extends HttpServlet {
     }
 
     private String getUseridFromRequest(HttpServletRequest request) {
-
-        String userIdHeader = request.getHeader(USER_ID);
-        if (userIdHeader != null) {
-            return userIdHeader;
-        }
         Object o = request.getAttribute(HTTP_IV_USER);
         if (o != null) {
             return o.toString();
         }
-        Cookie[] cookies = request.getCookies();
+        return getSessionUser(request);
+    }
 
-        if (cookies != null) {
-            for (int i = 0; i < cookies.length; ++i) {
-                if (cookies[i].getName().equals(USER_ID)) {
-                    userIdHeader = cookies[i].getValue();
-                }
-            }
-        }
-        return userIdHeader;
+    /**
+     * The user who signed in through {@link Login}. Headers and cookies are not used, since the client can set them to anything.
+     */
+    static String getSessionUser(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        Object userId = session == null ? null : session.getAttribute(SESSION_USER);
+        return userId == null ? null : userId.toString();
     }
 
     private void addHeadersToMethod(HttpUriRequest proxyMethod, User user, HttpServletRequest request) {

@@ -51,9 +51,9 @@ dcae:
   port: 8181
   healthCheckUri: "/dcae/healthCheck"
 
-# User assumed for requests that carry none of the identificationHeaderFields below and no ONAP Portal
-# cookie. Set to an empty value to reject such requests with 305 instead.
-defaultUserId: cs0008
+# Trust the user headers (csp-attuid, HTTP_IV_USER, iv-user) of an authenticating proxy. Only enable this when the
+# front end cannot be reached except through that proxy: anyone talking to it directly can set these headers.
+trustProxyIdentityHeaders: false
 
 identificationHeaderFields:
    -

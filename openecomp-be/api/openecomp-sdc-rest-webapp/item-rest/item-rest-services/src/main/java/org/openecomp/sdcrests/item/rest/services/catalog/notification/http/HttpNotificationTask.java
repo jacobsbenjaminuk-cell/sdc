@@ -55,12 +55,18 @@ class HttpNotificationTask implements Callable<AsyncNotifier.NextAction> {
     private static final String USER_ID_HEADER_PARAM = "USER_ID";
     private final String endpoint;
     private final String userId;
+    private final String authorization;
     private volatile Collection<String> itemIds;
 
     HttpNotificationTask(String endpoint, String userId, Collection<String> itemIds) {
+        this(endpoint, userId, itemIds, null);
+    }
+
+    HttpNotificationTask(String endpoint, String userId, Collection<String> itemIds, String authorization) {
         this.endpoint = endpoint;
         this.userId = userId;
         this.itemIds = itemIds;
+        this.authorization = authorization;
     }
 
     @Override
@@ -88,6 +94,9 @@ class HttpNotificationTask implements Callable<AsyncNotifier.NextAction> {
         request.addHeader(HttpHeaders.ACCEPT, APPLICATION_JSON);
         request.addHeader(HttpHeaders.CONTENT_TYPE, APPLICATION_JSON);
         request.addHeader(USER_ID_HEADER_PARAM, userId);
+        if (authorization != null) {
+            request.addHeader(HttpHeaders.AUTHORIZATION, authorization);
+        }
         HttpEntity entity = new StringEntity(JsonUtil.object2Json(itemIds));
         request.setEntity(entity);
         return request;

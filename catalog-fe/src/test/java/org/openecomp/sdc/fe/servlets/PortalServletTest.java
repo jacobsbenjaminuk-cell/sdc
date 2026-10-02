@@ -139,8 +139,8 @@ class PortalServletTest extends JerseyTest {
     }
 
     @Test
-    void testMissingHeadersRequestWithoutDefaultUserFallsBack() throws IOException {
-        when(configuration.getDefaultUserId()).thenReturn("");
+    void testMissingHeadersRequestIsRejected() throws IOException {
+        when(configuration.isTrustProxyIdentityHeaders()).thenReturn(true);
         when(request.getHeader(Mockito.anyString())).thenReturn(null);
         when(request.getCookies()).thenReturn(getCookies());
         target().path("/portal").request().get();
@@ -149,20 +149,38 @@ class PortalServletTest extends JerseyTest {
     }
 
     @Test
-    void testMissingHeadersRequestUsesConfiguredDefaultUser() throws IOException, ServletException {
-        when(configuration.getDefaultUserId()).thenReturn("cs0008");
-        when(request.getHeader(Mockito.anyString())).thenReturn(null);
+    void testProxyHeadersAreIgnoredUnlessTrusted() throws IOException, ServletException {
+        when(configuration.isTrustProxyIdentityHeaders()).thenReturn(false);
+        when(request.getHeader(Mockito.anyString())).thenAnswer(invocation -> invocation.getArgument(0));
         when(request.getCookies()).thenReturn(getCookies());
         target().path("/portal").request().get();
-        Mockito.verify(response, Mockito.never()).sendError(Mockito.anyInt(), Mockito.anyString());
+        Mockito.verify(response, times(1))
+            .sendError(HttpServletResponse.SC_USE_PROXY, PortalServlet.MISSING_HEADERS_MSG);
+        verify(rd, Mockito.never()).forward(Mockito.any(ServletRequest.class), Mockito.any(ServletResponse.class));
+    }
+
+    @Test
+    void testUserIdHeaderCannotOverrideProxyIdentity() throws IOException, ServletException {
+        ConfigurationManager.setTestInstance(configurationManager);
+        when(configuration.isTrustProxyIdentityHeaders()).thenReturn(true);
+        when(configuration.getAuthCookie().getSecurityKey()).thenReturn("");
+        when(request.getHeader(Mockito.anyString())).thenAnswer(invocation -> {
+            final String name = invocation.getArgument(0);
+            if ("csp-attuid".equals(name)) {
+                return null;
+            }
+            return "USER_ID".equals(name) || "user-id".equals(name) ? "jh0003" : "HTTP_IV_USER".equals(name) ? "proxyUser" : name;
+        });
+        target().path("/portal").request().get();
         final ArgumentCaptor<ServletRequest> forwarded = ArgumentCaptor.forClass(ServletRequest.class);
         verify(rd).forward(forwarded.capture(), Mockito.any(ServletResponse.class));
-        assertEquals("cs0008", ((HttpServletRequest) forwarded.getValue()).getHeader("USER_ID"));
+        assertEquals("proxyUser", ((HttpServletRequest) forwarded.getValue()).getHeader("USER_ID"));
     }
 
     @Test
     void testSuccessfulRequest() throws IOException, ServletException {
         ConfigurationManager.setTestInstance(configurationManager);
+        when(configuration.isTrustProxyIdentityHeaders()).thenReturn(true);
         when(configuration.getAuthCookie().getCookieName()).thenReturn("cookieName");
         when(configuration.getAuthCookie().getPath()).thenReturn("/");
         when(configuration.getAuthCookie().getDomain()).thenReturn("");

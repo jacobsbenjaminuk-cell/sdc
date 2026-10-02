@@ -6,6 +6,9 @@ catalogNotificationsConfig:
   catalogBeFqdn: sdc-BE
   # do not remove the "" from catalog_notification_url. it is escaping % characters coming from AUTO.json
   catalogNotificationUrl: "%s://%s:%s/sdc2/rest/v1/catalog/notif/vsp/"
+  # basic auth of the catalog back end, which ignores USER_ID from callers without it
+  catalogBeUserName: testName
+  catalogBeUserPass: testPass
 
 notifications:
   pollingIntervalMsec: 2000

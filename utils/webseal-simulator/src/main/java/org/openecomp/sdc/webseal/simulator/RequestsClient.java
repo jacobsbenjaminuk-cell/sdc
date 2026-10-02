@@ -43,7 +43,11 @@ public class RequestsClient extends HttpServlet {
     @Override
     protected void doGet(final HttpServletRequest request, final HttpServletResponse response) throws IOException {
 
-        String adminId = request.getParameter("adminId") != null ? request.getParameter("adminId") : "jh0003";
+        String adminId = SdcProxy.getSessionUser(request);
+        if (adminId == null) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Sign in as an admin before creating users");
+            return;
+        }
         String createAll = request.getParameter("all");
         String url = Conf.getInstance().getFeHost() + "/sdc1/feProxy/rest/v1/user";
 
@@ -85,7 +89,7 @@ public class RequestsClient extends HttpServlet {
 
         HashMap<String, String> headers = new HashMap<String, String>();
         headers.put("Content-Type", "application/json");
-        headers.put("USER_ID", adminId);
+        headers.put("HTTP_IV_USER", adminId);
         return sendHttpPost(url, body, headers);
     }
 
