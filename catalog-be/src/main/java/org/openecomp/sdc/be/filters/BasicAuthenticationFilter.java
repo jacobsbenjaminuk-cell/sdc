@@ -81,7 +81,6 @@ public class BasicAuthenticationFilter implements ContainerRequestFilter {
                 String basic = st.nextToken();
                 if ("Basic".equalsIgnoreCase(basic)) {
                     String credentials = new String(Base64.decodeBase64(st.nextToken()), StandardCharsets.UTF_8);
-                    log.debug("Credentials: {}", credentials);
                     checkUserCredentials(requestContext, credentials);
                 } else {
                     log.error(failedToRetrieveAuthErrorMsg);
