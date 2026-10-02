@@ -27,7 +27,9 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -342,6 +344,28 @@ public class ComponentSubstitutionFilterServletTest extends JerseyTest {
             .delete(Response.class);
 
         assertThat(response.getStatus()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR_500);
+    }
+
+    @Test
+    void deleteSubstitutionFilterConstraintInvalidComponentTypeTest() throws BusinessLogicException {
+        final String pathFormat = "/v1/catalog/%s/%s/substitutionFilter/%s/0";
+        final String path = String.format(pathFormat, "products", componentId, constraintType);
+        final ResponseFormat invalidComponentTypeFormat = mock(ResponseFormat.class);
+
+        when(componentSubstitutionFilterBusinessLogic.validateUser(USER_ID)).thenReturn(user);
+        when(invalidComponentTypeFormat.getStatus()).thenReturn(HttpStatus.BAD_REQUEST_400);
+        when(componentsUtils.getResponseFormat(eq(ActionStatus.INVALID_COMPONENT_TYPE), anyString(), anyString()))
+            .thenReturn(invalidComponentTypeFormat);
+
+        final Response response = target()
+            .path(path)
+            .request(MediaType.APPLICATION_JSON)
+            .header(USER_ID_HEADER, USER_ID)
+            .delete(Response.class);
+
+        assertThat(response.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST_400);
+        verify(componentSubstitutionFilterBusinessLogic, never())
+            .deleteSubstitutionFilter(anyString(), anyInt(), anyBoolean(), nullable(ComponentTypeEnum.class));
     }
 
     private static void createMocks() {

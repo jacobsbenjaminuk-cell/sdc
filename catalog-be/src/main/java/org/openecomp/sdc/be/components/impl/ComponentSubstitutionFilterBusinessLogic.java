@@ -105,7 +105,7 @@ public class ComponentSubstitutionFilterBusinessLogic extends BaseBusinessLogic 
             throw new BusinessLogicException(componentsUtils.getResponseFormat(ActionStatus.GENERAL_ERROR));
         } finally {
             if (wasLocked) {
-                unlockComponent(component.getUniqueId(), componentTypeEnum);
+                unlockComponent(component);
             }
         }
         return substitutionFilterDataDefinition;
@@ -115,6 +115,7 @@ public class ComponentSubstitutionFilterBusinessLogic extends BaseBusinessLogic 
                                                                             final FilterConstraintDto filterConstraint, final boolean shouldLock,
                                                                             final ComponentTypeEnum componentTypeEnum) throws BusinessLogicException {
         final Component component = getComponent(componentId);
+        validateComponentType(component, componentTypeEnum);
         final Either<Boolean, ResponseFormat> response = nodeFilterValidator.validateSubstitutionFilter(component, filterConstraint);
         if (response.isRight()) {
             throw new BusinessLogicException(
@@ -147,7 +148,7 @@ public class ComponentSubstitutionFilterBusinessLogic extends BaseBusinessLogic 
             throw new BusinessLogicException(componentsUtils.getResponseFormat(ActionStatus.GENERAL_ERROR));
         } finally {
             if (wasLocked) {
-                unlockComponent(component.getUniqueId(), componentTypeEnum);
+                unlockComponent(component);
             }
         }
     }
@@ -156,6 +157,7 @@ public class ComponentSubstitutionFilterBusinessLogic extends BaseBusinessLogic 
                                                                                final boolean shouldLock,
                                                                                final ComponentTypeEnum componentTypeEnum) throws BusinessLogicException {
         final Component component = getComponent(componentId);
+        validateComponentType(component, componentTypeEnum);
         final Either<Boolean, ResponseFormat> response = nodeFilterValidator.validateSubstitutionFilter(component, constraints);
         if (response.isRight()) {
             throw new BusinessLogicException(
@@ -191,7 +193,7 @@ public class ComponentSubstitutionFilterBusinessLogic extends BaseBusinessLogic 
             throw new BusinessLogicException(componentsUtils.getResponseFormat(ActionStatus.GENERAL_ERROR));
         } finally {
             if (wasLocked) {
-                unlockComponent(component.getUniqueId(), componentTypeEnum);
+                unlockComponent(component);
             }
         }
         return Optional.ofNullable(substitutionFilterDataDefinition);
@@ -237,7 +239,7 @@ public class ComponentSubstitutionFilterBusinessLogic extends BaseBusinessLogic 
             throw e;
         } finally {
             if (wasLocked) {
-                unlockComponent(component.getUniqueId(), component.getComponentType());
+                unlockComponent(component);
             }
         }
     }
@@ -246,7 +248,11 @@ public class ComponentSubstitutionFilterBusinessLogic extends BaseBusinessLogic 
                                                                                final ComponentTypeEnum componentTypeEnum)
         throws BusinessLogicException {
         final Component component = getComponent(componentId);
+        validateComponentType(component, componentTypeEnum);
         SubstitutionFilterDataDefinition substitutionFilterDataDefinition = component.getSubstitutionFilter();
+        if (!isValidConstraintPosition(substitutionFilterDataDefinition, position)) {
+            throw new BusinessLogicException(componentsUtils.getResponseFormat(SUBSTITUTION_FILTER_NOT_FOUND, component.getName()));
+        }
         boolean wasLocked = false;
         try {
             if (shouldLock) {
@@ -271,14 +277,29 @@ public class ComponentSubstitutionFilterBusinessLogic extends BaseBusinessLogic 
             throw new BusinessLogicException(componentsUtils.getResponseFormat(ActionStatus.GENERAL_ERROR));
         } finally {
             if (wasLocked) {
-                unlockComponent(component.getUniqueId(), componentTypeEnum);
+                unlockComponent(component);
             }
         }
         return Optional.ofNullable(substitutionFilterDataDefinition);
     }
 
-    private void unlockComponent(final String componentUniqueId, final ComponentTypeEnum componentType) {
-        graphLockOperation.unlockComponent(componentUniqueId, componentType.getNodeType());
+    private void unlockComponent(final Component component) {
+        graphLockOperation.unlockComponent(component.getUniqueId(), component.getComponentType().getNodeType());
+    }
+
+    private boolean isValidConstraintPosition(final SubstitutionFilterDataDefinition substitutionFilterDataDefinition, final int position) {
+        if (substitutionFilterDataDefinition == null || substitutionFilterDataDefinition.getProperties() == null) {
+            return false;
+        }
+        final List<SubstitutionFilterPropertyDataDefinition> properties = substitutionFilterDataDefinition.getProperties().getListToscaDataDefinition();
+        return properties != null && position >= 0 && position < properties.size();
+    }
+
+    private void validateComponentType(final Component component, final ComponentTypeEnum componentTypeEnum) throws BusinessLogicException {
+        if (componentTypeEnum != component.getComponentType()) {
+            throw new BusinessLogicException(componentsUtils.getResponseFormat(ActionStatus.INVALID_COMPONENT_TYPE,
+                ComponentTypeEnum.findParamByType(componentTypeEnum), ComponentTypeEnum.findParamByType(component.getComponentType())));
+        }
     }
 
     public User validateUser(final String userId) {
