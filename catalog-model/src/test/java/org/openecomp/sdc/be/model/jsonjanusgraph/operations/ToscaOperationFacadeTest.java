@@ -917,6 +917,49 @@ class ToscaOperationFacadeTest {
     }
 
     @Test
+    void testAddComponentInstanceToTopologyTemplate_ResourceNameWithRegexMetachars() {
+        // Component names may contain '+' and digits (COMPONENT_NAME_PATTERN allows [\w .\-_:+]). The counter
+        // lookup must treat the resource name as a literal string, not as a regex, and must read only the
+        // numeric suffix as the counter.
+        Component containerComponent = new Service();
+        Component originalComponent = new Resource();
+        ComponentInstance componentInstance = new ComponentInstance();
+        ComponentInstance existingComponentInstance = new ComponentInstance();
+        User user = new User();
+
+        containerComponent.setComponentType(ComponentTypeEnum.SERVICE);
+
+        originalComponent.setComponentType(ComponentTypeEnum.RESOURCE);
+        originalComponent.setIcon(ICON_NAME);
+        originalComponent.setName("a1+a+");
+
+        componentInstance.setOriginType(OriginTypeEnum.VF);
+
+        List<ComponentInstance> existingInstances = new ArrayList<>();
+        existingComponentInstance.setNormalizedName("a1+a+0");
+        existingInstances.add(existingComponentInstance);
+        containerComponent.setComponentInstances(existingInstances);
+
+        when(nodeTemplateOperationMock
+            .addComponentInstanceToTopologyTemplate(any(), any(), eq("1"), eq(componentInstance), eq(false), eq(user)))
+            .thenReturn(Either.left(new ImmutablePair<>(new TopologyTemplate(), COMPONENT_ID)));
+        TopologyTemplate topologyTemplate = new TopologyTemplate();
+        topologyTemplate.setMetadataValue(JsonPresentationFields.COMPONENT_TYPE, ComponentTypeEnum.SERVICE.name());
+        when(topologyTemplateOperationMock.getToscaElement(containerComponent.getUniqueId()))
+            .thenReturn(Either.left(topologyTemplate));
+
+        Either<ImmutablePair<Component, String>, StorageOperationStatus> result =
+            testInstance.addComponentInstanceToTopologyTemplate(
+                containerComponent, originalComponent, componentInstance, false, user);
+
+        assertTrue(result.isLeft());
+        assertEquals(COMPONENT_ID, result.left().value().getRight());
+        // instance "a1+a+0" exists, so the next counter must be 1, not a duplicate 0 and not 11
+        verify(nodeTemplateOperationMock, times(1))
+            .addComponentInstanceToTopologyTemplate(any(), any(), eq("1"), eq(componentInstance), eq(false), eq(user));
+    }
+
+    @Test
     void testUpdateComponentInstanceRequirement() {
         String containerComponentId = "containerComponentId";
         String componentInstanceUniqueId = "componentInstanceUniqueId";
