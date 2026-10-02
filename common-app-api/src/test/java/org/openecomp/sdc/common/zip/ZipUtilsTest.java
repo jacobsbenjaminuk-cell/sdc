@@ -295,4 +295,39 @@ class ZipUtilsTest {
         assertThat("Entry content should match", fileMap.get("file1.txt"), is("content1".getBytes()));
     }
 
+    @Test
+    void testReadZipFromInputStreamFailsOnReadError() throws IOException {
+        //a mid-stream IO failure must propagate instead of silently returning a partial map
+        final Map<String, byte[]> entries = new HashMap<>();
+        entries.put("file1.txt", "content1".getBytes());
+        entries.put("file2.txt", "content2".getBytes());
+        final byte[] zipBytes = buildZip(entries);
+        final InputStream failingStream = new InputStream() {
+            private final ByteArrayInputStream delegate = new ByteArrayInputStream(zipBytes);
+            private int readSoFar;
+
+            @Override
+            public int read() throws IOException {
+                if (++readSoFar > zipBytes.length / 2) {
+                    throw new IOException("simulated stream failure");
+                }
+                return delegate.read();
+            }
+        };
+        assertThrows(ZipException.class, () -> ZipUtils.readZip(failingStream, false));
+    }
+
+    @Test
+    void testReadZipFromInputStreamAcceptsMixedContentArchive() throws IOException, ZipException {
+        //a highly compressible entry followed by incompressible data must not trip the ratio check mid-read
+        final Map<String, byte[]> entries = new HashMap<>();
+        entries.put("zeros.bin", new byte[2 * 1024 * 1024]);
+        final byte[] randomContent = new byte[2 * 1024 * 1024];
+        new java.util.Random(42).nextBytes(randomContent);
+        entries.put("data.bin", randomContent);
+        final byte[] zipBytes = buildZip(entries);
+        final Map<String, byte[]> fileMap = ZipUtils.readZip(new ByteArrayInputStream(zipBytes), false);
+        assertThat("Both entries should be read", fileMap, aMapWithSize(2));
+    }
+
 }

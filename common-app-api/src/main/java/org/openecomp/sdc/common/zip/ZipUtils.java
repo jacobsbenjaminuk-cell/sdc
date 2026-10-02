@@ -226,7 +226,7 @@ public class ZipUtils {
         try (final ZipInputStream inputZipStream = ZipUtils.getInputStreamFromBytes(zipFileBytes)) {
             readZipEntries(inputZipStream, () -> zipFileBytes.length, filePathAndByteMap, hasToIncludeDirectories);
         } catch (final IOException e) {
-            LOGGER.warn("Could not close the zip input stream", e);
+            throw new ZipException("Could not read the zip content", e);
         }
         return filePathAndByteMap;
     }
@@ -251,7 +251,7 @@ public class ZipUtils {
                 throw new ZipException(
                     String.format("The compressed stream exceeds the maximum allowed size of %d bytes", limitedInputStream.getMaxBytes()), e);
             }
-            LOGGER.warn("Could not close the zip input stream", e);
+            throw new ZipException("Could not read the zip content", e);
         }
         return filePathAndByteMap;
     }
@@ -271,20 +271,21 @@ public class ZipUtils {
                 throw new ZipException(String.format("The zip has more than the maximum allowed number of %d entries", maxEntries));
             }
             checkForZipSlipInRead(zipEntry);
-            if (zipEntry.getSize() > maxEntrySize) {
+            final long entryLimit = Math.min(maxEntrySize, maxTotalSize - totalInflatedSize);
+            if (zipEntry.getSize() > entryLimit) {
                 throw new ZipException(String.format("The entry '%s' uncompressed size of %d bytes exceeds the maximum allowed size of %d bytes",
-                    zipEntry.getName(), zipEntry.getSize(), maxEntrySize));
+                    zipEntry.getName(), zipEntry.getSize(), entryLimit));
             }
-            final byte[] entryBytes = getBytes(inputZipStream, zipEntry.getName(), maxEntrySize);
+            final byte[] entryBytes = getBytes(inputZipStream, zipEntry.getName(), entryLimit);
             totalInflatedSize += entryBytes.length;
-            if (totalInflatedSize > maxTotalSize) {
-                throw new ZipException(String.format("The zip uncompressed size exceeds the maximum allowed size of %d bytes", maxTotalSize));
-            }
-            if (totalInflatedSize >= MIN_INFLATED_SIZE_FOR_RATIO_CHECK
-                && totalInflatedSize > maxCompressionRatio * compressedSizeSupplier.getAsLong()) {
-                throw new ZipException(String.format("The zip compression ratio exceeds the maximum allowed of %s", maxCompressionRatio));
-            }
             filePathAndByteMap.putAll(processZipEntryInRead(zipEntry, entryBytes, hasToIncludeDirectories));
+        }
+        if (totalInflatedSize > maxTotalSize) {
+            throw new ZipException(String.format("The zip uncompressed size exceeds the maximum allowed size of %d bytes", maxTotalSize));
+        }
+        if (totalInflatedSize >= MIN_INFLATED_SIZE_FOR_RATIO_CHECK
+            && totalInflatedSize > maxCompressionRatio * compressedSizeSupplier.getAsLong()) {
+            throw new ZipException(String.format("The zip compression ratio exceeds the maximum allowed of %s", maxCompressionRatio));
         }
     }
 
@@ -419,6 +420,7 @@ public class ZipUtils {
         }
         createDirectoryIfNotExists(outputFolder);
         final File zipFile = zipFilePath.toFile();
+        checkCompressedSize(zipFile.length());
         try (final FileInputStream fileInputStream = new FileInputStream(zipFile); final ZipInputStream stream = new ZipInputStream(
             fileInputStream)) {
             ZipEntry zipEntry;
@@ -437,15 +439,21 @@ public class ZipUtils {
                 if (zipEntry.isDirectory()) {
                     createDirectoryIfNotExists(fileToWritePath);
                 } else {
-                    if (zipEntry.getSize() > maxEntrySize) {
+                    final long entryLimit = Math.min(maxEntrySize, maxTotalSize - totalInflatedSize);
+                    if (zipEntry.getSize() > entryLimit) {
                         throw new ZipException(String.format("The entry '%s' uncompressed size of %d bytes exceeds the maximum allowed size of %d bytes",
-                            zipEntry.getName(), zipEntry.getSize(), maxEntrySize));
+                            zipEntry.getName(), zipEntry.getSize(), entryLimit));
                     }
-                    totalInflatedSize += writeFile(stream, fileToWritePath, maxEntrySize);
-                    if (totalInflatedSize > maxTotalSize) {
-                        throw new ZipException(String.format("The zip uncompressed size exceeds the maximum allowed size of %d bytes", maxTotalSize));
-                    }
+                    totalInflatedSize += writeFile(stream, fileToWritePath, entryLimit);
                 }
+            }
+            if (totalInflatedSize > maxTotalSize) {
+                throw new ZipException(String.format("The zip uncompressed size exceeds the maximum allowed size of %d bytes", maxTotalSize));
+            }
+            if (totalInflatedSize >= MIN_INFLATED_SIZE_FOR_RATIO_CHECK
+                && totalInflatedSize > getMaxCompressionRatio() * zipFile.length()) {
+                throw new ZipException(
+                    String.format("The zip compression ratio exceeds the maximum allowed of %s", getMaxCompressionRatio()));
             }
         } catch (final FileNotFoundException e) {
             throw new ZipException(String.format("Could not find file: '%s'", zipFile.getAbsolutePath()), e);
