@@ -522,6 +522,7 @@ class ArchiveEndpointTest extends JerseyTest {
 
     private void givenComponentOwnedBy(String componentId, String ownerUserId) {
         Component component = mock(Component.class);
+        when(component.isHighestVersion()).thenReturn(true);
         when(component.getCreatorUserId()).thenReturn(ownerUserId);
         when(component.getLastUpdaterUserId()).thenReturn(ownerUserId);
         doReturn(Either.left(component)).when(toscaOperationFacade).getToscaElement(componentId, JsonParseFlagEnum.ParseMetadata);

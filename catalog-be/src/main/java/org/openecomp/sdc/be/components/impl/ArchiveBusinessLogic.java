@@ -110,17 +110,26 @@ public class ArchiveBusinessLogic {
         if (Role.ADMIN.name().equals(user.getRole())) {
             return;
         }
-        Component component = toscaOperationFacade.getToscaElement(componentId, JsonParseFlagEnum.ParseMetadata).left().on(status -> {
-            if (status == StorageOperationStatus.NOT_FOUND) {
-                throw new ByActionStatusComponentException(ActionStatus.RESOURCE_NOT_FOUND, componentId);
-            }
-            throw new ByActionStatusComponentException(ActionStatus.GENERAL_ERROR);
-        });
+        Component component = getComponentOrThrow(toscaOperationFacade.getToscaElement(componentId, JsonParseFlagEnum.ParseMetadata), componentId);
+        if (!Boolean.TRUE.equals(component.isHighestVersion())) {
+            // archive/restore acts on the highest version, so ownership is checked there
+            component = getComponentOrThrow(toscaOperationFacade.getLatestComponentByUuid(component.getUUID()), componentId);
+        }
         String userId = user.getUserId();
         if (!userId.equals(component.getCreatorUserId()) && !userId.equals(component.getLastUpdaterUserId())) {
             log.debug("User {} is not the creator or last updater of component {}", userId, componentId);
             throw new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION);
         }
+    }
+
+    private Component getComponentOrThrow(Either<? extends Component, StorageOperationStatus> result, String componentId) {
+        if (result.isRight()) {
+            if (result.right().value() == StorageOperationStatus.NOT_FOUND) {
+                throw new ByActionStatusComponentException(ActionStatus.RESOURCE_NOT_FOUND, componentId);
+            }
+            throw new ByActionStatusComponentException(ActionStatus.GENERAL_ERROR);
+        }
+        return result.left().value();
     }
 
     public List<String> onVspArchive(String userId, String notificationToken, List<String> csarUuids) {

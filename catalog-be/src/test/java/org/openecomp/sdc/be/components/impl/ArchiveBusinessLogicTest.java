@@ -62,6 +62,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -164,8 +165,43 @@ public class ArchiveBusinessLogicTest {
     private void givenComponentOwnedBy(String creatorUserId, String lastUpdaterUserId) {
         when(user.getUserId()).thenReturn(USER_ID);
         when(toscaOperationFacade.getToscaElement(COMPONENT_ID, JsonParseFlagEnum.ParseMetadata)).thenReturn(Either.left(component));
+        when(component.isHighestVersion()).thenReturn(true);
         when(component.getCreatorUserId()).thenReturn(creatorUserId);
         when(component.getLastUpdaterUserId()).thenReturn(lastUpdaterUserId);
+    }
+
+    private void givenOlderVersionRequested() {
+        when(user.getUserId()).thenReturn(USER_ID);
+        when(toscaOperationFacade.getToscaElement(COMPONENT_ID, JsonParseFlagEnum.ParseMetadata)).thenReturn(Either.left(component));
+        when(component.isHighestVersion()).thenReturn(false);
+        when(component.getUUID()).thenReturn("componentUuid");
+    }
+
+    @Test
+    public void archiveRejectedWhenDesignerOnlyOwnsOlderVersion() {
+        givenCaller(Role.DESIGNER);
+        givenOlderVersionRequested();
+        Component latestVersion = mock(Component.class);
+        when(latestVersion.getCreatorUserId()).thenReturn("someoneElse");
+        when(latestVersion.getLastUpdaterUserId()).thenReturn("anotherUser");
+        when(toscaOperationFacade.getLatestComponentByUuid("componentUuid")).thenReturn(Either.left(latestVersion));
+        ByActionStatusComponentException e = assertThrows(ByActionStatusComponentException.class,
+                () -> archiveBusinessLogic.archiveComponent(ComponentTypeEnum.RESOURCE_PARAM_NAME, USER_ID, COMPONENT_ID));
+        assertEquals(ActionStatus.RESTRICTED_OPERATION, e.getActionStatus());
+        verify(archiveOperation, never()).archiveComponent(anyString());
+    }
+
+    @Test
+    public void restoreAllowedWhenDesignerOwnsLatestVersion() {
+        givenCaller(Role.DESIGNER);
+        givenOlderVersionRequested();
+        Component latestVersion = mock(Component.class);
+        when(latestVersion.getLastUpdaterUserId()).thenReturn(USER_ID);
+        when(toscaOperationFacade.getLatestComponentByUuid("componentUuid")).thenReturn(Either.left(latestVersion));
+        when(archiveOperation.restoreComponent(COMPONENT_ID)).thenReturn(Either.left(Collections.emptyList()));
+        givenFacadeNotificationSucceeds(ChangeTypeEnum.RESTORE);
+        archiveBusinessLogic.restoreComponent(ComponentTypeEnum.RESOURCE_PARAM_NAME, USER_ID, COMPONENT_ID);
+        verify(archiveOperation).restoreComponent(COMPONENT_ID);
     }
 
     private void givenFacadeNotificationSucceeds(ChangeTypeEnum changeType) {
