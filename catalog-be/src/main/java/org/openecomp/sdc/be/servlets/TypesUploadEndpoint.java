@@ -128,7 +128,7 @@ public class TypesUploadEndpoint extends BeGenericServlet {
         @ApiResponse(responseCode = "409", description = "annotation types already exist")})
     public Response uploadAnnotationTypes(@Parameter(description = "FileInputStream") @FormDataParam("annotationTypesZip") File file,
                                           @HeaderParam("USER_ID") String userId) {
-        accessValidations.validateUserExists(userId, "Annotation Types Creation");
+        accessValidations.userIsAdminOrDesigner(userId, "Annotation Types Creation");
         final Wrapper<String> yamlStringWrapper = new Wrapper<>();
         try {
             AbstractValidationsServlet.extractZipContents(yamlStringWrapper, file);
