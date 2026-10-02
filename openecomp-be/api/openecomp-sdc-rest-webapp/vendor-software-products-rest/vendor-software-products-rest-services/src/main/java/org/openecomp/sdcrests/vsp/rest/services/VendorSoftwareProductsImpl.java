@@ -25,7 +25,6 @@ import static org.openecomp.sdc.versioning.VersioningNotificationConstansts.SUBM
 import static org.openecomp.sdc.versioning.VersioningNotificationConstansts.VERSION_ID;
 import static org.openecomp.sdc.versioning.VersioningNotificationConstansts.VERSION_NAME;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
@@ -69,6 +68,7 @@ import org.openecomp.sdc.notification.dtos.Event;
 import org.openecomp.sdc.notification.factories.NotificationPropagationManagerFactory;
 import org.openecomp.sdc.notification.services.NotificationPropagationManager;
 import org.openecomp.sdc.vendorsoftwareproduct.OrchestrationTemplateCandidateManagerFactory;
+import org.openecomp.sdc.vendorsoftwareproduct.VendorSoftwareProductConstants;
 import org.openecomp.sdc.vendorsoftwareproduct.VendorSoftwareProductManager;
 import org.openecomp.sdc.vendorsoftwareproduct.VspManagerFactory;
 import org.openecomp.sdc.vendorsoftwareproduct.dao.type.ComputeEntity;
@@ -558,13 +558,13 @@ public class VendorSoftwareProductsImpl implements VendorSoftwareProducts {
                 throw new CoreException(new RequestedVersionInvalidErrorBuilder().build());
             }
         }
-        File zipFile = vendorSoftwareProductManager.getTranslatedFile(vspId, version);
-        Response.ResponseBuilder response = Response.ok(zipFile);
+        byte[] zipFile = vendorSoftwareProductManager.getTranslatedFile(vspId, version);
         if (zipFile == null) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
-        response.header(CONTENT_DISPOSITION, ATTACHMENT_FILENAME + zipFile.getName());
-        return response.build();
+        return Response.ok(zipFile)
+            .header(CONTENT_DISPOSITION, ATTACHMENT_FILENAME + VendorSoftwareProductConstants.VSP_PACKAGE_ZIP)
+            .build();
     }
 
     @Override
@@ -594,13 +594,11 @@ public class VendorSoftwareProductsImpl implements VendorSoftwareProducts {
 
     @Override
     public Response getVspInformationArtifact(String vspId, String versionId, String user) {
-        File textInformationArtifact = vendorSoftwareProductManager.getInformationArtifact(vspId, new Version(versionId));
-        Response.ResponseBuilder response = Response.ok(textInformationArtifact);
-        if (textInformationArtifact == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
-        }
-        response.header(CONTENT_DISPOSITION, ATTACHMENT_FILENAME + textInformationArtifact.getName());
-        return response.build();
+        return vendorSoftwareProductManager.getInformationArtifact(vspId, new Version(versionId))
+            .map(artifact -> Response.ok(artifact.getRight())
+                .header(CONTENT_DISPOSITION, ATTACHMENT_FILENAME + artifact.getLeft())
+                .build())
+            .orElseGet(() -> Response.status(Response.Status.NOT_FOUND).build());
     }
 
     @Override

@@ -15,7 +15,6 @@
  */
 package org.openecomp.sdc.vendorsoftwareproduct;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
@@ -62,9 +61,9 @@ public interface VendorSoftwareProductManager {
 
     List<PackageInfo> listPackages(String category, String subCategory);
 
-    File getTranslatedFile(String vspId, Version version);
+    byte[] getTranslatedFile(String vspId, Version version);
 
-    File getInformationArtifact(String vspId, Version version);
+    Optional<Pair<String, byte[]>> getInformationArtifact(String vspId, Version version);
 
     public Optional<Pair<String, byte[]>> get(String vspId, Version version) throws IOException;
 
