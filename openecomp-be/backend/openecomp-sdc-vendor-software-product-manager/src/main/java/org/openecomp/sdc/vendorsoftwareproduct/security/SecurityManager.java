@@ -20,16 +20,15 @@
 package org.openecomp.sdc.vendorsoftwareproduct.security;
 
 import com.google.common.collect.ImmutableSet;
-import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.security.GeneralSecurityException;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.NoSuchAlgorithmException;
@@ -47,16 +46,18 @@ import java.security.cert.PKIXCertPathBuilderResult;
 import java.security.cert.TrustAnchor;
 import java.security.cert.X509CertSelector;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
 import org.bouncycastle.asn1.cms.ContentInfo;
 import org.bouncycastle.cert.X509CertificateHolder;
@@ -193,6 +194,7 @@ public class SecurityManager {
         }
 
         final var target = folder.resolve(UUID.randomUUID().toString());
+        final var storedPackage = folder.resolve(UUID.randomUUID().toString());
 
         try (final var signatureStream = new ByteArrayInputStream(fileContentHandler.getFileContent(signedPackage.getSignatureFilePath()));
             final var pemParser = new PEMParser(new InputStreamReader(signatureStream))) {
@@ -204,10 +206,11 @@ public class SecurityManager {
             }
 
             try (final InputStream inputStream = artifactStorageManager.get(artifactInfo)) {
-                if (!findCSARandExtract(inputStream, target)) {
-                    fail = true;
-                    return false;
-                }
+                Files.copy(inputStream, storedPackage);
+            }
+            if (!extractInternalPackage(storedPackage, signedPackage.getInternalPackageFilePath(), target)) {
+                fail = true;
+                return false;
             }
             final var verify = verify(packageCert, new CMSSignedData(new CMSProcessableFile(target.toFile()), ContentInfo.getInstance(parsedObject)));
             fail = !verify;
@@ -226,6 +229,7 @@ public class SecurityManager {
             throw e;
         } finally {
             deleteFile(target);
+            deleteFile(storedPackage);
             if (fail) {
                 artifactStorageManager.delete(artifactInfo);
             }
@@ -272,27 +276,45 @@ public class SecurityManager {
         }
     }
 
-    private boolean findCSARandExtract(final InputStream inputStream, final Path target) throws IOException {
-        final AtomicBoolean found = new AtomicBoolean(false);
+    private boolean extractInternalPackage(final Path packagePath, final String internalPackagePath, final Path target)
+        throws IOException, SecurityManagerException {
+        if (internalPackagePath == null) {
+            LOGGER.error("No internal package found in the signed package");
+            return false;
+        }
+        try (final var zipFile = new ZipFile(packagePath.toFile())) {
+            final List<String> centralDirectoryEntryNames = zipFile.stream().map(ZipEntry::getName).collect(Collectors.toList());
+            validateLocalEntriesMatchCentralDirectory(packagePath, centralDirectoryEntryNames);
+            final ZipEntry internalPackageEntry = zipFile.getEntry(internalPackagePath);
+            if (internalPackageEntry == null || internalPackageEntry.isDirectory()) {
+                LOGGER.error("Internal package '{}' not found in the signed package", internalPackagePath);
+                return false;
+            }
+            try (final InputStream internalPackageStream = zipFile.getInputStream(internalPackageEntry)) {
+                Files.copy(internalPackageStream, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+            return true;
+        }
+    }
 
-        final var zipInputStream = new ZipInputStream(inputStream);
-        ZipEntry zipEntry;
-        byte[] buffer = new byte[2048];
-        while ((zipEntry = zipInputStream.getNextEntry()) != null) {
-            final var entryName = zipEntry.getName();
-            if (!zipEntry.isDirectory() && entryName.toLowerCase().endsWith(".csar")) {
-                try (final FileOutputStream fos = new FileOutputStream(target.toFile());
-                    final BufferedOutputStream bos = new BufferedOutputStream(fos, buffer.length)) {
-
-                    int len;
-                    while ((len = zipInputStream.read(buffer)) > 0) {
-                        bos.write(buffer, 0, len);
-                    }
-                }
-                found.set(true);
+    private void validateLocalEntriesMatchCentralDirectory(final Path packagePath, final List<String> centralDirectoryEntryNames)
+        throws IOException, SecurityManagerException {
+        final Set<String> uniqueEntryNames = new HashSet<>(centralDirectoryEntryNames);
+        if (uniqueEntryNames.size() != centralDirectoryEntryNames.size()) {
+            LOGGER.error("The signed package contains duplicate entries");
+            throw new SecurityManagerException("The signed package contains duplicate entries");
+        }
+        final List<String> localEntryNames = new ArrayList<>();
+        try (final var zipInputStream = new ZipInputStream(Files.newInputStream(packagePath))) {
+            ZipEntry zipEntry;
+            while ((zipEntry = zipInputStream.getNextEntry()) != null) {
+                localEntryNames.add(zipEntry.getName());
             }
         }
-        return found.get();
+        if (localEntryNames.size() != centralDirectoryEntryNames.size() || !uniqueEntryNames.containsAll(localEntryNames)) {
+            LOGGER.error("The signed package entries do not match its central directory");
+            throw new SecurityManagerException("The signed package entries do not match its central directory");
+        }
     }
 
     private Optional<X509Certificate> readSignCert(final Collection<X509CertificateHolder> certs, final SignerInformation firstSigner) {
