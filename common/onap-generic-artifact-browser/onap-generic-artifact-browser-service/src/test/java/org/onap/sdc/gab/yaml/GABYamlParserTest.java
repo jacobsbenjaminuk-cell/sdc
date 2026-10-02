@@ -28,6 +28,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.google.common.collect.Sets;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 import org.onap.sdc.gab.model.GABResult;
 import org.onap.sdc.gab.model.GABResultEntry;
@@ -210,6 +213,62 @@ class GABYamlParserTest {
                 .filter(EVENT)
                 .collect();
         }});
+    }
+
+    @Test
+    void shouldRejectTooManyFilters() {
+        Set<String> filters = IntStream.rangeClosed(0, YamlParser.MAX_FILTERS).mapToObj(i -> "event.field" + i).collect(Collectors.toSet());
+        assertThrows(IOException.class, () -> {
+            try (GABYamlParser yamlParser = new GABYamlParser(new YamlParser())) {
+                yamlParser.parseFile(FAULT_REGISTRATION_YML).filter(filters).collect();
+            }
+        });
+    }
+
+    @Test
+    void shouldRejectYamlNestedDeeperThanLimit() {
+        int depth = YamlParser.MAX_NESTING_DEPTH + 10;
+        String content = "event: " + "[".repeat(depth) + "]".repeat(depth);
+        assertThrows(IOException.class, () -> {
+            try (GABYamlParser yamlParser = new GABYamlParser(new YamlParser())) {
+                yamlParser.parseContent(content).filter(EVENT).collect();
+            }
+        });
+    }
+
+    @Test
+    void shouldRejectYamlWithTooManyAliases() {
+        StringBuilder content = new StringBuilder("a: &a [x, x, x, x, x, x, x, x, x, x]\n");
+        content.append("event: [");
+        for (int i = 0; i <= YamlParser.MAX_ALIASES_FOR_COLLECTIONS; i++) {
+            content.append("*a, ");
+        }
+        content.append("*a]\n");
+        assertThrows(IOException.class, () -> {
+            try (GABYamlParser yamlParser = new GABYamlParser(new YamlParser())) {
+                yamlParser.parseContent(content.toString()).filter(EVENT).collect();
+            }
+        });
+    }
+
+    @Test
+    void shouldRejectYamlLargerThanCodePointLimit() {
+        String content = "event: " + "x".repeat(YamlParser.MAX_CODE_POINTS + 1);
+        assertThrows(IOException.class, () -> {
+            try (GABYamlParser yamlParser = new GABYamlParser(new YamlParser())) {
+                yamlParser.parseContent(content).filter(EVENT).collect();
+            }
+        });
+    }
+
+    @Test
+    void shouldNotInstantiateArbitraryJavaTypes() {
+        String content = "event: !!java.util.ArrayList []";
+        assertThrows(IOException.class, () -> {
+            try (GABYamlParser yamlParser = new GABYamlParser(new YamlParser())) {
+                yamlParser.parseContent(content).filter(EVENT).collect();
+            }
+        });
     }
 
     private void assertThatEntryIsEqualTo(GABResults result, int rowIndex, int entryIndex, String path, String data){
