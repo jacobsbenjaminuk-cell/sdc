@@ -24,6 +24,8 @@ import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -35,6 +37,8 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import org.junit.Assert;
 import org.junit.Test;
 import org.openecomp.sdc.common.zip.exception.ZipException;
@@ -93,6 +97,47 @@ public class FileUtilsTest {
         } finally {
             org.apache.commons.io.FileUtils.deleteDirectory(tempDirectory.toFile());
         }
+    }
+
+    @Test
+    public void testGetFileContentMapFromZipWithinLimits() throws IOException {
+        final byte[] zip = createZip(3, 1024, false);
+        final var contentMap = FileUtils.getFileContentMapFromZip(new ByteArrayInputStream(zip), 3, 3 * 1024);
+        assertThat(contentMap.getFiles(), is(aMapWithSize(3)));
+        Assert.assertEquals(1024, contentMap.getFileContent("file0.txt").length);
+    }
+
+    @Test(expected = IOException.class)
+    public void testGetFileContentMapFromZipTooManyEntries() throws IOException {
+        FileUtils.getFileContentMapFromZip(new ByteArrayInputStream(createZip(4, 1, false)), 3, Long.MAX_VALUE);
+    }
+
+    @Test(expected = IOException.class)
+    public void testGetFileContentMapFromZipTotalSizeExceeded() throws IOException {
+        FileUtils.getFileContentMapFromZip(new ByteArrayInputStream(createZip(3, 1024, false)), 3, 3 * 1024 - 1);
+    }
+
+    @Test(expected = IOException.class)
+    public void testGetFileContentMapFromZipCompressionRatioExceeded() throws IOException {
+        final var size = (int) FileUtils.MIN_UNCOMPRESSED_BYTES_FOR_RATIO_CHECK * 2;
+        FileUtils.getFileContentMapFromZip(new ByteArrayInputStream(createZip(1, size, false)));
+    }
+
+    @Test(expected = IOException.class)
+    public void testGetFileContentMapFromZipSlip() throws IOException {
+        FileUtils.getFileContentMapFromZip(new ByteArrayInputStream(createZip(1, 1, true)));
+    }
+
+    private static byte[] createZip(final int entries, final int entrySize, final boolean zipSlip) throws IOException {
+        final var outputStream = new ByteArrayOutputStream();
+        try (final var zipOutputStream = new ZipOutputStream(outputStream)) {
+            for (int i = 0; i < entries; i++) {
+                zipOutputStream.putNextEntry(new ZipEntry((zipSlip ? "../../" : "") + "file" + i + ".txt"));
+                zipOutputStream.write(new byte[entrySize]);
+                zipOutputStream.closeEntry();
+            }
+        }
+        return outputStream.toByteArray();
     }
 
     @Test

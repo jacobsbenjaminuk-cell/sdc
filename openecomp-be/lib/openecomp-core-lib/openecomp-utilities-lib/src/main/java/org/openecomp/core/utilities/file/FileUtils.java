@@ -16,6 +16,7 @@
 package org.openecomp.core.utilities.file;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -34,13 +35,22 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.input.CountingInputStream;
 import org.onap.sdc.tosca.services.YamlUtil;
 import org.openecomp.core.utilities.json.JsonUtil;
+import org.openecomp.sdc.common.zip.ZipUtils;
+import org.openecomp.sdc.common.zip.exception.ZipException;
 
 /**
  * The type File utils.
  */
 public class FileUtils {
+
+    static final int MAX_ZIP_ENTRIES = 10_000;
+    static final long MAX_ZIP_UNCOMPRESSED_BYTES = 256L * 1024 * 1024;
+    static final long MAX_ZIP_COMPRESSION_RATIO = 100;
+    static final long MIN_UNCOMPRESSED_BYTES_FOR_RATIO_CHECK = 10L * 1024 * 1024;
+    private static final int ZIP_READ_BUFFER_SIZE = 8192;
 
     /**
      * Allows to consume an input stream open against a resource with a given file name.
@@ -211,18 +221,46 @@ public class FileUtils {
      * @throws IOException when an error occurs while extracting zip files
      */
     public static FileContentHandler getFileContentMapFromZip(final InputStream inputStream) throws IOException {
+        return getFileContentMapFromZip(inputStream, MAX_ZIP_ENTRIES, MAX_ZIP_UNCOMPRESSED_BYTES);
+    }
 
-        final var zipInputStream = new ZipInputStream(inputStream);
+    static FileContentHandler getFileContentMapFromZip(final InputStream inputStream, final int maxEntries,
+                                                       final long maxUncompressedBytes) throws IOException {
+        final var countingInputStream = new CountingInputStream(inputStream);
+        final var zipInputStream = new ZipInputStream(countingInputStream);
         ZipEntry zipEntry;
         final var fileContentHandler = new FileContentHandler();
+        int entryCount = 0;
+        long totalUncompressedBytes = 0;
+        final var buffer = new byte[ZIP_READ_BUFFER_SIZE];
         while ((zipEntry = zipInputStream.getNextEntry()) != null) {
+            if (++entryCount > maxEntries) {
+                throw new IOException(String.format("Zip archive has more than %d entries", maxEntries));
+            }
+            try {
+                ZipUtils.checkForZipSlipInRead(zipEntry);
+            } catch (final ZipException e) {
+                throw new IOException(e.getMessage(), e);
+            }
             final var entryName = zipEntry.getName();
             if (zipEntry.isDirectory()) {
                 fileContentHandler.addFolder(entryName);
-            } else {
-                fileContentHandler.addFile(entryName, zipInputStream.readAllBytes());
+                continue;
             }
-
+            final var entryContent = new ByteArrayOutputStream();
+            int read;
+            while ((read = zipInputStream.read(buffer)) != -1) {
+                totalUncompressedBytes += read;
+                if (totalUncompressedBytes > maxUncompressedBytes) {
+                    throw new IOException(String.format("Zip archive uncompressed size exceeds %d bytes", maxUncompressedBytes));
+                }
+                if (totalUncompressedBytes > MIN_UNCOMPRESSED_BYTES_FOR_RATIO_CHECK
+                    && totalUncompressedBytes > countingInputStream.getByteCount() * MAX_ZIP_COMPRESSION_RATIO) {
+                    throw new IOException(String.format("Zip archive compression ratio exceeds %d", MAX_ZIP_COMPRESSION_RATIO));
+                }
+                entryContent.write(buffer, 0, read);
+            }
+            fileContentHandler.addFile(entryName, entryContent.toByteArray());
         }
         return fileContentHandler;
     }
