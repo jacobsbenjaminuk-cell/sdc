@@ -42,6 +42,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -57,6 +58,7 @@ import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -306,6 +308,32 @@ public class ETSIServiceImplTest {
             containsString(file1Path.toString()));
         assertThat("Descriptor should contain reference to file", serviceTemplatesAsYaml,
             containsString(file2Path.toString()));
+    }
+
+    @Test
+    public void givenMovedFilesWithRegexCharacters_updateDescriptorReferencesLiterally() {
+        final String regexLikePath = "Artifacts/Other/(a+)+b";
+        final String dotPath = "Artifacts/Other/a.b";
+        final Map<String, Path> fromToPathMap = new HashMap<>();
+        fromToPathMap.put(regexLikePath, Paths.get("Artifacts", "Deployment", "OTHER", "(a+)+b"));
+        fromToPathMap.put(dotPath, Paths.get("Artifacts", "Deployment", "OTHER", "$1.b"));
+        final ServiceTemplate mainServiceTemplate = new ServiceTemplate();
+        mainServiceTemplate.setTosca_definitions_version("tosca_simple_yaml_1_2");
+        mainServiceTemplate.setDescription(regexLikePath + " " + dotPath + " Artifacts/Other/axb Artifacts/Other/"
+            + "a".repeat(5000) + "!");
+        final HashMap<String, ServiceTemplate> serviceTemplateMap = new HashMap<>();
+        serviceTemplateMap.put("MainServiceTemplate.yaml", mainServiceTemplate);
+        final ToscaServiceModel toscaServiceModel = new ToscaServiceModel(null, serviceTemplateMap, "MainServiceTemplate.yaml");
+
+        assertTimeoutPreemptively(Duration.ofSeconds(10),
+            () -> etsiService.updateMainDescriptorPaths(toscaServiceModel, fromToPathMap));
+
+        final String description = toscaServiceModel.getServiceTemplates().get("MainServiceTemplate.yaml").getDescription();
+        assertThat(description, containsString("Artifacts/Deployment/OTHER/(a+)+b"));
+        assertThat(description, containsString("Artifacts/Deployment/OTHER/$1.b"));
+        assertThat(description, containsString("Artifacts/Other/axb"));
+        assertThat(description, not(containsString(regexLikePath)));
+        assertThat(description, not(containsString(dotPath)));
     }
 
     @Test

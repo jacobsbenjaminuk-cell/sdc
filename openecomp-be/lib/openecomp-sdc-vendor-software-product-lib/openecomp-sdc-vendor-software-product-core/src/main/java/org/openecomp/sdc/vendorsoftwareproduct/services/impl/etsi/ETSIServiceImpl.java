@@ -201,7 +201,7 @@ public class ETSIServiceImpl implements ETSIService {
         final ServiceTemplate entryDefinition = toscaServiceModel.getServiceTemplates().get(toscaServiceModel.getEntryDefinitionServiceTemplate());
         final YamlUtil yamlUtil = new YamlUtil();
         final String[] entryDefinitionYaml = {yamlUtil.objectToYaml(entryDefinition)};
-        fromToMovedArtifactMap.forEach((fromPath, toPath) -> entryDefinitionYaml[0] = entryDefinitionYaml[0].replaceAll(fromPath, toPath.toString()));
+        fromToMovedArtifactMap.forEach((fromPath, toPath) -> entryDefinitionYaml[0] = entryDefinitionYaml[0].replace(fromPath, toPath.toString()));
         toscaServiceModel.addServiceTemplate(toscaServiceModel.getEntryDefinitionServiceTemplate(),
             yamlUtil.yamlToObject(entryDefinitionYaml[0], ServiceTemplate.class));
     }
