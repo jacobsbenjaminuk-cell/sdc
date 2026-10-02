@@ -22,8 +22,10 @@ package org.openecomp.sdc.be.components.impl;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -39,6 +41,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
+import org.openecomp.sdc.be.components.impl.exceptions.ByActionStatusComponentException;
+import org.openecomp.sdc.be.components.validation.AccessValidations;
+import org.openecomp.sdc.be.config.ConfigurationManager;
+import org.openecomp.sdc.be.dao.api.ActionStatus;
 import org.openecomp.sdc.be.components.validation.UserValidations;
 import org.openecomp.sdc.be.impl.ComponentsUtils;
 import org.openecomp.sdc.be.model.ComponentInstance;
@@ -51,6 +57,9 @@ import org.openecomp.sdc.be.model.jsonjanusgraph.operations.ToscaOperationFacade
 import org.openecomp.sdc.be.model.operations.api.StorageOperationStatus;
 import org.openecomp.sdc.be.model.tosca.ToscaPropertyType;
 import org.openecomp.sdc.be.user.UserBusinessLogic;
+import org.openecomp.sdc.common.api.ConfigurationSource;
+import org.openecomp.sdc.common.impl.ExternalConfiguration;
+import org.openecomp.sdc.common.impl.FSConfigurationSource;
 
 import fj.data.Either;
 
@@ -61,6 +70,10 @@ public class DataTypeBusinessLogicTest {
     private static final String USER_ID = "userId";
     private static final String INSTANCE_INPUT_ID = "inputId";
     private static final String DATATYPE_NAME = "org.onap.datatypes.mytype";
+    private static final String COMPONENT_TYPE = "services";
+    private static final ConfigurationSource configurationSource = new FSConfigurationSource(ExternalConfiguration.getChangeListener(),
+        "src/test/resources/config/catalog-be");
+    private static final ConfigurationManager configurationManager = new ConfigurationManager(configurationSource);
 
     @Mock
     private ComponentsUtils componentsUtilsMock;
@@ -79,6 +92,9 @@ public class DataTypeBusinessLogicTest {
 
     @Mock
     private DataTypeImportManager dataTypeImportManager;
+
+    @Mock
+    private AccessValidations accessValidations;
 
     @InjectMocks
     private DataTypeBusinessLogic testInstance;
@@ -122,10 +138,36 @@ public class DataTypeBusinessLogicTest {
     public void test_getPrivateDataTypes() throws Exception {
         setMockitoWhenGetToscaElementCalled();
 
-        Either<List<DataTypeDefinition>, StorageOperationStatus> result = testInstance.getPrivateDataTypes(COMPONENT_ID);
+        Either<List<DataTypeDefinition>, StorageOperationStatus> result = testInstance.getPrivateDataTypes(USER_ID, COMPONENT_TYPE, COMPONENT_ID);
         assertTrue(result.isLeft());
         List<DataTypeDefinition> dataTypes = result.left().value();
         assertEquals(service.getDataTypes(), dataTypes);
+    }
+
+    @Test
+    public void test_getPrivateDataTypes_accessDenied() {
+        when(accessValidations.validateUserCanRetrieveComponentData(COMPONENT_ID, COMPONENT_TYPE, USER_ID, "GET PRIVATE DATA TYPES"))
+            .thenThrow(new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION));
+        try {
+            testInstance.getPrivateDataTypes(USER_ID, COMPONENT_TYPE, COMPONENT_ID);
+            fail("expected access to be denied");
+        } catch (ByActionStatusComponentException e) {
+            assertEquals(ActionStatus.RESTRICTED_OPERATION, e.getActionStatus());
+        }
+        verify(toscaOperationFacadeMock, never()).getToscaElement(any(String.class), any(ComponentParametersView.class));
+    }
+
+    @Test
+    public void test_getPrivateDataType_accessDenied() {
+        when(accessValidations.validateUserCanRetrieveComponentData(COMPONENT_ID, COMPONENT_TYPE, USER_ID, "GET PRIVATE DATA TYPE"))
+            .thenThrow(new ByActionStatusComponentException(ActionStatus.RESTRICTED_OPERATION));
+        try {
+            testInstance.getPrivateDataType(USER_ID, COMPONENT_TYPE, COMPONENT_ID, DATATYPE_NAME);
+            fail("expected access to be denied");
+        } catch (ByActionStatusComponentException e) {
+            assertEquals(ActionStatus.RESTRICTED_OPERATION, e.getActionStatus());
+        }
+        verify(toscaOperationFacadeMock, never()).getToscaElement(any(String.class), any(ComponentParametersView.class));
     }
 
     @Test
@@ -133,7 +175,7 @@ public class DataTypeBusinessLogicTest {
         setMockitoWhenGetToscaElementCalled();
 
         Either<DataTypeDefinition, StorageOperationStatus> result =
-            testInstance.getPrivateDataType(COMPONENT_ID, DATATYPE_NAME);
+            testInstance.getPrivateDataType(USER_ID, COMPONENT_TYPE, COMPONENT_ID, DATATYPE_NAME);
         assertTrue(result.isLeft());
         DataTypeDefinition dataType = result.left().value();
         assertEquals(service.getDataTypes().get(0), dataType);

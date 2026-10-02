@@ -68,6 +68,7 @@ import org.openecomp.sdc.be.model.DataTypeDefinition;
 import org.openecomp.sdc.be.model.InputDefinition;
 import org.openecomp.sdc.be.model.Resource;
 import org.openecomp.sdc.be.model.User;
+import org.openecomp.sdc.be.model.operations.StorageException;
 import org.openecomp.sdc.be.model.operations.api.StorageOperationStatus;
 import org.openecomp.sdc.be.resources.data.EntryData;
 import org.openecomp.sdc.be.resources.data.auditing.AuditingActionEnum;
@@ -166,7 +167,7 @@ public class InputsServlet extends AbstractValidationsServlet {
         log.debug(START_HANDLE_REQUEST_OF, url);
         try {
             Either<List<ComponentInstanceInput>, ResponseFormat> inputsResponse = inputsBusinessLogic
-                .getComponentInstanceInputs(userId, componentId, instanceId);
+                .getComponentInstanceInputs(userId, componentType, componentId, instanceId);
             if (inputsResponse.isRight()) {
                 log.debug("failed to get component instance inputs {}", componentType);
                 return buildErrorResponse(inputsResponse.right().value());
@@ -195,7 +196,7 @@ public class InputsServlet extends AbstractValidationsServlet {
         log.debug(START_HANDLE_REQUEST_OF, url);
         try {
             Either<List<ComponentInstanceProperty>, ResponseFormat> inputPropertiesRes = inputsBusinessLogic
-                .getComponentInstancePropertiesByInputId(userId, componentId, instanceId, inputId);
+                .getComponentInstancePropertiesByInputId(userId, componentType, componentId, instanceId, inputId);
             if (inputPropertiesRes.isRight()) {
                 log.debug("failed to get properties of input: {}, with instance id: {}", inputId, instanceId);
                 return buildErrorResponse(inputPropertiesRes.right().value());
@@ -224,7 +225,7 @@ public class InputsServlet extends AbstractValidationsServlet {
         log.debug(START_HANDLE_REQUEST_OF, url);
         try {
             Either<List<ComponentInstanceInput>, ResponseFormat> inputsRes = inputsBusinessLogic
-                .getInputsForComponentInput(userId, componentId, inputId);
+                .getInputsForComponentInput(userId, componentType, componentId, inputId);
             if (inputsRes.isRight()) {
                 log.debug("failed to get inputs of input: {}, with instance id: {}", inputId, componentId);
                 return buildErrorResponse(inputsRes.right().value());
@@ -253,7 +254,7 @@ public class InputsServlet extends AbstractValidationsServlet {
         log.debug(START_HANDLE_REQUEST_OF, url);
         try {
             Either<InputDefinition, ResponseFormat> inputsRes = inputsBusinessLogic
-                .getInputsAndPropertiesForComponentInput(userId, componentId, inputId, false);
+                .getInputsAndPropertiesForComponentInput(userId, componentType, componentId, inputId, false);
             if (inputsRes.isRight()) {
                 log.debug("failed to get inputs of input: {}, with instance id: {}", inputId, componentId);
                 return buildErrorResponse(inputsRes.right().value());
@@ -394,18 +395,21 @@ public class InputsServlet extends AbstractValidationsServlet {
         @ApiResponse(responseCode = "200", description = "Data type found"), @ApiResponse(responseCode = "403", description = "Restricted operation"),
         @ApiResponse(responseCode = "404", description = "Data type not found")})
     public Response getDataType(@PathParam("componentType") final String componentType, @PathParam("componentId") final String componentId,
-                                @PathParam("dataTypeName") final String dataTypeName, @Context final HttpServletRequest request) {
+                                @PathParam("dataTypeName") final String dataTypeName, @Context final HttpServletRequest request,
+                                @HeaderParam(value = Constants.USER_ID_HEADER) String userId) {
         String url = request.getMethod() + " " + request.getRequestURI();
         log.debug("(getDataType) Start handle request of {}", url);
         Response response;
         try {
-            Either<DataTypeDefinition, StorageOperationStatus> getResult = businessLogic.getPrivateDataType(componentId, dataTypeName);
+            Either<DataTypeDefinition, StorageOperationStatus> getResult = businessLogic.getPrivateDataType(userId, componentType, componentId, dataTypeName);
             if (getResult.isRight()) {
                 ActionStatus actionStatus = componentsUtils.convertFromStorageResponse(getResult.right().value());
                 return buildErrorResponse(componentsUtils.getResponseFormat(actionStatus));
             }
             Object json = RepresentationUtils.toRepresentation(getResult.left().value());
             return buildOkResponse(componentsUtils.getResponseFormat(ActionStatus.OK), json);
+        } catch (ComponentException | StorageException e) {
+            throw e;
         } catch (Exception e) {
             BeEcompErrorManager.getInstance()
                 .logBeRestApiGeneralError("Get data type from service + " + componentId + " + with name: " + dataTypeName);
@@ -430,19 +434,21 @@ public class InputsServlet extends AbstractValidationsServlet {
         @ApiResponse(responseCode = "200", description = "Data type found"), @ApiResponse(responseCode = "403", description = "Restricted operation"),
         @ApiResponse(responseCode = "404", description = "Component not found")})
     public Response getDataTypes(@PathParam("componentType") final String componentType, @PathParam("componentId") final String componentId,
-                                 @Context final HttpServletRequest request) {
+                                 @Context final HttpServletRequest request, @HeaderParam(value = Constants.USER_ID_HEADER) String userId) {
         ComponentsUtils componentsUtils = getComponentsUtils();
         String url = request.getMethod() + " " + request.getRequestURI();
         log.debug("(getDataType) Start handle request of {}", url);
         Response response;
         try {
-            Either<List<DataTypeDefinition>, StorageOperationStatus> getResult = businessLogic.getPrivateDataTypes(componentId);
+            Either<List<DataTypeDefinition>, StorageOperationStatus> getResult = businessLogic.getPrivateDataTypes(userId, componentType, componentId);
             if (getResult.isRight()) {
                 ActionStatus actionStatus = componentsUtils.convertFromStorageResponse(getResult.right().value());
                 return buildErrorResponse(componentsUtils.getResponseFormat(actionStatus));
             }
             Object json = RepresentationUtils.toRepresentation(getResult.left().value());
             return buildOkResponse(componentsUtils.getResponseFormat(ActionStatus.OK), json);
+        } catch (ComponentException | StorageException e) {
+            throw e;
         } catch (Exception e) {
             BeEcompErrorManager.getInstance().logBeRestApiGeneralError("Get data type from service + " + componentId);
             log.debug("Get data type failed with exception", e);

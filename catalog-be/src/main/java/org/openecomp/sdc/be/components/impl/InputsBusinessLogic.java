@@ -43,6 +43,7 @@ import org.openecomp.sdc.be.components.impl.exceptions.ByActionStatusComponentEx
 import org.openecomp.sdc.be.components.impl.exceptions.ByResponseFormatComponentException;
 import org.openecomp.sdc.be.components.impl.exceptions.ComponentException;
 import org.openecomp.sdc.be.components.property.PropertyDeclarationOrchestrator;
+import org.openecomp.sdc.be.components.validation.AccessValidations;
 import org.openecomp.sdc.be.components.validation.ComponentValidations;
 import org.openecomp.sdc.be.config.BeEcompErrorManager;
 import org.openecomp.sdc.be.dao.api.ActionStatus;
@@ -102,6 +103,7 @@ public class InputsBusinessLogic extends BaseBusinessLogic {
     private final PropertyDeclarationOrchestrator propertyDeclarationOrchestrator;
     private final ComponentInstanceBusinessLogic componentInstanceBusinessLogic;
     private final DataTypeBusinessLogic dataTypeBusinessLogic;
+    private final AccessValidations accessValidations;
 
     @Autowired
     public InputsBusinessLogic(IElementOperation elementDao, IGroupOperation groupOperation, IGroupInstanceOperation groupInstanceOperation,
@@ -109,12 +111,13 @@ public class InputsBusinessLogic extends BaseBusinessLogic {
                                InterfaceLifecycleOperation interfaceLifecycleTypeOperation,
                                PropertyDeclarationOrchestrator propertyDeclarationOrchestrator,
                                ComponentInstanceBusinessLogic componentInstanceBusinessLogic, DataTypeBusinessLogic dataTypeBusinessLogic,
-                               ArtifactsOperations artifactToscaOperation) {
+                               ArtifactsOperations artifactToscaOperation, AccessValidations accessValidations) {
         super(elementDao, groupOperation, groupInstanceOperation, groupTypeOperation, interfaceOperation, interfaceLifecycleTypeOperation,
             artifactToscaOperation);
         this.propertyDeclarationOrchestrator = propertyDeclarationOrchestrator;
         this.componentInstanceBusinessLogic = componentInstanceBusinessLogic;
         this.dataTypeBusinessLogic = dataTypeBusinessLogic;
+        this.accessValidations = accessValidations;
     }
 
     /**
@@ -141,9 +144,9 @@ public class InputsBusinessLogic extends BaseBusinessLogic {
         return Either.left(inputs);
     }
 
-    public Either<List<ComponentInstanceInput>, ResponseFormat> getComponentInstanceInputs(String userId, String componentId,
+    public Either<List<ComponentInstanceInput>, ResponseFormat> getComponentInstanceInputs(String userId, String componentType, String componentId,
                                                                                            String componentInstanceId) {
-        validateUserExists(userId);
+        accessValidations.validateUserCanRetrieveComponentData(componentId, componentType, userId, "GET COMPONENT INSTANCE INPUTS");
         ComponentParametersView filters = new ComponentParametersView();
         filters.disableAll();
         filters.setIgnoreInputs(false);
@@ -180,9 +183,10 @@ public class InputsBusinessLogic extends BaseBusinessLogic {
      * @param inputId
      * @return
      */
-    public Either<List<ComponentInstanceProperty>, ResponseFormat> getComponentInstancePropertiesByInputId(String userId, String componentId,
-                                                                                                           String instanceId, String inputId) {
-        validateUserExists(userId);
+    public Either<List<ComponentInstanceProperty>, ResponseFormat> getComponentInstancePropertiesByInputId(String userId, String componentType,
+                                                                                                           String componentId, String instanceId,
+                                                                                                           String inputId) {
+        accessValidations.validateUserCanRetrieveComponentData(componentId, componentType, userId, "GET COMPONENT INSTANCE PROPERTIES BY INPUT");
         String parentId = componentId;
         Component component;
         ComponentParametersView filters = new ComponentParametersView();
@@ -359,8 +363,9 @@ public class InputsBusinessLogic extends BaseBusinessLogic {
         return propertyValueConstraintValidationUtil.validatePropertyConstraints(inputDefinitions, applicationDataTypeCache, model);
     }
 
-    public Either<List<ComponentInstanceInput>, ResponseFormat> getInputsForComponentInput(String userId, String componentId, String inputId) {
-        validateUserExists(userId);
+    public Either<List<ComponentInstanceInput>, ResponseFormat> getInputsForComponentInput(String userId, String componentType, String componentId,
+                                                                                           String inputId) {
+        accessValidations.validateUserCanRetrieveComponentData(componentId, componentType, userId, "GET INPUTS FOR COMPONENT INPUT");
         Component component = null;
         ComponentParametersView filters = new ComponentParametersView();
         filters.disableAll();
@@ -785,11 +790,11 @@ public class InputsBusinessLogic extends BaseBusinessLogic {
         return Either.left(newInputDefinition);
     }
 
-    public Either<InputDefinition, ResponseFormat> getInputsAndPropertiesForComponentInput(String userId, String componentId, String inputId,
-                                                                                           boolean inTransaction) {
+    public Either<InputDefinition, ResponseFormat> getInputsAndPropertiesForComponentInput(String userId, String componentType, String componentId,
+                                                                                           String inputId, boolean inTransaction) {
         Either<InputDefinition, ResponseFormat> result = null;
         try {
-            validateUserExists(userId);
+            accessValidations.validateUserCanRetrieveComponentData(componentId, componentType, userId, "GET INPUT AND PROPERTIES");
             ComponentParametersView filters = new ComponentParametersView();
             filters.disableAll();
             filters.setIgnoreComponentInstances(false);

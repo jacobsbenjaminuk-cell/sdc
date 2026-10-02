@@ -324,7 +324,7 @@ class InputsServletTest extends JerseyTest {
 
     @Test
     void test_getDataType_success() throws Exception {
-        when(dataTypeBusinessLogic.getPrivateDataType(eq(RESOURCE_ID), eq(LISTINPUT_SCHEMA_TYPE)))
+        when(dataTypeBusinessLogic.getPrivateDataType(eq(USER_ID), eq("services"), eq(RESOURCE_ID), eq(LISTINPUT_SCHEMA_TYPE)))
             .thenReturn(Either.left(new DataTypeDefinition()));
 
         ResponseFormat responseFormat = new ResponseFormat();
@@ -337,7 +337,7 @@ class InputsServletTest extends JerseyTest {
 
     @Test
     void test_getDataType_fail() throws Exception {
-        when(dataTypeBusinessLogic.getPrivateDataType(eq(RESOURCE_ID), eq(LISTINPUT_SCHEMA_TYPE)))
+        when(dataTypeBusinessLogic.getPrivateDataType(eq(USER_ID), eq("services"), eq(RESOURCE_ID), eq(LISTINPUT_SCHEMA_TYPE)))
             .thenReturn(Either.right(StorageOperationStatus.BAD_REQUEST));
 
         ResponseFormat responseFormat = new ResponseFormat();
@@ -352,7 +352,7 @@ class InputsServletTest extends JerseyTest {
 
     @Test
     void test_getDataType_fail_exception() throws Exception {
-        when(dataTypeBusinessLogic.getPrivateDataType(eq(RESOURCE_ID), eq(LISTINPUT_SCHEMA_TYPE)))
+        when(dataTypeBusinessLogic.getPrivateDataType(eq(USER_ID), eq("services"), eq(RESOURCE_ID), eq(LISTINPUT_SCHEMA_TYPE)))
             .thenReturn(Either.right(StorageOperationStatus.BAD_REQUEST));
         when(componentsUtils.getResponseFormat(eq(ActionStatus.GENERAL_ERROR)))
             .thenReturn(new ResponseFormat(HttpStatus.BAD_REQUEST_400.getStatusCode()));
@@ -363,7 +363,7 @@ class InputsServletTest extends JerseyTest {
 
     @Test
     void test_getDataTypes_success() throws Exception {
-        when(dataTypeBusinessLogic.getPrivateDataTypes(eq(RESOURCE_ID)))
+        when(dataTypeBusinessLogic.getPrivateDataTypes(eq(USER_ID), eq("services"), eq(RESOURCE_ID)))
             .thenReturn(Either.left(Collections.emptyList()));
 
         ResponseFormat responseFormat = new ResponseFormat();
@@ -376,7 +376,7 @@ class InputsServletTest extends JerseyTest {
 
     @Test
     void test_getDataTypes_fail() throws Exception {
-        when(dataTypeBusinessLogic.getPrivateDataTypes(eq(RESOURCE_ID)))
+        when(dataTypeBusinessLogic.getPrivateDataTypes(eq(USER_ID), eq("services"), eq(RESOURCE_ID)))
             .thenReturn(Either.right(StorageOperationStatus.BAD_REQUEST));
 
         ResponseFormat responseFormat = new ResponseFormat();
@@ -391,7 +391,7 @@ class InputsServletTest extends JerseyTest {
 
     @Test
     void test_getDataTypes_fail_exception() throws Exception {
-        when(dataTypeBusinessLogic.getPrivateDataType(eq(RESOURCE_ID), eq(LISTINPUT_SCHEMA_TYPE)))
+        when(dataTypeBusinessLogic.getPrivateDataType(eq(USER_ID), eq("services"), eq(RESOURCE_ID), eq(LISTINPUT_SCHEMA_TYPE)))
             .thenReturn(Either.right(StorageOperationStatus.BAD_REQUEST));
         when(componentsUtils.getResponseFormat(eq(ActionStatus.GENERAL_ERROR)))
             .thenReturn(new ResponseFormat(HttpStatus.BAD_REQUEST_400.getStatusCode()));
