@@ -135,7 +135,7 @@ public class ComponentNodeFilterServlet extends AbstractValidationsServlet {
             final FilterConstraintDto filterConstraintDto = new FilterConstraintMapper().mapFrom(uiConstraint);
             final Optional<CINodeFilterDataDefinition> actionResponse = componentNodeFilterBusinessLogic
                 .addNodeFilter(componentId.toLowerCase(), componentInstanceId,
-                    filterConstraintDto, true, componentTypeEnum, nodeFilterConstraintType.get());
+                    filterConstraintDto, true, componentTypeEnum, nodeFilterConstraintType.get(), userId);
             if (actionResponse.isEmpty()) {
                 LOGGER.error(FAILED_TO_CREATE_NODE_FILTER);
                 return buildErrorResponse(getComponentsUtils().getResponseFormat(ActionStatus.GENERAL_ERROR));
@@ -195,7 +195,7 @@ public class ComponentNodeFilterServlet extends AbstractValidationsServlet {
             final NodeFilterConstraintType nodeFilterConstraintType = nodeFilterConstraintTypeOptional.get();
             final Optional<CINodeFilterDataDefinition> actionResponse = componentNodeFilterBusinessLogic
                 .updateNodeFilter(componentId.toLowerCase(), componentInstanceId, new FilterConstraintMapper().mapFrom(uiConstraint),
-                    componentTypeEnum, nodeFilterConstraintType, index);
+                    componentTypeEnum, nodeFilterConstraintType, index, userId);
             if (actionResponse.isEmpty()) {
                 LOGGER.error(FAILED_TO_UPDATE_NODE_FILTER);
                 return buildErrorResponse(getComponentsUtils().getResponseFormat(ActionStatus.GENERAL_ERROR));
@@ -205,6 +205,8 @@ public class ComponentNodeFilterServlet extends AbstractValidationsServlet {
                 mapToLegacyResponse(uiNodeFilter);
             }
             return buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.OK), uiNodeFilter);
+        } catch (final ComponentException e) {
+            throw e;
         } catch (final Exception e) {
             BeEcompErrorManager.getInstance().logBeRestApiGeneralError(NODE_FILTER_UPDATE);
             LOGGER.error(UPDATE_NODE_FILTER_WITH_AN_ERROR, e);
@@ -243,13 +245,15 @@ public class ComponentNodeFilterServlet extends AbstractValidationsServlet {
             }
             final Optional<CINodeFilterDataDefinition> actionResponse = componentNodeFilterBusinessLogic
                 .deleteNodeFilter(componentId.toLowerCase(), componentInstanceId, index, true,
-                    ComponentTypeEnum.findByParamName(componentType), nodeFilterConstraintType.get());
+                    ComponentTypeEnum.findByParamName(componentType), nodeFilterConstraintType.get(), userId);
             if (actionResponse.isEmpty()) {
                 LOGGER.debug(FAILED_TO_DELETE_NODE_FILTER);
                 return buildErrorResponse(getComponentsUtils().getResponseFormat(ActionStatus.GENERAL_ERROR));
             }
             return buildOkResponse(getComponentsUtils().getResponseFormat(ActionStatus.OK),
                 new NodeFilterConverter().convertToUi(actionResponse.get()));
+        } catch (final ComponentException e) {
+            throw e;
         } catch (final Exception e) {
             BeEcompErrorManager.getInstance().logBeRestApiGeneralError(NODE_FILTER_DELETE);
             LOGGER.debug(DELETE_NODE_FILTER_WITH_AN_ERROR, e);
