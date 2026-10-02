@@ -694,6 +694,7 @@ public class InputsBusinessLogic extends BaseBusinessLogic {
             throw new ByActionStatusComponentException(componentsUtils.convertFromStorageResponse(componentEither.right().value()));
         }
         Component component = componentEither.left().value();
+        validateCanWorkOnComponent(component, userId);
         // Validate inputId is child of the component
         Optional<InputDefinition> optionalInput = component.getInputs().stream().
             // filter by ID
